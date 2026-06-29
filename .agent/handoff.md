@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; first testing phase is in progress.
+- Status: macOS preview build is usable enough for manual product evaluation; first route-level update tests have been added.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds isolated tests for version and update helper logic.
+- Current uncommitted work adds route-level tests for non-Windows update fallback behavior.
 
 ## Changes Made
 
@@ -39,10 +39,13 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Extracted release asset, patch asset, release-note, digest, URL basename, and safe update filename helpers from `server.js`.
 - `tests/update-utils.test.js`
   - Covers installer asset preference, patch matching, digest normalization, safe filename fallback/sanitization, URL basename extraction, and release-note filtering.
+- `tests/update-routes.test.js`
+  - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
   - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
+  - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
   - Skips Chromium `use-angle=d3d11` outside Windows.
@@ -58,7 +61,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 10 tests.
+- `npm test`: passed, 13 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -86,7 +89,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level only; integration coverage around HTTP routes and download job state is still pending.
+- Update flow behavior is covered at helper level and on the non-Windows preview route fallback path; Windows release fetching, download job state, and patch application integration coverage are still pending.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -107,6 +110,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 5. If resuming the current test phase, first inspect:
    - `lib/version-utils.js`
    - `lib/update-utils.js`
+   - `tests/update-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue test coverage outward from pure helpers into route-level update behavior, then playback/search/login flows.
+6. Next implementation step: continue test coverage from non-Windows update fallback into Windows/manifest update route behavior with injected test seams, then playback/search/login flows.

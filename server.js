@@ -4090,11 +4090,13 @@ const server = http.createServer(async (req, res) => {
   serveStatic(res, filePath);
 });
 
-server.listen(PORT, HOST, () => {
-  console.log('======================================================');
-  console.log(' 粒子音乐可视化 v2  →  http://localhost:' + PORT);
-  console.log(' 登录态: ' + (userCookie ? '已登录(cookie已加载)' : '未登录'));
-  console.log('======================================================');
-});
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, HOST, () => {
+    console.log('======================================================');
+    console.log(' 粒子音乐可视化 v2  →  http://localhost:' + PORT);
+    console.log(' 登录态: ' + (userCookie ? '已登录(cookie已加载)' : '未登录'));
+    console.log('======================================================');
+  });
+}
 
 module.exports = server;
