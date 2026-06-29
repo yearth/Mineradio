@@ -32,6 +32,9 @@ const MIN_WINDOWED_HEIGHT = 540;
 const APP_NAME = 'Mineradio';
 const APP_USER_MODEL_ID = 'com.mineradio.desktop';
 const APP_ICON_ICO = path.join(__dirname, '..', 'build', 'icon.ico');
+const APP_ICON = process.platform === 'win32'
+  ? APP_ICON_ICO
+  : path.join(__dirname, '..', 'build', 'icon.png');
 const NETEASE_LOGIN_PARTITION = 'persist:mineradio-netease-login';
 const NETEASE_LOGIN_URL = 'https://music.163.com/#/login';
 const QQ_LOGIN_PARTITION = 'persist:mineradio-qqmusic-login';
@@ -51,6 +54,7 @@ const CHROMIUM_PERFORMANCE_SWITCHES = [
   ['use-angle', 'd3d11'],
 ];
 for (const [name, value] of CHROMIUM_PERFORMANCE_SWITCHES) {
+  if (name === 'use-angle' && process.platform !== 'win32') continue;
   if (value == null) app.commandLine.appendSwitch(name);
   else app.commandLine.appendSwitch(name, value);
 }
@@ -417,7 +421,7 @@ async function openNeteaseMusicLoginWindow(owner) {
       autoHideMenuBar: true,
       title: '网易云音乐登录',
       backgroundColor: '#111111',
-      icon: APP_ICON_ICO,
+      icon: APP_ICON,
       webPreferences: {
         partition: NETEASE_LOGIN_PARTITION,
         contextIsolation: true,
@@ -519,7 +523,7 @@ async function openQQMusicLoginWindow(owner) {
       autoHideMenuBar: true,
       title: 'QQ 音乐登录',
       backgroundColor: '#111111',
-      icon: APP_ICON_ICO,
+      icon: APP_ICON,
       webPreferences: {
         partition: QQ_LOGIN_PARTITION,
         contextIsolation: true,
@@ -1040,6 +1044,7 @@ function sendWallpaperState() {
 }
 
 function createWallpaperWindow(payload = {}) {
+  if (process.platform !== 'win32') return null;
   wallpaperState = { ...wallpaperState, ...payload, enabled: true };
   if (wallpaperWindow && !wallpaperWindow.isDestroyed()) {
     positionWallpaperWindow();
@@ -1291,6 +1296,10 @@ ipcMain.handle('mineradio-desktop-lyrics-move-by', async (_event, dx, dy) => {
 
 ipcMain.handle('mineradio-wallpaper-set-enabled', async (_event, enabled, payload) => {
   try {
+    if (enabled && process.platform !== 'win32') {
+      wallpaperState = { ...wallpaperState, ...(payload || {}), enabled: false };
+      return { ok: false, unsupported: true, error: 'WALLPAPER_UNSUPPORTED_ON_PLATFORM' };
+    }
     if (enabled) createWallpaperWindow(payload || {});
     else closeWallpaperWindow();
     return { ok: true };
@@ -1302,6 +1311,10 @@ ipcMain.handle('mineradio-wallpaper-set-enabled', async (_event, enabled, payloa
 ipcMain.handle('mineradio-wallpaper-update', async (_event, payload) => {
   try {
     wallpaperState = { ...wallpaperState, ...(payload || {}) };
+    if (wallpaperState.enabled && process.platform !== 'win32') {
+      wallpaperState.enabled = false;
+      return { ok: false, unsupported: true, error: 'WALLPAPER_UNSUPPORTED_ON_PLATFORM' };
+    }
     if (wallpaperState.enabled) {
       createWallpaperWindow(wallpaperState);
       if (wallpaperWindow && !wallpaperWindow.isDestroyed()) {
@@ -1357,7 +1370,7 @@ async function createWindow() {
     hasShadow: true,
     autoHideMenuBar: true,
     title: APP_NAME,
-    icon: APP_ICON_ICO,
+    icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
