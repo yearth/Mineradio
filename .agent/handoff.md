@@ -2,14 +2,15 @@
 
 ## Goal
 
-Create a first-pass macOS preview build of Mineradio so the user can see the product on macOS before deeper testing and refactoring work.
+Create a first-pass macOS preview build of Mineradio, then incrementally add tests before any larger architecture refactor.
 
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation.
+- Status: macOS preview build is usable enough for manual product evaluation; first testing phase is in progress.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
-- Commit pending at time of writing this handoff.
+- macOS preview commit: `ba9fd97 feat: add macOS preview build`.
+- Current uncommitted work adds isolated tests for version and update helper logic.
 
 ## Changes Made
 
@@ -30,9 +31,18 @@ Create a first-pass macOS preview build of Mineradio so the user can see the pro
   - Linux-like platforms use `~/.mineradio/beatmaps`.
 - `tests/platform-paths.test.js`
   - Added Node built-in tests for platform default cache paths.
+- `lib/version-utils.js`
+  - Extracted version normalization and numeric version comparison from `server.js`.
+- `tests/version-utils.test.js`
+  - Covers `v` prefix removal, prerelease/build metadata stripping, numeric segment comparison, and missing segment zero-fill behavior.
+- `lib/update-utils.js`
+  - Extracted release asset, patch asset, release-note, digest, URL basename, and safe update filename helpers from `server.js`.
+- `tests/update-utils.test.js`
+  - Covers installer asset preference, patch matching, digest normalization, safe filename fallback/sanitization, URL basename extraction, and release-note filtering.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
+  - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
   - Skips Chromium `use-angle=d3d11` outside Windows.
@@ -48,7 +58,7 @@ Create a first-pass macOS preview build of Mineradio so the user can see the pro
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 3 tests.
+- `npm test`: passed, 10 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -62,6 +72,8 @@ Create a first-pass macOS preview build of Mineradio so the user can see the pro
 
 - Do not refactor the large `public/index.html` yet.
 - Do not introduce React/Vue/RN.
+- Add tests around pure, extractable business logic before touching UI-heavy or Electron-specific paths.
+- Independent QA must be done by a read-only subagent; do not count self-review as acceptance.
 - Do not implement full macOS auto-update, notarization, or real Developer ID signing in this phase.
 - Disable or degrade Windows-only features rather than blocking app startup.
 - Keep Windows behavior unchanged where possible.
@@ -73,7 +85,9 @@ Create a first-pass macOS preview build of Mineradio so the user can see the pro
 - Wallpaper mode is intentionally unsupported on macOS preview.
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
-- The app still has no meaningful broad test suite; full test coverage remains a later phase before architecture refactoring.
+- The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
+- Update flow behavior is covered at helper level only; integration coverage around HTTP routes and download job state is still pending.
+- UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
 
@@ -89,5 +103,10 @@ Create a first-pass macOS preview build of Mineradio so the user can see the pro
    - `npm test`
    - `node --check server.js`
    - `node --check desktop/main.js`
-5. Next implementation step: perform manual macOS product smoke testing and record which features fail before adding any deeper refactor.
-
+   - `git diff --check`
+5. If resuming the current test phase, first inspect:
+   - `lib/version-utils.js`
+   - `lib/update-utils.js`
+   - `tests/version-utils.test.js`
+   - `tests/update-utils.test.js`
+6. Next implementation step: continue test coverage outward from pure helpers into route-level update behavior, then playback/search/login flows.

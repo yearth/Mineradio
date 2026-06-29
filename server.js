@@ -54,6 +54,16 @@ const { once } = require('events');
 const { fileURLToPath } = require('url');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
 const { defaultBeatMapCacheDir } = require('./lib/platform-paths');
+const { compareVersions, normalizeVersion } = require('./lib/version-utils');
+const {
+  cleanReleaseLine,
+  extractReleaseNotes,
+  normalizeDigest,
+  pickPatchAsset,
+  pickReleaseAsset,
+  safeUpdateFileName,
+  updateAssetNameFromUrl,
+} = require('./lib/update-utils');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -269,19 +279,6 @@ function readUpdateMirrors(local) {
   });
   return mirrors.slice(0, 6);
 }
-function normalizeDigest(value, algorithm) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const prefix = new RegExp('^' + algorithm + ':', 'i');
-  return raw.replace(prefix, '').trim().replace(/^['"]|['"]$/g, '');
-}
-function assetDigestInfo(asset) {
-  const digest = String(asset && asset.digest || '').trim();
-  return {
-    sha256: normalizeDigest((asset && asset.sha256) || (/^sha256:/i.test(digest) ? digest : ''), 'sha256').toLowerCase(),
-    sha512: normalizeDigest((asset && asset.sha512) || (/^sha512:/i.test(digest) ? digest : ''), 'sha512'),
-  };
-}
 function buildMirrorUrl(originalUrl, mirror) {
   const source = String(originalUrl || '').trim();
   const base = String(mirror || '').trim();
@@ -326,101 +323,6 @@ function publicDownloadUrls(candidates) {
   return (Array.isArray(candidates) ? candidates : [])
     .map(item => item && item.url)
     .filter(Boolean);
-}
-function normalizeVersion(value) {
-  return String(value || '').trim().replace(/^v/i, '').replace(/[+].*$/, '').replace(/-.+$/, '');
-}
-function compareVersions(a, b) {
-  const aa = normalizeVersion(a).split('.').map(n => parseInt(n, 10) || 0);
-  const bb = normalizeVersion(b).split('.').map(n => parseInt(n, 10) || 0);
-  const len = Math.max(aa.length, bb.length, 3);
-  for (let i = 0; i < len; i++) {
-    const left = aa[i] || 0;
-    const right = bb[i] || 0;
-    if (left > right) return 1;
-    if (left < right) return -1;
-  }
-  return 0;
-}
-function cleanReleaseLine(line) {
-  return String(line || '')
-    .replace(/^\s*#{1,6}\s*/, '')
-    .replace(/^\s*[-*]\s+/, '')
-    .replace(/^\s*\d+[.)]\s+/, '')
-    .replace(/\*\*/g, '')
-    .replace(/`/g, '')
-    .trim();
-}
-function extractReleaseNotes(body) {
-  const notes = [];
-  String(body || '').split(/\r?\n/).forEach(line => {
-    const text = cleanReleaseLine(line);
-    if (!text) return;
-    if (/^(what'?s changed|changes|changelog|full changelog|更新日志)$/i.test(text)) return;
-    if (/^https?:\/\//i.test(text)) return;
-    if (text.length > 72) return;
-    notes.push(text);
-  });
-  return notes.slice(0, 4);
-}
-function pickReleaseAsset(assets) {
-  const list = Array.isArray(assets) ? assets : [];
-  const preferred = list.find(a => /\.(exe|msi)$/i.test(a && a.name || ''))
-    || list.find(a => /\.(zip|7z)$/i.test(a && a.name || ''))
-    || list[0];
-  if (!preferred) return null;
-  const digest = assetDigestInfo(preferred);
-  const candidates = uniqueDownloadCandidates(preferred.browser_download_url || '');
-  return {
-    name: preferred.name || '',
-    size: preferred.size || 0,
-    contentType: preferred.content_type || '',
-    downloadUrl: preferred.browser_download_url || '',
-    downloadUrls: publicDownloadUrls(candidates),
-    sha256: digest.sha256 || '',
-    sha512: digest.sha512 || '',
-  };
-}
-function patchAssetVersions(name) {
-  const matches = String(name || '').match(/\d+(?:[._-]\d+){1,3}/g) || [];
-  return matches.map(item => normalizeVersion(item.replace(/[._-]/g, '.'))).filter(Boolean);
-}
-function pickPatchAsset(assets, currentVersion, latestVersion) {
-  const list = Array.isArray(assets) ? assets : [];
-  const current = normalizeVersion(currentVersion || APP_VERSION);
-  const latest = normalizeVersion(latestVersion || '');
-  const preferred = list.find(a => {
-    const name = String(a && a.name || '');
-    if (!/\.(patch\.json|patch|json)$/i.test(name)) return false;
-    const versions = patchAssetVersions(name);
-    if (latest) return versions[0] === current && versions[versions.length - 1] === latest;
-    return versions[0] === current && name.toLowerCase().includes('patch');
-  }) || list.find(a => {
-    const name = String(a && a.name || '');
-    if (!/\.(patch\.json|patch|json)$/i.test(name)) return false;
-    const versions = patchAssetVersions(name);
-    return versions[0] === current && name.toLowerCase().includes('patch');
-  }) || list.find(a => /\.(patch\.json|patch)$/i.test(a && a.name || ''));
-  if (!preferred) return null;
-  const digest = assetDigestInfo(preferred);
-  const candidates = uniqueDownloadCandidates(preferred.browser_download_url || '');
-  return {
-    name: preferred.name || '',
-    size: preferred.size || 0,
-    contentType: preferred.content_type || '',
-    downloadUrl: preferred.browser_download_url || '',
-    downloadUrls: publicDownloadUrls(candidates),
-    sha256: digest.sha256 || '',
-    sha512: digest.sha512 || '',
-  };
-}
-function updateAssetNameFromUrl(value) {
-  try {
-    const u = new URL(String(value || ''));
-    const base = path.basename(decodeURIComponent(u.pathname || ''));
-    if (base) return base;
-  } catch (_) {}
-  return path.basename(String(value || '').split('?')[0]) || '';
 }
 function normalizeManifestUpdateInfo(data) {
   data = data || {};
@@ -736,8 +638,8 @@ async function fetchLatestUpdateInfo() {
     }
     const data = await resp.json();
     const latestVersion = normalizeVersion(data.tag_name || data.name || APP_VERSION) || APP_VERSION;
-    const asset = pickReleaseAsset(data.assets);
-    const patch = pickPatchAsset(data.assets, APP_VERSION, latestVersion);
+    const asset = pickReleaseAsset(data.assets, { uniqueDownloadCandidates });
+    const patch = pickPatchAsset(data.assets, APP_VERSION, latestVersion, { uniqueDownloadCandidates });
     const notes = extractReleaseNotes(data.body).length ? extractReleaseNotes(data.body) : UPDATE_FALLBACK_NOTES;
     return {
       configured: true,
@@ -766,15 +668,6 @@ async function fetchLatestUpdateInfo() {
   } finally {
     clearTimeout(timer);
   }
-}
-function safeUpdateFileName(name, version) {
-  const raw = String(name || '').trim() || `Mineradio-${version || APP_VERSION}.exe`;
-  const cleaned = raw
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 160);
-  return cleaned || `Mineradio-${version || APP_VERSION}.exe`;
 }
 function publicUpdateJob(job) {
   if (!job) return { ok: false, error: 'UPDATE_JOB_NOT_FOUND' };
