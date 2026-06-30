@@ -2234,6 +2234,106 @@ test('/api/playlist/add-song falls back to playlist_track_add when playlist_trac
   assert.equal(calls[1][1].ids, '101,102');
 });
 
+test('/api/playlist/add-song validates playlist and song ids before provider calls', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9702, nickname: 'Playlist Add Validation User' },
+    api: {
+      playlist_tracks: async opts => {
+        calls.push(['playlist_tracks', opts]);
+        return { body: { code: 200 } };
+      },
+      playlist_track_add: async opts => {
+        calls.push(['playlist_track_add', opts]);
+        return { body: { code: 200 } };
+      },
+    },
+  });
+
+  const missingSong = await postJson('/api/playlist/add-song', { pid: '77' });
+  const missingPlaylist = await postJson('/api/playlist/add-song', { id: '101' });
+
+  assert.equal(missingSong.status, 400);
+  assert.deepEqual(missingSong.body, { error: 'Missing playlist id or song id' });
+  assert.equal(missingPlaylist.status, 400);
+  assert.deepEqual(missingPlaylist.body, { error: 'Missing playlist id or song id' });
+  assert.deepEqual(calls, []);
+});
+
+test('/api/playlist/add-song reports failed provider attempts', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9703, nickname: 'Playlist Add Failure User' },
+    api: {
+      playlist_tracks: async opts => {
+        calls.push(['playlist_tracks', opts]);
+        return { body: { code: 500, message: 'primary failed' } };
+      },
+      playlist_track_add: async opts => {
+        calls.push(['playlist_track_add', opts]);
+        return { body: { code: 401, message: 'login expired' } };
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/playlist/add-song', { pid: '77', ids: '101,102' });
+
+  assert.equal(status, 401);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 401);
+  assert.equal(body.error, 'login expired');
+  assert.deepEqual(body.attempts.map(item => item.api), ['playlist_tracks', 'playlist_track_add']);
+  assert.equal(body.attempts[0].code, 500);
+  assert.equal(body.attempts[1].code, 401);
+  assert.deepEqual(calls.map(call => call[0]), ['playlist_tracks', 'playlist_track_add']);
+});
+
+test('/api/playlist/add-song records fallback exceptions', async () => {
+  await loginAs({
+    profile: { userId: 9704, nickname: 'Playlist Add Fallback Error User' },
+    api: {
+      playlist_tracks: async () => ({ body: { code: 500, message: 'primary failed' } }),
+      playlist_track_add: async () => {
+        throw new Error('fallback unavailable');
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/playlist/add-song', { pid: '77', id: '101' });
+
+  assert.equal(status, 409);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.success, false);
+  assert.equal(body.code, 0);
+  assert.equal(body.error, 'fallback unavailable');
+  assert.deepEqual(body.attempts.map(item => item.api), ['playlist_tracks', 'playlist_track_add']);
+  assert.equal(body.attempts[1].message, 'fallback unavailable');
+});
+
+test('/api/playlist/add-song reports primary provider exceptions', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9705, nickname: 'Playlist Add Primary Error User' },
+      api: {
+        playlist_tracks: async () => {
+          throw new Error('primary unavailable');
+        },
+        playlist_track_add: async () => ({ body: { code: 200 } }),
+      },
+    });
+
+    const { status, body } = await postJson('/api/playlist/add-song', { pid: '77', id: '101' });
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { error: 'primary unavailable' });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/song/comments requires a song id', async () => {
   const { status, body } = await getJson('/api/song/comments');
 
