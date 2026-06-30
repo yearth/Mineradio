@@ -101,6 +101,7 @@ const updateRuntimeOverrides = {
   platform: '',
   manifest: '',
   autoDownload: true,
+  autoPatch: true,
 };
 
 function applySystemCertificateAuthorities() {
@@ -1277,7 +1278,7 @@ function startUpdatePatchJob(info) {
   };
   updateDownloadJobs.set(job.id, job);
   trimUpdateJobs();
-  downloadAndApplyPatchWithMirrors(job);
+  if (updateRuntimeOverrides.autoPatch !== false) downloadAndApplyPatchWithMirrors(job);
   return publicUpdateJob(job);
 }
 function readRequestBody(req) {
@@ -4123,10 +4124,14 @@ if (process.env.NODE_ENV === 'test') {
     setUpdateAutoDownload(value) {
       updateRuntimeOverrides.autoDownload = value !== false;
     },
+    setUpdateAutoPatch(value) {
+      updateRuntimeOverrides.autoPatch = value !== false;
+    },
     resetUpdateRuntime() {
       updateRuntimeOverrides.platform = '';
       updateRuntimeOverrides.manifest = '';
       updateRuntimeOverrides.autoDownload = true;
+      updateRuntimeOverrides.autoPatch = true;
       updateDownloadJobs.clear();
     },
   };

@@ -63,6 +63,26 @@ function manifestWithInstaller(version) {
   };
 }
 
+function manifestWithPatch(version) {
+  return {
+    version,
+    release: {
+      name: `Mineradio v${version}`,
+      downloadUrl: `https://example.com/Mineradio-${version}-Setup.exe`,
+      patchAvailable: true,
+      patch: {
+        name: `Mineradio-1.1.1-to-${version}.patch.json`,
+        size: 2345,
+        downloadUrl: `https://example.com/Mineradio-1.1.1-to-${version}.patch.json`,
+        from: '1.1.1',
+        to: version,
+        sha256: 'sha256:FACEFEED',
+      },
+      notes: ['快速补丁'],
+    },
+  };
+}
+
 test('/api/update/latest returns the non-Windows preview fallback', async () => {
   const { status, body } = await getJson('/api/update/latest');
 
@@ -130,6 +150,34 @@ test('/api/update/download does not start a Windows installer job for the previe
   assert.equal(status, 400);
   assert.equal(body.ok, false);
   assert.equal(body.error, 'NO_UPDATE_AVAILABLE');
+});
+
+test('/api/update/patch creates a patch job from a Windows manifest without applying a test patch', async () => {
+  const manifestPath = writeUpdateManifest('manifest-patch.json', manifestWithPatch('1.2.0'));
+
+  assert.equal(typeof server.__test.setUpdatePlatform, 'function');
+  assert.equal(typeof server.__test.setUpdateManifest, 'function');
+  assert.equal(typeof server.__test.setUpdateAutoPatch, 'function');
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+  server.__test.setUpdateAutoPatch(false);
+
+  const { status, body } = await getJson('/api/update/patch');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'queued');
+  assert.equal(body.mode, 'patch');
+  assert.equal(body.fileName, 'Mineradio-1.1.1-to-1.2.0.patch.json');
+  assert.equal(body.version, '1.2.0');
+  assert.equal(body.total, 2345);
+  assert.equal(body.restartRequired, true);
+  assert.equal(body.filePath, '');
+
+  const lookup = await getJson('/api/update/patch/status?id=' + encodeURIComponent(body.id));
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.id, body.id);
+  assert.equal(lookup.body.status, 'queued');
 });
 
 test('/api/update/patch does not start a patch job for the preview fallback', async () => {

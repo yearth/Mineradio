@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, and installer download job creation.
+- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer job creation, and patch job creation.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds a test-only auto-download override and an installer `/api/update/download` job creation test.
+- Current uncommitted work adds a test-only auto-patch override and a patch `/api/update/patch` job creation test.
 
 ## Changes Made
 
@@ -43,12 +43,13 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
   - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
   - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
+  - Covers Windows manifest `/api/update/patch` creating a queued patch job without applying a real patch in tests.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
   - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
   - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
-  - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download and reset update job state.
+  - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch and reset update job state.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
   - Skips Chromium `use-angle=d3d11` outside Windows.
@@ -64,7 +65,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 15 tests.
+- `npm test`: passed, 16 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -92,7 +93,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, and on installer job creation; actual download execution, GitHub release fetching, patch job state, and patch application integration coverage are still pending.
+- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer job creation, and patch job creation; actual download execution, GitHub release fetching, and patch application integration coverage are still pending.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -116,4 +117,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/update-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue from installer job creation into patch job creation, then download error/cache branches and playback/search/login flows.
+6. Next implementation step: continue from installer/patch job creation into download error/cache branches, then patch application branches and playback/search/login flows.
