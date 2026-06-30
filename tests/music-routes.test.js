@@ -410,6 +410,58 @@ test('/api/song/url returns trial-only restriction metadata for logged-in Neteas
   assert.equal(calls[0][1].cookie, 'MUSIC_U=test-user; __csrf=test-csrf');
 });
 
+test('/api/song/url classifies logged-in Netease playback restrictions', async () => {
+  await loginAs({
+    profile: { userId: 9305, nickname: 'Restricted User', vipType: 0 },
+  });
+  const cases = [
+    {
+      query: '/api/song/url?id=201&quality=standard',
+      upstream: { id: '201', url: null, fee: 1, code: 200 },
+      reason: 'vip_required',
+      action: 'upgrade',
+    },
+    {
+      query: '/api/song/url?id=202&quality=standard',
+      upstream: { id: '202', url: null, fee: 4, code: 200 },
+      reason: 'paid_required',
+      action: 'purchase',
+    },
+    {
+      query: '/api/song/url?id=203&quality=standard',
+      upstream: { id: '203', url: null, fee: 0, code: 404 },
+      reason: 'copyright_unavailable',
+      action: 'switch_source',
+    },
+  ];
+
+  for (const item of cases) {
+    server.__test.setNeteaseApi({
+      login_status: async () => ({
+        body: {
+          data: {
+            profile: { userId: 9305, nickname: 'Restricted User', vipType: 0 },
+            account: { id: 9305 },
+          },
+        },
+      }),
+      song_url_v1: async () => ({ body: { data: [item.upstream] } }),
+      song_url: async () => ({ body: { data: [] } }),
+    });
+
+    const { status, body } = await getJson(item.query);
+
+    assert.equal(status, 200);
+    assert.equal(body.url, null);
+    assert.equal(body.playable, false);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.reason, item.reason);
+    assert.equal(body.restriction.category, item.reason);
+    assert.equal(body.restriction.action, item.action);
+    assert.equal(body.restriction.provider, 'netease');
+  }
+});
+
 test('/api/qq/search maps smartbox results with song detail enrichment', async () => {
   const calls = [];
   const originalLog = console.log;
