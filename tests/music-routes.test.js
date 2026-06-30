@@ -1865,6 +1865,39 @@ test('/api/song/like/check requires login', async () => {
   assert.equal(body.loggedIn, false);
 });
 
+test('/api/song/like/check validates song ids and reports provider errors', async () => {
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  console.error = () => {};
+  console.warn = () => {};
+  await loginAs({
+    profile: { userId: 9201, nickname: 'Like Error User' },
+    api: {
+      song_like_check: async () => {
+        throw new Error('direct check unavailable');
+      },
+      likelist: async () => {
+        throw new Error('likelist unavailable');
+      },
+    },
+  });
+
+  try {
+    const missing = await getJson('/api/song/like/check');
+
+    assert.equal(missing.status, 400);
+    assert.deepEqual(missing.body, { error: 'Missing song id', liked: {}, ids: [] });
+
+    const failed = await getJson('/api/song/like/check?ids=abc');
+
+    assert.equal(failed.status, 500);
+    assert.deepEqual(failed.body, { error: 'likelist unavailable' });
+  } finally {
+    console.error = originalError;
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/song/like/check returns direct liked status for logged-in users', async () => {
   const calls = [];
   await loginAs({
@@ -2064,6 +2097,33 @@ test('/api/song/like toggles liked state for logged-in users', async () => {
   assert.equal(calls[0].like, 'false');
 });
 
+test('/api/song/like validates song id and reports provider errors', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  await loginAs({
+    profile: { userId: 9501, nickname: 'Toggle Error User' },
+    api: {
+      like: async () => {
+        throw new Error('like unavailable');
+      },
+    },
+  });
+
+  try {
+    const missing = await postJson('/api/song/like', { like: true });
+
+    assert.equal(missing.status, 400);
+    assert.deepEqual(missing.body, { error: 'Missing song id' });
+
+    const failed = await postJson('/api/song/like', { id: '101', like: true });
+
+    assert.equal(failed.status, 500);
+    assert.deepEqual(failed.body, { error: 'like unavailable' });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/playlist/create creates a playlist for logged-in users', async () => {
   const calls = [];
   await loginAs({
@@ -2089,6 +2149,33 @@ test('/api/playlist/create creates a playlist for logged-in users', async () => 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].name, 'Night Rain');
   assert.equal(calls[0].privacy, '10');
+});
+
+test('/api/playlist/create validates names and reports provider errors', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  await loginAs({
+    profile: { userId: 9601, nickname: 'Playlist Error User' },
+    api: {
+      playlist_create: async () => {
+        throw new Error('create unavailable');
+      },
+    },
+  });
+
+  try {
+    const missing = await postJson('/api/playlist/create', { name: '   ' });
+
+    assert.equal(missing.status, 400);
+    assert.deepEqual(missing.body, { error: 'Missing playlist name' });
+
+    const failed = await postJson('/api/playlist/create', { name: 'Broken List' });
+
+    assert.equal(failed.status, 500);
+    assert.deepEqual(failed.body, { error: 'create unavailable' });
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/playlist/add-song reports success from playlist_tracks', async () => {
