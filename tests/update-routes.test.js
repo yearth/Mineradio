@@ -80,7 +80,7 @@ function writeCachedInstaller(fileName, content) {
 }
 
 function fakeDownloadResponse(content) {
-  global.fetch = async () => ({
+  return {
     ok: true,
     headers: {
       get(name) {
@@ -93,7 +93,31 @@ function fakeDownloadResponse(content) {
         controller.close();
       },
     }),
-  });
+  };
+}
+
+function fakeDownloadFetch(content) {
+  global.fetch = async () => fakeDownloadResponse(content);
+}
+
+function fakeHttpResponse(status) {
+  return {
+    ok: false,
+    status,
+    headers: { get() { return ''; } },
+  };
+}
+
+function fakeFetchSequence(responses) {
+  const queue = responses.slice();
+  const calls = [];
+  global.fetch = async url => {
+    calls.push(String(url || ''));
+    const next = queue.shift();
+    if (typeof next === 'function') return next(url);
+    return next || fakeHttpResponse(500);
+  };
+  return calls;
 }
 
 async function waitForUpdateStatus(pathname, done) {
@@ -250,7 +274,7 @@ test('/api/update/download marks installer ready after a verified download', asy
     size: content.length,
     sha256: 'sha256:' + sha256Hex(content),
   }));
-  fakeDownloadResponse(content);
+  fakeDownloadFetch(content);
 
   server.__test.setUpdatePlatform('win32');
   server.__test.setUpdateManifest(manifestPath);
@@ -280,7 +304,7 @@ test('/api/update/download reports an error when downloaded installer sha256 mis
     size: content.length,
     sha256: 'sha256:' + sha256Hex(Buffer.from('expected installer package')),
   }));
-  fakeDownloadResponse(content);
+  fakeDownloadFetch(content);
 
   server.__test.setUpdatePlatform('win32');
   server.__test.setUpdateManifest(manifestPath);
@@ -308,7 +332,7 @@ test('/api/update/download reports an error when downloaded installer size misma
     size: content.length + 10,
     sha256: 'sha256:' + sha256Hex(content),
   }));
-  fakeDownloadResponse(content);
+  fakeDownloadFetch(content);
 
   server.__test.setUpdatePlatform('win32');
   server.__test.setUpdateManifest(manifestPath);
@@ -327,6 +351,71 @@ test('/api/update/download reports an error when downloaded installer size misma
   assert.equal(lookup.body.status, 'error');
   assert.equal(lookup.body.error, 'UPDATE_SIZE_MISMATCH');
   assert.match(lookup.body.errorReason, /下载文件大小不一致/);
+  assert.equal(lookup.body.filePath, '');
+});
+
+test('/api/update/download switches to the next candidate after an HTTP failure', async () => {
+  const content = Buffer.from('fallback installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-fallback.json', manifestWithInstaller('1.2.6', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+  const calls = fakeFetchSequence([
+    fakeHttpResponse(404),
+    fakeDownloadResponse(content),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.failedAttempts.length, 1);
+  assert.match(lookup.body.failedAttempts[0].reason, /更新文件不存在/);
+  assert.equal(calls.length, 2);
+  assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download reports an error after all candidates fail', async () => {
+  const manifestPath = writeUpdateManifest('manifest-download-all-fail.json', manifestWithInstaller('1.2.7', {
+    size: 123,
+    sha256: 'sha256:' + sha256Hex(Buffer.from('never downloaded')),
+  }));
+  const calls = fakeFetchSequence([
+    fakeHttpResponse(500),
+    fakeHttpResponse(404),
+    fakeHttpResponse(403),
+    fakeHttpResponse(500),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'HTTP_500');
+  assert.match(lookup.body.errorReason, /服务器异常/);
+  assert.equal(calls.length > 1, true);
+  assert.equal(lookup.body.failedAttempts.length, Math.min(calls.length, 6));
   assert.equal(lookup.body.filePath, '');
 });
 
