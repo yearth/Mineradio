@@ -1522,3 +1522,346 @@ test('/api/playlist/tracks falls back to playlist_detail when playlist_track_all
     console.warn = originalWarn;
   }
 });
+
+test('/api/podcast/search returns an empty list for blank keywords', async () => {
+  let called = false;
+  server.__test.setNeteaseApi({
+    cloudsearch: async () => {
+      called = true;
+      return { body: {} };
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/search?keywords=%20');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { podcasts: [] });
+  assert.equal(called, false);
+});
+
+test('/api/podcast/search maps Netease podcast radios', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          result: {
+            djRadiosCount: 2,
+            djRadios: [
+              {
+                id: 901,
+                name: 'Late Talk',
+                picUrl: 'https://img.example/podcast.jpg',
+                desc: 'Night words',
+                category: '情感',
+                programCount: 12,
+                subCount: 345,
+                dj: { nickname: 'DJ User' },
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/search?keywords=talk&limit=3');
+
+  assert.equal(status, 200);
+  assert.equal(body.total, 2);
+  assert.deepEqual(body.podcasts, [
+    {
+      id: 901,
+      rid: 901,
+      name: 'Late Talk',
+      cover: 'https://img.example/podcast.jpg',
+      desc: 'Night words',
+      djName: 'DJ User',
+      category: '情感',
+      programCount: 12,
+      subCount: 345,
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].keywords, 'talk');
+  assert.equal(calls[0].type, 1009);
+  assert.equal(calls[0].limit, 6);
+});
+
+test('/api/podcast/hot maps hot podcast radios and pagination', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    dj_hot: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          hasMore: true,
+          djRadios: [
+            {
+              rid: 902,
+              radioName: 'Hot Radio',
+              coverUrl: 'https://img.example/hot.jpg',
+              description: 'Hot desc',
+              categoryName: '音乐',
+              programNum: 8,
+              subedCount: 90,
+              djName: 'Hot DJ',
+            },
+          ],
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/hot?limit=4&offset=6');
+
+  assert.equal(status, 200);
+  assert.equal(body.more, true);
+  assert.deepEqual(body.podcasts, [
+    {
+      id: 902,
+      rid: 902,
+      name: 'Hot Radio',
+      cover: 'https://img.example/hot.jpg',
+      desc: 'Hot desc',
+      djName: 'Hot DJ',
+      category: '音乐',
+      programCount: 8,
+      subCount: 90,
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].limit, 6);
+  assert.equal(calls[0].offset, 6);
+});
+
+test('/api/podcast/detail requires a podcast id', async () => {
+  const { status, body } = await getJson('/api/podcast/detail');
+
+  assert.equal(status, 400);
+  assert.deepEqual(body, { error: 'Missing podcast id' });
+});
+
+test('/api/podcast/detail maps podcast detail data', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    dj_detail: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          data: {
+            id: 903,
+            name: 'Detail Radio',
+            picUrl: 'https://img.example/detail.jpg',
+            desc: 'Detail desc',
+            category: '故事',
+            programCount: 22,
+            subCount: 1001,
+            dj: { nickname: 'Detail DJ' },
+          },
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/detail?id=903');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.podcast, {
+    id: 903,
+    rid: 903,
+    name: 'Detail Radio',
+    cover: 'https://img.example/detail.jpg',
+    desc: 'Detail desc',
+    djName: 'Detail DJ',
+    category: '故事',
+    programCount: 22,
+    subCount: 1001,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].rid, '903');
+});
+
+test('/api/podcast/programs requires a podcast id', async () => {
+  const { status, body } = await getJson('/api/podcast/programs');
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'Missing podcast id');
+  assert.deepEqual(body.programs, []);
+});
+
+test('/api/podcast/programs maps podcast programs', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    dj_program: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          more: true,
+          count: 2,
+          programs: [
+            {
+              id: 9901,
+              name: 'Episode One',
+              coverUrl: 'https://img.example/episode.jpg',
+              duration: 180000,
+              description: 'Episode desc',
+              createTime: 1710000000000,
+              serialNum: 1,
+              radio: {
+                id: 903,
+                name: 'Detail Radio',
+                picUrl: 'https://img.example/detail.jpg',
+                dj: { nickname: 'Detail DJ' },
+              },
+              mainSong: {
+                id: 8801,
+                name: 'Playable Episode',
+                ar: [{ id: 44, name: 'Voice Artist' }],
+                al: { name: 'Voice Album' },
+                fee: 0,
+              },
+            },
+          ],
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/programs?id=903&limit=5&offset=10');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.radio, {
+    id: 903,
+    rid: 903,
+    name: 'Detail Radio',
+    cover: 'https://img.example/detail.jpg',
+    desc: '',
+    djName: 'Detail DJ',
+    category: '',
+    programCount: 0,
+    subCount: 0,
+  });
+  assert.equal(body.more, true);
+  assert.equal(body.total, 2);
+  assert.equal(body.programs.length, 1);
+  assert.equal(body.programs[0].id, 8801);
+  assert.equal(body.programs[0].programId, 9901);
+  assert.equal(body.programs[0].name, 'Episode One');
+  assert.equal(body.programs[0].artist, 'Detail Radio');
+  assert.equal(body.programs[0].artists[0].name, 'Voice Artist');
+  assert.equal(body.programs[0].duration, 180000);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].rid, '903');
+  assert.equal(calls[0].limit, 10);
+  assert.equal(calls[0].offset, 10);
+  assert.equal(calls[0].asc, false);
+});
+
+test('/api/podcast/my returns empty collections when logged out', async () => {
+  const { status, body } = await getJson('/api/podcast/my');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, false);
+  assert.deepEqual(body.collections, [
+    { key: 'collect', title: '收藏播客', sub: '你收藏的播客', itemType: 'radio', count: 0, cover: '' },
+    { key: 'created', title: '创建播客', sub: '你创建的播客', itemType: 'radio', count: 0, cover: '' },
+    { key: 'liked', title: '喜欢的声音', sub: '收藏或最近喜欢的声音', itemType: 'voice', count: 0, cover: '' },
+  ]);
+});
+
+test('/api/podcast/my summarizes logged-in podcast collections', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9900, nickname: 'Podcast User' },
+    api: {
+      dj_sublist: async opts => {
+        calls.push(['dj_sublist', opts]);
+        return { body: { djRadios: [{ id: 911, name: 'Collected Radio', picUrl: 'https://img.example/collect.jpg' }] } };
+      },
+      user_audio: async opts => {
+        calls.push(['user_audio', opts]);
+        return { body: { data: [{ id: 912, name: 'Created Radio', picUrl: 'https://img.example/created-radio.jpg' }] } };
+      },
+      sati_resource_sub_list: async opts => {
+        calls.push(['sati_resource_sub_list', opts]);
+        return {
+          body: {
+            data: [
+              {
+                resource: {
+                  id: 9911,
+                  name: 'Liked Voice',
+                  coverUrl: 'https://img.example/liked-voice.jpg',
+                  radio: { id: 913, name: 'Liked Radio' },
+                },
+              },
+            ],
+          },
+        };
+      },
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/my');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.deepEqual(body.collections, [
+    { key: 'collect', title: '收藏播客', sub: '你收藏的播客', itemType: 'radio', count: 1, cover: 'https://img.example/collect.jpg' },
+    { key: 'created', title: '创建播客', sub: '你创建的播客', itemType: 'radio', count: 1, cover: 'https://img.example/created-radio.jpg' },
+    { key: 'liked', title: '喜欢的声音', sub: '收藏或最近喜欢的声音', itemType: 'voice', count: 1, cover: 'https://img.example/liked-voice.jpg' },
+  ]);
+  assert.deepEqual(calls.map(call => call[0]), ['dj_sublist', 'user_audio', 'sati_resource_sub_list']);
+  assert.equal(calls[1][1].uid, 9900);
+});
+
+test('/api/podcast/my/items returns logged-out defaults', async () => {
+  const { status, body } = await getJson('/api/podcast/my/items?key=collect');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { loggedIn: false, items: [] });
+});
+
+test('/api/podcast/my/items maps collected podcast radios for logged-in users', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9901, nickname: 'Podcast Item User' },
+    api: {
+      dj_sublist: async opts => {
+        calls.push(opts);
+        return {
+          body: {
+            djRadios: [
+              {
+                id: 914,
+                name: 'Collected Item Radio',
+                picUrl: 'https://img.example/collected-item.jpg',
+                category: '访谈',
+                dj: { nickname: 'Collected DJ' },
+              },
+            ],
+          },
+        };
+      },
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/my/items?key=collect&limit=5&offset=3');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.key, 'collect');
+  assert.equal(body.itemType, 'radio');
+  assert.equal(body.count, 1);
+  assert.equal(body.cover, 'https://img.example/collected-item.jpg');
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0].id, 914);
+  assert.equal(body.items[0].type, 'podcast-radio');
+  assert.equal(body.items[0].collectionKey, 'collect');
+  assert.equal(body.items[0].artist, 'Collected DJ');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].limit, 8);
+  assert.equal(calls[0].offset, 3);
+});
