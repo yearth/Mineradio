@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for `/api/playlist/add-song` validation, final provider failure, fallback exception, and primary provider exception branches.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for QR login retry/pending/error branches, lyric fallback/error branches, and logged-in user playlist provider failures.
 
 ## Changes Made
 
@@ -56,7 +56,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/patch` rejecting an unsafe `../package.json` file path and applying an allowed `public/.mineradio-patch-test.txt` file patch.
 - `tests/music-routes.test.js`
   - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
-  - Covers `/api/lyric` missing-id validation, `lyric_new` success, and fallback to `lyric` when `lyric_new` has no timed lyrics.
+  - Covers `/api/lyric` missing-id validation, `lyric_new` success, fallback to `lyric` when `lyric_new` has no timed lyrics or throws, and 500 behavior when fallback lyric lookup fails.
   - Covers `/api/song/url` returning the first playable Netease URL and reporting `login_required` restrictions for logged-out users when no playable URL is returned.
   - Covers `/api/song/url` returning logged-in trial-only playback responses with `trial_only` restriction metadata.
   - Covers `/api/song/url` classifying logged-in Netease VIP, paid, and copyright playback restrictions.
@@ -101,8 +101,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, login_status-to-user_account fallback, invalid-auth cookie clearing, unexpected account lookup failure behavior, pending-profile cookie saves, and logout cookie clearing.
   - Covers `/api/login/cookie` accepting form-encoded cookie submissions through the shared request-body fallback parser.
   - Covers `/api/login/cookie` structured cookie inputs, including array recursion, `{ name, value }` items, nested `{ value }` fields, and cookie attribute filtering.
-  - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, cookie persistence, and profile mapping.
-  - Covers `/api/user/playlists` logged-out empty response and logged-in playlist mapping.
+  - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, retry-warning profile fallback, cookie persistence, pending-profile fallback, provider errors, and profile mapping.
+  - Covers `/api/user/playlists` logged-out empty response, logged-in playlist mapping, and logged-in provider failure responses.
   - Covers `/api/song/like/check` login requirement, direct liked-song checks, and fallback to `likelist`.
   - Covers `/api/song/like` toggling liked state for logged-in users.
   - Covers `/api/playlist/create` and `/api/playlist/add-song` logged-in success paths, including fallback from `playlist_tracks` to `playlist_track_add`.
@@ -137,12 +137,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 7 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 111 tests.
+- `node --test tests/music-routes.test.js`: passed, 117 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 159 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 159 tests; all-files line coverage 91.69%, branch coverage 64.07%, function coverage 90.29%; `server.js` line coverage 88.98%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `npm test`: passed, 165 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 165 tests; all-files line coverage 92.05%, branch coverage 64.63%, function coverage 90.56%; `server.js` line coverage 89.58%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.

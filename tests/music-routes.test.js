@@ -302,6 +302,57 @@ test('/api/lyric falls back to lyric when lyric_new has no timed lyrics', async 
   assert.equal(calls[1][1].id, '102');
 });
 
+test('/api/lyric falls back when lyric_new throws', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    lyric_new: async opts => {
+      calls.push(['lyric_new', opts]);
+      throw new Error('lyric_new unavailable');
+    },
+    lyric: async opts => {
+      calls.push(['lyric', opts]);
+      return {
+        body: {
+          lrc: { lyric: '[00:00.00]Classic lyric' },
+        },
+      };
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/lyric?id=103');
+
+    assert.equal(status, 200);
+    assert.equal(body.source, 'lyric');
+    assert.equal(body.lyric, '[00:00.00]Classic lyric');
+    assert.deepEqual(calls.map(call => call[0]), ['lyric_new', 'lyric']);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/lyric reports provider failures after fallback lookup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    lyric_new: async () => ({ body: {} }),
+    lyric: async () => {
+      throw new Error('lyric unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/lyric?id=104');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { error: 'lyric unavailable', lyric: '' });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/song/url returns the first playable Netease URL', async () => {
   const calls = [];
   server.__test.setNeteaseApi({
@@ -1857,6 +1908,28 @@ test('/api/user/playlists maps logged-in user playlists', async () => {
   assert.equal(calls[0][1].limit, 12);
 });
 
+test('/api/user/playlists reports provider failures for logged-in users', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9101, nickname: 'Playlist Failure User' },
+      api: {
+        user_playlist: async () => {
+          throw new Error('playlist unavailable');
+        },
+      },
+    });
+
+    const { status, body } = await getJson('/api/user/playlists');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { error: 'playlist unavailable', loggedIn: false, playlists: [] });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/song/like/check requires login', async () => {
   const { status, body } = await getJson('/api/song/like/check?ids=101,102');
 
@@ -2071,6 +2144,93 @@ test('/api/login/qr/check retries and saves cookie when QR auth succeeds without
   assert.equal(body.hasCookie, true);
   assert.deepEqual(calls.map(call => call.noCookie), [true, undefined]);
   assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=qr-secret; __csrf=qr-csrf');
+});
+
+test('/api/login/qr/check keeps profile data when cookie retry fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    login_qr_check: async opts => {
+      calls.push(opts);
+      if (opts.noCookie) {
+        return {
+          body: {
+            code: 803,
+            message: '授权登录成功',
+            profile: { userId: 9401, nickname: 'QR Retry User', avatarUrl: 'https://img.example/qr-retry.jpg' },
+            account: { id: 9401 },
+          },
+        };
+      }
+      throw new Error('qr retry unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/login/qr/check?key=qr-key-retry');
+
+    assert.equal(status, 200);
+    assert.equal(body.code, 803);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.userId, 9401);
+    assert.equal(body.nickname, 'QR Retry User');
+    assert.equal(body.hasCookie, false);
+    assert.deepEqual(calls.map(call => call.noCookie), [true, undefined]);
+    assert.equal(fs.existsSync(process.env.COOKIE_FILE), false);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/login/qr/check returns pending profile when QR cookie lacks account info', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    login_qr_check: async () => ({
+      body: {
+        code: 803,
+        message: '授权登录成功',
+        cookie: 'MUSIC_U=qr-pending; __csrf=qr-pending-csrf',
+        nickname: 'Pending QR User',
+        avatarUrl: 'https://img.example/qr-pending.jpg',
+      },
+    }),
+    login_status: async () => {
+      throw new Error('status unavailable');
+    },
+    user_account: async () => {
+      throw new Error('account unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/login/qr/check?key=qr-key-pending');
+
+    assert.equal(status, 200);
+    assert.equal(body.code, 803);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.pendingProfile, true);
+    assert.equal(body.nickname, 'Pending QR User');
+    assert.equal(body.avatar, 'https://img.example/qr-pending.jpg');
+    assert.equal(body.hasCookie, true);
+    assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=qr-pending; __csrf=qr-pending-csrf');
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/login/qr/check reports provider errors', async () => {
+  server.__test.setNeteaseApi({
+    login_qr_check: async () => {
+      throw new Error('qr unavailable');
+    },
+  });
+
+  const { status, body } = await getJson('/api/login/qr/check?key=qr-key-error');
+
+  assert.equal(status, 500);
+  assert.deepEqual(body, { error: 'qr unavailable' });
 });
 
 test('/api/song/like toggles liked state for logged-in users', async () => {
