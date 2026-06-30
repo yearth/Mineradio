@@ -1865,3 +1865,177 @@ test('/api/podcast/my/items maps collected podcast radios for logged-in users', 
   assert.equal(calls[0].limit, 8);
   assert.equal(calls[0].offset, 3);
 });
+
+test('/api/weather/ip-location maps IP location data', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    assert.match(targetUrl, /ip-api\.com/);
+    return {
+      status: 'success',
+      country: '中国',
+      regionName: '上海市',
+      city: '上海',
+      lat: 31.23,
+      lon: 121.47,
+      timezone: 'Asia/Shanghai',
+      query: '203.0.113.1',
+    };
+  });
+
+  const { status, body } = await getJson('/api/weather/ip-location');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.location, {
+    provider: 'ip-api',
+    city: '上海',
+    region: '上海市',
+    country: '中国',
+    latitude: 31.23,
+    longitude: 121.47,
+    timezone: 'Asia/Shanghai',
+    ip: '203.0.113.1',
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].includes('lang=zh-CN'), true);
+});
+
+test('/api/weather/ip-location reports provider failures', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => ({
+    status: 'fail',
+    message: 'private range',
+  }));
+
+  try {
+    const { status, body } = await getJson('/api/weather/ip-location');
+
+    assert.equal(status, 500);
+    assert.equal(body.ok, false);
+    assert.equal(body.error, 'private range');
+    assert.equal(body.location, null);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('/api/weather/radio builds a rainy weather radio from coordinates', async () => {
+  const weatherCalls = [];
+  const searchCalls = [];
+  setRequestTextResponder(targetUrl => {
+    weatherCalls.push(targetUrl);
+    assert.match(targetUrl, /api\.open-meteo\.com/);
+    return {
+      timezone: 'Asia/Shanghai',
+      current: {
+        time: '2026-06-30T09:00',
+        temperature_2m: 22,
+        apparent_temperature: 23,
+        relative_humidity_2m: 88,
+        is_day: 1,
+        precipitation: 1.2,
+        rain: 1.2,
+        showers: 0,
+        snowfall: 0,
+        weather_code: 61,
+        cloud_cover: 95,
+        wind_speed_10m: 12,
+        wind_gusts_10m: 18,
+      },
+    };
+  });
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      searchCalls.push(opts);
+      return {
+        body: {
+          result: {
+            songs: [
+              {
+                id: 6000 + searchCalls.length,
+                name: opts.keywords,
+                ar: [{ id: 70 + searchCalls.length, name: searchCalls.length === 1 ? '周杰伦' : 'Rain Artist' }],
+                al: { name: 'Weather Album', picUrl: 'https://img.example/weather.jpg' },
+                dt: 200000,
+                fee: 0,
+              },
+            ],
+          },
+        },
+      };
+    },
+    song_detail: async () => ({ body: { songs: [] } }),
+  });
+
+  const { status, body } = await getJson('/api/weather/radio?lat=31.23&lon=121.47&city=上海&timezone=Asia/Shanghai');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.weather.provider, 'open-meteo');
+  assert.equal(body.weather.location.name, '上海');
+  assert.equal(body.weather.location.latitude, 31.23);
+  assert.equal(body.weather.location.longitude, 121.47);
+  assert.equal(body.weather.label, '雨');
+  assert.equal(body.weather.weatherCode, 61);
+  assert.match(body.weather.mood.key, /^rain/);
+  assert.equal(body.radio.title, body.weather.mood.title);
+  assert.deepEqual(body.radio.seedQueries, ['陈奕迅 阴天快乐', '周杰伦 雨下一整晚', '孙燕姿 遇见', '林宥嘉 说谎']);
+  assert.equal(body.radio.songs.length, 6);
+  assert.equal(body.radio.songs[0].provider, 'netease');
+  assert.equal(body.radio.songs[0].weatherSource, undefined);
+  assert.equal(weatherCalls.length, 1);
+  assert.equal(weatherCalls[0].includes('latitude=31.23'), true);
+  assert.equal(weatherCalls[0].includes('longitude=121.47'), true);
+  assert.equal(searchCalls.length, 6);
+  assert.deepEqual(searchCalls.slice(0, 4).map(call => call.keywords), body.radio.seedQueries);
+});
+
+test('/api/weather/radio uses fallback weather when the provider fails', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  const searchCalls = [];
+  setRequestTextResponder(() => {
+    throw new Error('weather unavailable');
+  });
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      searchCalls.push(opts);
+      return {
+        body: {
+          result: {
+            songs: [
+              {
+                id: 7000 + searchCalls.length,
+                name: opts.keywords,
+                ar: [{ id: 88, name: '陈奕迅' }],
+                al: { name: 'Fallback Album', picUrl: 'https://img.example/fallback-weather.jpg' },
+                dt: 210000,
+                fee: 0,
+              },
+            ],
+          },
+        },
+      };
+    },
+    song_detail: async () => ({ body: { songs: [] } }),
+  });
+
+  try {
+    const { status, body } = await getJson('/api/weather/radio?city=杭州');
+
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.weather.location.name, '杭州');
+    assert.equal(body.weather.location.fallback, true);
+    assert.equal(body.weather.error, 'weather unavailable');
+    assert.equal(body.weather.mood.key, 'fallback');
+    assert.equal(body.radio.title, '临时电台');
+    assert.equal(body.radio.seedQueries.length, 4);
+    assert.equal(body.radio.songs.length, 6);
+    assert.equal(searchCalls.length, 6);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
