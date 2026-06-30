@@ -723,3 +723,222 @@ test('/api/playlist/add-song falls back to playlist_track_add when playlist_trac
   assert.deepEqual(calls.map(call => call[0]), ['playlist_tracks', 'playlist_track_add']);
   assert.equal(calls[1][1].ids, '101,102');
 });
+
+test('/api/song/comments requires a song id', async () => {
+  const { status, body } = await getJson('/api/song/comments');
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'Missing song id');
+  assert.deepEqual(body.comments, []);
+});
+
+test('/api/song/comments maps hot comments on the first page', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    comment_music: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          total: 2,
+          hotComments: [
+            {
+              commentId: 501,
+              content: 'Great rain groove',
+              likedCount: 42,
+              time: 1710000000000,
+              user: {
+                userId: 88,
+                nickname: 'Comment User',
+                avatarUrl: 'https://img.example/comment.jpg',
+              },
+            },
+            {
+              commentId: 502,
+              content: '',
+              likedCount: 0,
+              time: 1710000001000,
+              user: null,
+            },
+          ],
+          comments: [
+            { commentId: 601, content: 'regular comment' },
+          ],
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/song/comments?id=101&limit=3&offset=0');
+
+  assert.equal(status, 200);
+  assert.equal(body.id, '101');
+  assert.equal(body.total, 2);
+  assert.equal(body.hot, true);
+  assert.deepEqual(body.comments, [
+    {
+      id: 501,
+      content: 'Great rain groove',
+      likedCount: 42,
+      time: 1710000000000,
+      user: {
+        id: 88,
+        nickname: 'Comment User',
+        avatar: 'https://img.example/comment.jpg',
+      },
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].id, '101');
+  assert.equal(calls[0].limit, 6);
+  assert.equal(calls[0].offset, 0);
+});
+
+test('/api/song/comments maps regular comments after the first page', async () => {
+  server.__test.setNeteaseApi({
+    comment_music: async () => ({
+      body: {
+        total: 9,
+        hotComments: [
+          { commentId: 501, content: 'hot comment' },
+        ],
+        comments: [
+          {
+            commentId: 701,
+            content: 'Later page comment',
+            likedCount: 7,
+            time: 1710000002000,
+            user: { userId: 91, nickname: 'Later User', avatarUrl: '' },
+          },
+        ],
+      },
+    }),
+  });
+
+  const { status, body } = await getJson('/api/song/comments?id=101&limit=12&offset=12');
+
+  assert.equal(status, 200);
+  assert.equal(body.hot, false);
+  assert.deepEqual(body.comments, [
+    {
+      id: 701,
+      content: 'Later page comment',
+      likedCount: 7,
+      time: 1710000002000,
+      user: { id: 91, nickname: 'Later User', avatar: '' },
+    },
+  ]);
+});
+
+test('/api/playlist/tracks requires a playlist id', async () => {
+  const { status, body } = await getJson('/api/playlist/tracks');
+
+  assert.equal(status, 400);
+  assert.equal(body.error, 'Missing playlist id');
+  assert.deepEqual(body.tracks, []);
+});
+
+test('/api/playlist/tracks maps songs from playlist_track_all', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    playlist_track_all: async opts => {
+      calls.push(['playlist_track_all', opts]);
+      return {
+        body: {
+          songs: [
+            {
+              id: 801,
+              name: 'All Track',
+              ar: [{ id: 12, name: 'Track Artist' }],
+              al: { name: 'Track Album', picUrl: 'https://img.example/track.jpg' },
+              dt: 201000,
+              fee: 0,
+            },
+          ],
+        },
+      };
+    },
+    playlist_detail: async opts => {
+      calls.push(['playlist_detail', opts]);
+      return { body: { playlist: { tracks: [] } } };
+    },
+  });
+
+  const { status, body } = await getJson('/api/playlist/tracks?id=77');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.playlist, { id: '77', name: '', cover: '', trackCount: 1 });
+  assert.deepEqual(body.tracks, [
+    {
+      provider: 'netease',
+      source: 'netease',
+      type: 'song',
+      id: 801,
+      name: 'All Track',
+      artist: 'Track Artist',
+      artists: [{ id: 12, name: 'Track Artist' }],
+      artistId: 12,
+      album: 'Track Album',
+      cover: 'https://img.example/track.jpg',
+      duration: 201000,
+      fee: 0,
+    },
+  ]);
+  assert.deepEqual(calls.map(call => call[0]), ['playlist_track_all']);
+  assert.equal(calls[0][1].id, '77');
+  assert.equal(calls[0][1].limit, 500);
+});
+
+test('/api/playlist/tracks falls back to playlist_detail when playlist_track_all fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    playlist_track_all: async opts => {
+      calls.push(['playlist_track_all', opts]);
+      throw new Error('track all unavailable');
+    },
+    playlist_detail: async opts => {
+      calls.push(['playlist_detail', opts]);
+      return {
+        body: {
+          playlist: {
+            id: 78,
+            name: 'Fallback Playlist',
+            coverImgUrl: 'https://img.example/fallback-playlist.jpg',
+            trackCount: 1,
+            tracks: [
+              {
+                id: 802,
+                name: 'Fallback Track',
+                artists: [{ id: 13, name: 'Fallback Artist' }],
+                album: { name: 'Fallback Album', picUrl: 'https://img.example/fallback-track.jpg' },
+                duration: 202000,
+                fee: 8,
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/playlist/tracks?id=78');
+
+    assert.equal(status, 200);
+    assert.deepEqual(body.playlist, {
+      id: 78,
+      name: 'Fallback Playlist',
+      cover: 'https://img.example/fallback-playlist.jpg',
+      trackCount: 1,
+    });
+    assert.equal(body.tracks.length, 1);
+    assert.equal(body.tracks[0].id, 802);
+    assert.equal(body.tracks[0].artist, 'Fallback Artist');
+    assert.equal(body.tracks[0].fee, 8);
+    assert.deepEqual(calls.map(call => call[0]), ['playlist_track_all', 'playlist_detail']);
+    assert.equal(calls[1][1].s, 0);
+  } finally {
+    console.warn = originalWarn;
+  }
+});

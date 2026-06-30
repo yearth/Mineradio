@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, and playlist mutation.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work extends music route tests to QR login, liked-song toggles, playlist creation, and playlist add-song success/fallback paths.
+- Current uncommitted work extends music route tests to song comments and playlist tracks, including hot/regular comments and playlist_track_all/playlist_detail paths.
 
 ## Changes Made
 
@@ -60,6 +60,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/song/like/check` login requirement, direct liked-song checks, and fallback to `likelist`.
   - Covers `/api/song/like` toggling liked state for logged-in users.
   - Covers `/api/playlist/create` and `/api/playlist/add-song` logged-in success paths, including fallback from `playlist_tracks` to `playlist_track_add`.
+  - Covers `/api/song/comments` missing-id validation, first-page hot comment mapping, regular comment mapping on later pages, and empty-content filtering.
+  - Covers `/api/playlist/tracks` missing-id validation, track mapping from `playlist_track_all`, and fallback to `playlist_detail` when `playlist_track_all` fails.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
@@ -82,8 +84,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 51 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 51 tests; all-files line coverage 52.14%, branch coverage 54.89%, function coverage 65.22%.
+- `npm test`: passed, 57 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 57 tests; all-files line coverage 54.48%, branch coverage 56.18%, function coverage 66.90%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -112,7 +114,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
-- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, and playlist mutation; comments, QQ music, podcast, weather, audio proxy, and UI behaviors remain largely untested.
+- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks; QQ music, podcast, weather, audio proxy, and UI behaviors remain largely untested.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -137,4 +139,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue into comments and playlist read/detail flows, then QQ music/podcast/weather routes, then UI-heavy `public/index.html` behavior once safer seams exist.
+6. Next implementation step: continue into QQ music routes, then podcast/weather routes, then UI-heavy `public/index.html` behavior once safer seams exist.
