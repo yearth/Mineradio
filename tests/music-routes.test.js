@@ -360,6 +360,56 @@ test('/api/song/url reports login_required when Netease returns no playable URL 
   assert.match(body.message, /需要登录/);
 });
 
+test('/api/song/url returns trial-only restriction metadata for logged-in Netease users', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9304, nickname: 'Trial User', vipType: 0 },
+  });
+  server.__test.setNeteaseApi({
+    login_status: async () => ({
+      body: {
+        data: {
+          profile: { userId: 9304, nickname: 'Trial User', vipType: 0 },
+          account: { id: 9304 },
+        },
+      },
+    }),
+    song_url_v1: async opts => {
+      calls.push(['song_url_v1', opts]);
+      return {
+        body: {
+          data: [
+            {
+              id: opts.id,
+              url: 'https://audio.example/trial.mp3',
+              br: 128000,
+              code: 200,
+              fee: 1,
+              freeTrialInfo: { start: 0, end: 30 },
+            },
+          ],
+        },
+      };
+    },
+    song_url: async () => ({ body: { data: [] } }),
+  });
+
+  const { status, body } = await getJson('/api/song/url?id=101&quality=standard');
+
+  assert.equal(status, 200);
+  assert.equal(body.url, 'https://audio.example/trial.mp3');
+  assert.equal(body.playable, true);
+  assert.equal(body.trial, true);
+  assert.equal(body.level, 'standard');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.restriction.category, 'trial_only');
+  assert.equal(body.restriction.action, 'upgrade');
+  assert.equal(body.restriction.fee, 1);
+  assert.deepEqual(body.trialInfo, { start: 0, end: 30 });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].cookie, 'MUSIC_U=test-user; __csrf=test-csrf');
+});
+
 test('/api/qq/search maps smartbox results with song detail enrichment', async () => {
   const calls = [];
   const originalLog = console.log;

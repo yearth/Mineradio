@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for form-encoded login cookie submissions and the shared request-body form fallback.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for logged-in Netease trial-only playback metadata.
 
 ## Changes Made
 
@@ -58,6 +58,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
   - Covers `/api/lyric` missing-id validation, `lyric_new` success, and fallback to `lyric` when `lyric_new` has no timed lyrics.
   - Covers `/api/song/url` returning the first playable Netease URL and reporting `login_required` restrictions for logged-out users when no playable URL is returned.
+  - Covers `/api/song/url` returning logged-in trial-only playback responses with `trial_only` restriction metadata.
   - Covers `/api/qq/search` smartbox result mapping, blank keyword short-circuiting without upstream requests, and provider error responses.
   - Covers `/api/qq/song/url` successful vkey URL selection, missing-mid validation without upstream requests, and provider error responses.
   - Covers `/api/qq/lyric` missing-mid/id validation, musicu lyric decoding for base64/plain lyric fields, and the empty-lyric fallback when QQ lyric lookups fail.
@@ -131,12 +132,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 7 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 94 tests.
+- `node --test tests/music-routes.test.js`: passed, 95 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 142 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 142 tests; all-files line coverage 90.25%, branch coverage 60.49%, function coverage 89.78%; `server.js` line coverage 86.67%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `npm test`: passed, 143 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 143 tests; all-files line coverage 90.45%, branch coverage 60.76%, function coverage 89.71%; `server.js` line coverage 87.03%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
