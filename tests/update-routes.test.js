@@ -11,9 +11,11 @@ process.env.HOST = '127.0.0.1';
 process.env.NODE_ENV = 'test';
 process.env.MINERADIO_UPDATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mineradio-update-routes-'));
 
+const originalFetch = global.fetch;
 const server = require('../server');
 
 test.afterEach(() => {
+  global.fetch = originalFetch;
   if (server.__test) server.__test.resetUpdateRuntime();
 });
 
@@ -75,6 +77,32 @@ function writeCachedInstaller(fileName, content) {
   const filePath = path.join(downloadDir, fileName);
   fs.writeFileSync(filePath, content);
   return filePath;
+}
+
+function fakeDownloadResponse(content) {
+  global.fetch = async () => ({
+    ok: true,
+    headers: {
+      get(name) {
+        return String(name || '').toLowerCase() === 'content-length' ? String(content.length) : '';
+      },
+    },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(content));
+        controller.close();
+      },
+    }),
+  });
+}
+
+async function waitForUpdateStatus(pathname, done) {
+  for (let i = 0; i < 30; i++) {
+    const result = await getJson(pathname);
+    if (done(result.body)) return result;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  return getJson(pathname);
 }
 
 function manifestWithPatch(version) {
@@ -214,6 +242,92 @@ test('/api/update/download moves an invalid cached installer aside before queuin
   const invalidFiles = fs.readdirSync(path.dirname(filePath))
     .filter(name => name.startsWith('Mineradio-1.2.2-Setup.invalid-'));
   assert.equal(invalidFiles.length, 1);
+});
+
+test('/api/update/download marks installer ready after a verified download', async () => {
+  const content = Buffer.from('fresh installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-ready.json', manifestWithInstaller('1.2.3', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+  fakeDownloadResponse(content);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+  assert.equal(started.body.mode, 'installer');
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.progress, 100);
+  assert.equal(lookup.body.fileName, 'Mineradio-1.2.3-Setup.exe');
+  assert.equal(lookup.body.received, content.length);
+  assert.equal(lookup.body.total, content.length);
+  assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download reports an error when downloaded installer sha256 mismatches', async () => {
+  const content = Buffer.from('tampered installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-hash-error.json', manifestWithInstaller('1.2.4', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(Buffer.from('expected installer package')),
+  }));
+  fakeDownloadResponse(content);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'UPDATE_SHA256_MISMATCH');
+  assert.match(lookup.body.errorReason, /文件校验失败/);
+  assert.equal(lookup.body.filePath, '');
+});
+
+test('/api/update/download reports an error when downloaded installer size mismatches', async () => {
+  const content = Buffer.from('short installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-size-error.json', manifestWithInstaller('1.2.5', {
+    size: content.length + 10,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+  fakeDownloadResponse(content);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'UPDATE_SIZE_MISMATCH');
+  assert.match(lookup.body.errorReason, /下载文件大小不一致/);
+  assert.equal(lookup.body.filePath, '');
 });
 
 test('/api/update/download does not start a Windows installer job for the preview fallback', async () => {

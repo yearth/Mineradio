@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer/patch job creation, and installer cache reuse/invalid-cache handling.
+- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer/patch job creation, installer cache handling, and installer download ready/error branches.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds installer cache route tests for verified cache reuse and invalid cache quarantine.
+- Current uncommitted work adds installer download execution tests for ready, sha256 mismatch, and size mismatch branches, plus a small update-error classification fix for SHA mismatch errors.
 
 ## Changes Made
 
@@ -45,12 +45,14 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
   - Covers Windows manifest `/api/update/patch` creating a queued patch job without applying a real patch in tests.
   - Covers `/api/update/download` reusing a verified cached installer and moving an invalid cached installer aside before queuing a fresh job.
+  - Covers `/api/update/download` successful fake download reaching `ready`, sha256 mismatch reaching `error`, and size mismatch reaching `error`.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
   - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
   - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
   - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch and reset update job state.
+  - Classifies `UPDATE_SHA256_MISMATCH` / SHA-like update errors as file verification failures.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
   - Skips Chromium `use-angle=d3d11` outside Windows.
@@ -66,7 +68,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 18 tests.
+- `npm test`: passed, 21 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -94,7 +96,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer/patch job creation, and installer cache reuse/invalid-cache handling; actual download execution, GitHub release fetching, and patch application integration coverage are still pending.
+- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer/patch job creation, installer cache reuse/invalid-cache handling, and installer fake-download ready/hash/size branches; GitHub release fetching and patch application integration coverage are still pending.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -118,4 +120,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/update-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue from installer cache branches into actual download error branches with injected fetch responses, then patch application branches and playback/search/login flows.
+6. Next implementation step: continue from installer fake-download branches into HTTP/mirror failure branches or patch application branches, then playback/search/login flows.

@@ -515,7 +515,7 @@ function classifyUpdateError(err) {
   const code = String(err && err.code || '').trim();
   const message = String(err && err.message || err || '').trim();
   const detail = message || code || '未知错误';
-  if (/HASH|DIGEST|CHECKSUM/i.test(code + ' ' + message)) {
+  if (/HASH|DIGEST|CHECKSUM|SHA\d*/i.test(code + ' ' + message)) {
     return { code: code || 'UPDATE_HASH_MISMATCH', reason: '文件校验失败，可能是线路缓存异常，已拦截该安装包。', detail };
   }
   if (/SIZE_MISMATCH|content length/i.test(code + ' ' + message)) {
