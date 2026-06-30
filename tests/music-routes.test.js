@@ -2937,6 +2937,25 @@ test('/api/audio proxies range requests with music-friendly headers', async () =
   }
 });
 
+test('/api/audio returns 500 when the upstream request fails', async () => {
+  const originalFetch = global.fetch;
+  const originalError = console.error;
+  console.error = () => {};
+  global.fetch = async () => {
+    throw new Error('audio upstream unavailable');
+  };
+
+  try {
+    const res = await requestRaw('GET', '/api/audio?url=' + encodeURIComponent('https://audio.example/fail.mp3'));
+
+    assert.equal(res.status, 500);
+    assert.equal(res.body.length, 0);
+  } finally {
+    global.fetch = originalFetch;
+    console.error = originalError;
+  }
+});
+
 test('/api/cover rejects invalid URLs before fetching', async () => {
   const originalFetch = global.fetch;
   let requested = false;
@@ -2954,6 +2973,25 @@ test('/api/cover rejects invalid URLs before fetching', async () => {
     assert.equal(requested, false);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test('/api/cover returns 500 when the upstream request fails', async () => {
+  const originalFetch = global.fetch;
+  const originalError = console.error;
+  console.error = () => {};
+  global.fetch = async () => {
+    throw new Error('cover upstream unavailable');
+  };
+
+  try {
+    const res = await requestRaw('GET', '/api/cover?url=' + encodeURIComponent('https://img.example/fail.jpg'));
+
+    assert.equal(res.status, 500);
+    assert.equal(res.body.length, 0);
+  } finally {
+    global.fetch = originalFetch;
+    console.error = originalError;
   }
 });
 
