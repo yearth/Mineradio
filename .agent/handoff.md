@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for `/api/podcast/dj-beatmap` route validation, analysis-failure handling, and intro empty-stream success wrapping.
+- Current uncommitted work adds `tests/update-utils.test.js` coverage for update helper fallback/null/digest branches.
 
 ## Changes Made
 
@@ -38,7 +38,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `lib/update-utils.js`
   - Extracted release asset, patch asset, release-note, digest, URL basename, and safe update filename helpers from `server.js`.
 - `tests/update-utils.test.js`
-  - Covers installer asset preference, patch matching, digest normalization, safe filename fallback/sanitization, URL basename extraction, and release-note filtering.
+  - Covers installer asset preference, archive fallback, missing-asset null responses, patch matching/fallback/null responses, digest normalization, safe filename fallback/sanitization, URL basename extraction/fallback, and release-note filtering.
 - `tests/update-routes.test.js`
   - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
   - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
@@ -125,8 +125,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/dj-analyzer.test.js`: passed, 6 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
 - `node --test tests/music-routes.test.js`: passed, 90 tests.
-- `npm test`: passed, 127 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 127 tests; all-files line coverage 89.15%, branch coverage 58.53%, function coverage 88.06%; `server.js` line coverage 85.57%.
+- `node --test tests/update-utils.test.js`: passed, 10 tests.
+- `npm test`: passed, 132 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 132 tests; all-files line coverage 89.22%, branch coverage 59.19%, function coverage 88.56%; `server.js` line coverage 85.57%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
