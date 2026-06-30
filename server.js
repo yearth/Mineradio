@@ -97,6 +97,10 @@ const WEATHER_DEFAULT_LOCATION = {
 };
 
 const updateDownloadJobs = new Map();
+const updateRuntimeOverrides = {
+  platform: '',
+  manifest: '',
+};
 
 function applySystemCertificateAuthorities() {
   try {
@@ -257,6 +261,12 @@ function readUpdateConfig(pkg) {
       || process.env.MINERADIO_UPDATE_MANIFEST_FILE
       || '',
   };
+}
+function updateRuntimePlatform() {
+  return updateRuntimeOverrides.platform || process.platform;
+}
+function updateManifestRef() {
+  return updateRuntimeOverrides.manifest || UPDATE_CONFIG.manifest;
 }
 function parseUpdateMirrorList(value) {
   if (Array.isArray(value)) return value;
@@ -616,10 +626,11 @@ async function fetchLatestYmlUpdateInfo(reason) {
   return parseLatestYmlUpdateInfo(result.text, reason);
 }
 async function fetchLatestUpdateInfo() {
-  if (process.platform !== 'win32') {
+  if (updateRuntimePlatform() !== 'win32') {
     return localUpdateFallback('当前 macOS 预览版暂不启用 Windows 更新通道。', { configured: true });
   }
-  if (UPDATE_CONFIG.manifest) return fetchManifestUpdateInfo(UPDATE_CONFIG.manifest);
+  const manifest = updateManifestRef();
+  if (manifest) return fetchManifestUpdateInfo(manifest);
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') return localUpdateFallback();
   const apiUrl = `https://api.github.com/repos/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}/releases/latest`;
   const controller = new AbortController();
@@ -4100,3 +4111,18 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 module.exports = server;
+if (process.env.NODE_ENV === 'test') {
+  module.exports.__test = {
+    setUpdatePlatform(value) {
+      updateRuntimeOverrides.platform = String(value || '');
+    },
+    setUpdateManifest(value) {
+      updateRuntimeOverrides.manifest = String(value || '');
+    },
+    resetUpdateRuntime() {
+      updateRuntimeOverrides.platform = '';
+      updateRuntimeOverrides.manifest = '';
+      updateDownloadJobs.clear();
+    },
+  };
+}
