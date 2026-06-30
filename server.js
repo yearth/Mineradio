@@ -5,7 +5,8 @@
 //  - 试听检测 (freeTrialInfo) + 全 quality 探测
 //  - 所有受保护 API 都会带上已登录用户的 cookie
 // ====================================================================
-const {
+const neteaseApiDefaults = require('NeteaseCloudMusicApi');
+let {
   search,
   cloudsearch,
   song_detail,
@@ -43,7 +44,7 @@ const {
   sati_resource_sub_list,
   lyric,
   lyric_new,
-} = require('NeteaseCloudMusicApi');
+} = neteaseApiDefaults;
 const http = require('http');
 const https = require('https');
 const fs   = require('fs');
@@ -4114,7 +4115,54 @@ if (process.env.NODE_ENV !== 'test') {
 
 module.exports = server;
 if (process.env.NODE_ENV === 'test') {
+  const applyNeteaseApi = overrides => {
+    const api = Object.assign({}, neteaseApiDefaults, overrides || {});
+    search = api.search;
+    cloudsearch = api.cloudsearch;
+    song_detail = api.song_detail;
+    song_url = api.song_url;
+    song_url_v1 = api.song_url_v1;
+    login_qr_key = api.login_qr_key;
+    login_qr_create = api.login_qr_create;
+    login_qr_check = api.login_qr_check;
+    login_status = api.login_status;
+    logout = api.logout;
+    user_account = api.user_account;
+    user_playlist = api.user_playlist;
+    comment_music = api.comment_music;
+    artist_detail = api.artist_detail;
+    artist_top_song = api.artist_top_song;
+    artist_songs = api.artist_songs;
+    like_song = api.like;
+    likelist = api.likelist;
+    song_like_check = api.song_like_check;
+    playlist_tracks = api.playlist_tracks;
+    playlist_track_add = api.playlist_track_add;
+    playlist_create = api.playlist_create;
+    playlist_detail = api.playlist_detail;
+    playlist_track_all = api.playlist_track_all;
+    personalized = api.personalized;
+    recommend_resource = api.recommend_resource;
+    recommend_songs = api.recommend_songs;
+    dj_detail = api.dj_detail;
+    dj_program = api.dj_program;
+    dj_hot = api.dj_hot;
+    dj_sublist = api.dj_sublist;
+    user_audio = api.user_audio;
+    dj_paygift = api.dj_paygift;
+    record_recent_voice = api.record_recent_voice;
+    sati_resource_sub_list = api.sati_resource_sub_list;
+    lyric = api.lyric;
+    lyric_new = api.lyric_new;
+  };
   module.exports.__test = {
+    setNeteaseApi(overrides) {
+      applyNeteaseApi(overrides);
+    },
+    resetMusicRuntime() {
+      applyNeteaseApi();
+      userCookie = '';
+    },
     setUpdatePlatform(value) {
       updateRuntimeOverrides.platform = String(value || '');
     },

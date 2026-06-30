@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache handling, installer download ready/error branches, HTTP candidate fallback/all-fail branches, and patch application success/error branches.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, and Netease song URL responses.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds GitHub release fetching tests: successful GitHub latest release parsing and `latest.yml` fallback after GitHub API failure.
+- Current uncommitted work adds music route tests for `/api/search`, `/api/lyric`, and `/api/song/url`, plus a test-only Netease API override hook.
 
 ## Changes Made
 
@@ -50,12 +50,16 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/download` successful fake download reaching `ready`, sha256 mismatch reaching `error`, and size mismatch reaching `error`.
   - Covers `/api/update/download` switching to the next candidate after HTTP failure and reporting `error` after all candidates fail.
   - Covers `/api/update/patch` rejecting an unsafe `../package.json` file path and applying an allowed `public/.mineradio-patch-test.txt` file patch.
+- `tests/music-routes.test.js`
+  - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
+  - Covers `/api/lyric` missing-id validation, `lyric_new` success, and fallback to `lyric` when `lyric_new` has no timed lyrics.
+  - Covers `/api/song/url` returning the first playable Netease URL and reporting `login_required` restrictions for logged-out users when no playable URL is returned.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
   - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
   - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
-  - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch and reset update job state.
+  - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch, override Netease API functions for route tests, and reset update/music route state.
   - Classifies `UPDATE_SHA256_MISMATCH` / SHA-like update errors as file verification failures.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
@@ -72,7 +76,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 27 tests.
+- `npm test`: passed, 34 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 34 tests; all-files line coverage 42.76%, branch coverage 53.82%, function coverage 55.59%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -101,6 +106,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
+- Music route behavior now has first-pass coverage for search, lyrics, and Netease song URL; login cookie/QR, playlist, comments, QQ music, podcast, weather, audio proxy, and UI behaviors remain largely untested.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -122,6 +128,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `lib/version-utils.js`
    - `lib/update-utils.js`
    - `tests/update-routes.test.js`
+   - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue into playback/search/login API flows, then UI-heavy `public/index.html` behavior once safer seams exist.
+6. Next implementation step: continue into login cookie/QR and playlist API flows, then QQ music/podcast/weather routes, then UI-heavy `public/index.html` behavior once safer seams exist.
