@@ -875,6 +875,60 @@ test('/api/qq/login/cookie saves a valid QQ cookie and falls back when profile l
   }
 });
 
+test('/api/qq/login/cookie maps QQ profile data from a successful lookup', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts) => {
+    calls.push({ targetUrl, cookie: opts.headers.Cookie });
+    return {
+      data: {
+        creator: {
+          nick: 'Profile QQ User',
+          headpic: 'https://img.example/qq-profile.jpg',
+          green_vip_level: 3,
+        },
+      },
+    };
+  });
+
+  const { status, body } = await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key; ptnick_12345=Cookie%20QQ%20User',
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.saved, true);
+  assert.equal(body.userId, '12345');
+  assert.equal(body.nickname, 'Profile QQ User');
+  assert.equal(body.avatar, 'https://img.example/qq-profile.jpg');
+  assert.equal(body.vipType, 3);
+  assert.equal(body.playbackKeyReady, true);
+  assert.equal(body.profileSource, 'qq-profile');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].targetUrl.includes('userid=12345'), true);
+  assert.equal(calls[0].cookie, 'uin=12345; qm_keyst=music-key; qqmusic_key=play-key; ptnick_12345=Cookie%20QQ%20User');
+});
+
+test('/api/qq/login/cookie accepts web sessions without playback authorization', async () => {
+  setRequestTextResponder(() => ({
+    data: { creator: { nick: 'Web QQ User' } },
+  }));
+
+  const { status, body } = await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; p_skey=web-session-key; ptnick_12345=Web%20QQ%20User',
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.saved, true);
+  assert.equal(body.userId, '12345');
+  assert.equal(body.nickname, 'Web QQ User');
+  assert.equal(body.hasCookie, true);
+  assert.equal(body.playbackKeyReady, false);
+  assert.equal(fs.readFileSync(process.env.QQ_COOKIE_FILE, 'utf8'), 'uin=12345; p_skey=web-session-key; ptnick_12345=Web%20QQ%20User');
+});
+
 test('/api/qq/login/status returns logged-out defaults without a saved QQ cookie', async () => {
   let requested = false;
   setRequestTextResponder(() => {

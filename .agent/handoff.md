@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for Netease login-status fallback and invalid-cookie handling.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for QQ login profile success and web-session playback authorization state.
 
 ## Changes Made
 
@@ -65,7 +65,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/qq/song/url` login-required responses for logged-out users and partial QQ web sessions that lack playback authorization.
   - Covers `/api/qq/song/url` classifying logged-in QQ copyright, paid, generic nonzero-code, and default URL-unavailable playback restrictions.
   - Covers `/api/qq/lyric` missing-mid/id validation, musicu lyric decoding for base64/plain lyric fields, and the empty-lyric fallback when QQ lyric lookups fail.
-  - Covers `/api/qq/login/cookie` invalid cookie rejection and valid QQ cookie persistence with profile-fallback behavior.
+  - Covers `/api/qq/login/cookie` invalid cookie rejection, valid QQ cookie persistence with profile-fallback behavior, successful QQ profile mapping, and web-session cookies without playback authorization.
   - Covers `/api/qq/login/status` logged-out defaults and `/api/qq/logout` clearing the saved QQ cookie.
   - Covers `/api/qq/user/playlists` logged-out behavior plus logged-in created/collected playlist mapping, duplicate filtering, Qzone/background filtering, favorite-list ordering, and partial collected-list results when the created-list source fails.
   - Covers `/api/qq/playlist/tracks` logged-out behavior plus logged-in playlist detail/track mapping and provider error responses.
@@ -135,12 +135,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 7 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 102 tests.
+- `node --test tests/music-routes.test.js`: passed, 104 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 150 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 150 tests; all-files line coverage 91.29%, branch coverage 62.51%, function coverage 90.28%; `server.js` line coverage 88.43%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `npm test`: passed, 152 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 152 tests; all-files line coverage 91.34%, branch coverage 62.67%, function coverage 90.34%; `server.js` line coverage 88.43%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
