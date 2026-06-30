@@ -2807,6 +2807,84 @@ test('/api/weather/radio uses fallback weather when the provider fails', async (
   }
 });
 
+test('/api/podcast/dj-beatmap rejects invalid audio urls before analysis', async () => {
+  const originalFetch = global.fetch;
+  let requested = false;
+  global.fetch = async () => {
+    requested = true;
+    return {};
+  };
+
+  try {
+    const { status, body } = await getJson('/api/podcast/dj-beatmap?url=file:///tmp/audio.mp3');
+
+    assert.equal(status, 400);
+    assert.deepEqual(body, { error: 'Invalid audio url' });
+    assert.equal(requested, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('/api/podcast/dj-beatmap reports analysis failures', async () => {
+  const originalFetch = global.fetch;
+  const originalLog = console.log;
+  const originalError = console.error;
+  const calls = [];
+  console.log = () => {};
+  console.error = () => {};
+  global.fetch = async (targetUrl, opts) => {
+    calls.push({ targetUrl, opts });
+    return { ok: false, status: 503, body: null };
+  };
+
+  try {
+    const { status, body } = await getJson('/api/podcast/dj-beatmap?url=' + encodeURIComponent('https://audio.example/fail.mp3') + '&duration=30');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { ok: false, error: 'Audio fetch failed: 503' });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].targetUrl, 'https://audio.example/fail.mp3');
+    assert.equal(calls[0].opts.headers.Referer, 'https://music.163.com/');
+  } finally {
+    global.fetch = originalFetch;
+    console.log = originalLog;
+    console.error = originalError;
+  }
+});
+
+test('/api/podcast/dj-beatmap returns an intro map for empty decoded audio', async () => {
+  const originalFetch = global.fetch;
+  const originalLog = console.log;
+  console.log = () => {};
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    body: new ReadableStream({
+      start(controller) {
+        controller.close();
+      },
+    }),
+  });
+
+  try {
+    const { status, body } = await getJson('/api/podcast/dj-beatmap?url=' + encodeURIComponent('https://audio.example/empty.mp3') + '&duration=360&intro=120');
+
+    assert.equal(status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.map.tempoSource, 'podcast-dj-server-intro-offline');
+    assert.equal(body.map.partial, true);
+    assert.equal(body.map.fullDuration, 360);
+    assert.equal(body.map.partialUntilSec, 0);
+    assert.equal(body.map.visualBeatCount, 0);
+    assert.equal(body.map.decode.intro, true);
+    assert.equal(body.map.decode.requestedDurationSec, 360);
+  } finally {
+    global.fetch = originalFetch;
+    console.log = originalLog;
+  }
+});
+
 test('/api/audio requires a target URL', async () => {
   const res = await requestRaw('GET', '/api/audio');
 
