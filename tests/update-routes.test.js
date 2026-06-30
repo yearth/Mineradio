@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -47,7 +48,8 @@ function writeUpdateManifest(name, data) {
   return manifestPath;
 }
 
-function manifestWithInstaller(version) {
+function manifestWithInstaller(version, assetOverrides) {
+  assetOverrides = assetOverrides || {};
   return {
     version,
     release: {
@@ -55,12 +57,24 @@ function manifestWithInstaller(version) {
       downloadUrl: `https://example.com/Mineradio-${version}-Setup.exe`,
       asset: {
         name: `Mineradio-${version}-Setup.exe`,
-        size: 12345,
-        sha256: 'sha256:ABCDEF',
+        size: assetOverrides.size || 12345,
+        sha256: assetOverrides.sha256 || 'sha256:ABCDEF',
       },
       notes: ['修复播放状态同步'],
     },
   };
+}
+
+function sha256Hex(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function writeCachedInstaller(fileName, content) {
+  const downloadDir = path.join(process.env.MINERADIO_UPDATE_DIR, 'downloads');
+  fs.mkdirSync(downloadDir, { recursive: true });
+  const filePath = path.join(downloadDir, fileName);
+  fs.writeFileSync(filePath, content);
+  return filePath;
 }
 
 function manifestWithPatch(version) {
@@ -142,6 +156,64 @@ test('/api/update/download creates an installer job from a Windows manifest with
   assert.equal(lookup.status, 200);
   assert.equal(lookup.body.id, body.id);
   assert.equal(lookup.body.status, 'queued');
+});
+
+test('/api/update/download reuses a verified cached installer', async () => {
+  const content = Buffer.from('cached installer package');
+  const fileName = 'Mineradio-1.2.1-Setup.exe';
+  const filePath = writeCachedInstaller(fileName, content);
+  const manifestPath = writeUpdateManifest('manifest-cached-download.json', manifestWithInstaller('1.2.1', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+  server.__test.setUpdateAutoDownload(false);
+
+  const { status, body } = await getJson('/api/update/download');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'ready');
+  assert.equal(body.cached, true);
+  assert.equal(body.fileName, fileName);
+  assert.equal(body.filePath, filePath);
+  assert.equal(body.received, content.length);
+  assert.equal(body.total, content.length);
+});
+
+test('/api/update/download moves an invalid cached installer aside before queuing a new job', async () => {
+  const fileName = 'Mineradio-1.2.2-Setup.exe';
+  const filePath = writeCachedInstaller(fileName, Buffer.from('stale cached package'));
+  const manifestPath = writeUpdateManifest('manifest-invalid-cache-download.json', manifestWithInstaller('1.2.2', {
+    size: 999,
+    sha256: 'sha256:' + sha256Hex(Buffer.from('expected package')),
+  }));
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+  server.__test.setUpdateAutoDownload(false);
+
+  const warn = console.warn;
+  console.warn = () => {};
+  let result;
+  try {
+    result = await getJson('/api/update/download');
+  } finally {
+    console.warn = warn;
+  }
+  const { status, body } = result;
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'queued');
+  assert.equal(body.cached, false);
+  assert.equal(body.filePath, '');
+  assert.equal(fs.existsSync(filePath), false);
+  const invalidFiles = fs.readdirSync(path.dirname(filePath))
+    .filter(name => name.startsWith('Mineradio-1.2.2-Setup.invalid-'));
+  assert.equal(invalidFiles.length, 1);
 });
 
 test('/api/update/download does not start a Windows installer job for the preview fallback', async () => {
