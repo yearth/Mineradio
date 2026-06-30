@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work extends music route tests to weather routes, including IP location success/failure, weather radio with coordinate forecast data, and weather radio fallback when the provider fails.
+- Current uncommitted work extends music route tests to audio and cover proxy behavior, including audio URL validation, range forwarding, QQ referer selection, content-type inference, cover URL validation, and canvas-safe image proxy headers.
 
 ## Changes Made
 
@@ -71,6 +71,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/podcast/my/items` logged-out defaults and collected podcast radio item mapping.
   - Covers `/api/weather/ip-location` successful IP location mapping and provider failure handling.
   - Covers `/api/weather/radio` coordinate-based Open-Meteo forecast mapping, rainy mood/radio construction, seed query search behavior, and fallback radio behavior when the weather provider fails.
+  - Covers `/api/audio` missing-url validation and range proxy behavior, including upstream status/header/body forwarding, QQ referer selection, and audio content-type inference from URL extension.
+  - Covers `/api/cover` invalid URL rejection before fetch and image proxy behavior, including upstream status/header/body forwarding plus CORS/CORP/cache headers used by canvas extraction.
   - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, and logout cookie clearing.
   - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, cookie persistence, and profile mapping.
   - Covers `/api/user/playlists` logged-out empty response and logged-in playlist mapping.
@@ -103,8 +105,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 90 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 90 tests; all-files line coverage 76.60%, branch coverage 53.42%, function coverage 83.99%.
+- `node --test tests/music-routes.test.js`: passed, 67 tests.
+- `npm test`: passed, 94 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 94 tests; all-files line coverage 77.79%, branch coverage 53.87%, function coverage 84.41%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -133,7 +136,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
-- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks; audio proxy and UI behaviors remain largely untested.
+- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks; DJ analyzer and UI behaviors remain largely untested.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -158,4 +161,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue into audio proxy behavior, then UI-heavy `public/index.html` behavior once safer seams exist.
+6. Next implementation step: continue into `dj-analyzer.js` behavior, then UI-heavy `public/index.html` behavior once safer seams exist.

@@ -54,6 +54,40 @@ async function requestJson(method, pathname, body) {
   });
 }
 
+async function requestRaw(method, pathname, headers) {
+  return new Promise(resolve => {
+    const req = new Readable({
+      read() {
+        this.push(null);
+      },
+    });
+    req.url = pathname;
+    req.method = method;
+    req.headers = headers || {};
+    const chunks = [];
+    const res = {
+      statusCode: 200,
+      headers: {},
+      writeHead(status, headers) {
+        this.statusCode = status;
+        this.headers = headers || {};
+      },
+      write(chunk) {
+        chunks.push(Buffer.from(chunk));
+      },
+      end(body) {
+        if (body) chunks.push(Buffer.from(body));
+        resolve({
+          status: this.statusCode,
+          headers: this.headers,
+          body: Buffer.concat(chunks),
+        });
+      },
+    };
+    server.emit('request', req, res);
+  });
+}
+
 async function getJson(pathname) {
   return requestJson('GET', pathname);
 }
@@ -2037,5 +2071,116 @@ test('/api/weather/radio uses fallback weather when the provider fails', async (
     assert.equal(searchCalls.length, 6);
   } finally {
     console.warn = originalWarn;
+  }
+});
+
+test('/api/audio requires a target URL', async () => {
+  const res = await requestRaw('GET', '/api/audio');
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.toString(), 'Missing url');
+});
+
+test('/api/audio proxies range requests with music-friendly headers', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (targetUrl, opts) => {
+    calls.push({ targetUrl, headers: opts.headers });
+    return {
+      status: 206,
+      headers: new Headers({
+        'content-type': 'application/octet-stream',
+        'content-length': '3',
+        'content-range': 'bytes 0-2/9',
+      }),
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(Buffer.from('abc'));
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const audioUrl = 'https://dl.stream.qq.com/C400song.flac?token=abc';
+    const res = await requestRaw(
+      'GET',
+      '/api/audio?url=' + encodeURIComponent(audioUrl),
+      { range: 'bytes=0-2' },
+    );
+
+    assert.equal(res.status, 206);
+    assert.equal(res.headers['Content-Type'], 'audio/flac');
+    assert.equal(res.headers['Access-Control-Allow-Origin'], '*');
+    assert.equal(res.headers['Accept-Ranges'], 'bytes');
+    assert.equal(res.headers['Content-Length'], '3');
+    assert.equal(res.headers['Content-Range'], 'bytes 0-2/9');
+    assert.equal(res.body.toString(), 'abc');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].targetUrl, audioUrl);
+    assert.equal(calls[0].headers.Range, 'bytes=0-2');
+    assert.equal(calls[0].headers.Referer, 'https://y.qq.com/');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('/api/cover rejects invalid URLs before fetching', async () => {
+  const originalFetch = global.fetch;
+  let requested = false;
+  global.fetch = async () => {
+    requested = true;
+    return {};
+  };
+
+  try {
+    const res = await requestRaw('GET', '/api/cover?url=file:///etc/passwd');
+
+    assert.equal(res.status, 400);
+    assert.equal(res.headers['Access-Control-Allow-Origin'], '*');
+    assert.equal(res.body.toString(), 'Invalid cover url');
+    assert.equal(requested, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('/api/cover streams upstream images with canvas-safe headers', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (targetUrl, opts) => {
+    calls.push({ targetUrl, headers: opts.headers });
+    return {
+      status: 200,
+      headers: new Headers({
+        'content-type': 'image/png',
+        'content-length': '4',
+      }),
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(Buffer.from('png!'));
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const coverUrl = 'https://p1.music.126.net/cover.png';
+    const res = await requestRaw('GET', '/api/cover?url=' + encodeURIComponent(coverUrl));
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers['Content-Type'], 'image/png');
+    assert.equal(res.headers['Content-Length'], '4');
+    assert.equal(res.headers['Access-Control-Allow-Origin'], '*');
+    assert.equal(res.headers['Cross-Origin-Resource-Policy'], 'cross-origin');
+    assert.equal(res.headers['Cache-Control'], 'public, max-age=86400');
+    assert.equal(res.body.toString(), 'png!');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].targetUrl, coverUrl);
+    assert.equal(calls[0].headers.Referer, 'https://music.163.com/');
+  } finally {
+    global.fetch = originalFetch;
   }
 });
