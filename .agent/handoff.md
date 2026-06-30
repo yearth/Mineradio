@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer/patch job creation, installer cache handling, installer download ready/error branches, and HTTP candidate fallback/all-fail branches.
+- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer/patch job creation, installer cache handling, installer download ready/error branches, HTTP candidate fallback/all-fail branches, and patch application success/error branches.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds installer download HTTP candidate fallback tests: one failed candidate followed by success, and all candidates failing.
+- Current uncommitted work adds patch application tests for unsafe patch paths and successful allowed `public/` file writes.
 
 ## Changes Made
 
@@ -47,6 +47,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/download` reusing a verified cached installer and moving an invalid cached installer aside before queuing a fresh job.
   - Covers `/api/update/download` successful fake download reaching `ready`, sha256 mismatch reaching `error`, and size mismatch reaching `error`.
   - Covers `/api/update/download` switching to the next candidate after HTTP failure and reporting `error` after all candidates fail.
+  - Covers `/api/update/patch` rejecting an unsafe `../package.json` file path and applying an allowed `public/.mineradio-patch-test.txt` file patch.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
@@ -69,7 +70,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 23 tests.
+- `npm test`: passed, 25 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -97,7 +98,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, and installer HTTP fallback/all-fail branches; GitHub release fetching and patch application integration coverage are still pending.
+- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches; GitHub release fetching coverage is still pending.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -121,4 +122,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/update-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue from installer HTTP fallback branches into patch application branches or GitHub release fetching, then playback/search/login flows.
+6. Next implementation step: continue into GitHub release fetching coverage, then playback/search/login flows.

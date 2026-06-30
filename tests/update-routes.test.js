@@ -13,9 +13,11 @@ process.env.MINERADIO_UPDATE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'minera
 
 const originalFetch = global.fetch;
 const server = require('../server');
+const PATCH_TEST_FILE = path.join(__dirname, '..', 'public', '.mineradio-patch-test.txt');
 
 test.afterEach(() => {
   global.fetch = originalFetch;
+  if (fs.existsSync(PATCH_TEST_FILE)) fs.unlinkSync(PATCH_TEST_FILE);
   if (server.__test) server.__test.resetUpdateRuntime();
 });
 
@@ -147,6 +149,14 @@ function manifestWithPatch(version) {
       notes: ['快速补丁'],
     },
   };
+}
+
+function manifestWithPatchPayload(version, payload) {
+  const raw = Buffer.from(JSON.stringify(payload));
+  const manifest = manifestWithPatch(version);
+  manifest.release.patch.size = raw.length;
+  manifest.release.patch.sha256 = 'sha256:' + sha256Hex(raw);
+  return { manifest, raw };
 }
 
 test('/api/update/latest returns the non-Windows preview fallback', async () => {
@@ -453,6 +463,81 @@ test('/api/update/patch creates a patch job from a Windows manifest without appl
   assert.equal(lookup.status, 200);
   assert.equal(lookup.body.id, body.id);
   assert.equal(lookup.body.status, 'queued');
+});
+
+test('/api/update/patch rejects unsafe patch file paths', async () => {
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.8',
+    files: [
+      { path: '../package.json', content: 'unsafe write' },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.8', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-unsafe-path.json', manifest);
+  fakeDownloadFetch(raw);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/patch');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'UPDATE_FAILED');
+  assert.match(lookup.body.errorDetail, /INVALID_PATCH_FILE/);
+  assert.match(lookup.body.message, /快速补丁失败/);
+  assert.equal(lookup.body.filePath, '');
+});
+
+test('/api/update/patch applies an allowed public file patch', async () => {
+  const content = 'patched public content';
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.9',
+    restartRequired: false,
+    files: [
+      {
+        path: 'public/.mineradio-patch-test.txt',
+        content,
+        sha256: sha256Hex(Buffer.from(content)),
+      },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.9', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-public-file.json', manifest);
+  fakeDownloadFetch(raw);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/patch');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, true);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.mode, 'patch');
+  assert.equal(lookup.body.progress, 100);
+  assert.equal(lookup.body.version, '1.2.9');
+  assert.equal(lookup.body.restartRequired, false);
+  assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), content);
 });
 
 test('/api/update/patch does not start a patch job for the preview fallback', async () => {
