@@ -126,6 +126,47 @@ test('analyzePodcastDjStream reports upstream fetch failures', async () => {
   }
 });
 
+test('analyzePodcastDjStream returns an empty full-stream map for empty decoded audio', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (targetUrl, opts) => {
+    calls.push({ targetUrl, opts });
+    return {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const result = await analyzePodcastDjStream('https://audio.example/empty.mp3', {
+      durationSec: 30,
+      userAgent: 'Stream UA',
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].targetUrl, 'https://audio.example/empty.mp3');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'Stream UA');
+    assert.equal(calls[0].opts.headers.Referer, 'https://music.163.com/');
+    assert.equal(result.tempoSource, 'podcast-dj-server-empty');
+    assert.deepEqual(result.kicks, []);
+    assert.deepEqual(result.beats, []);
+    assert.equal(result.duration, 30);
+    assert.equal(result.decode.chunks, 0);
+    assert.equal(result.decode.decodedSamples, 0);
+    assert.equal(result.decode.frames, 0);
+    assert.equal(result.decode.requestedDurationSec, 30);
+    assert.equal(result.decode.effectiveDurationSec, 0);
+    assert.equal(result.decode.fullStreamQuality, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('analyzePodcastDjIntro marks empty decoded audio as a partial intro map', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => ({
