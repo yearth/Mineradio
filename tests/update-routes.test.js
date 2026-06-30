@@ -63,6 +63,7 @@ function manifestWithInstaller(version, assetOverrides) {
         name: `Mineradio-${version}-Setup.exe`,
         size: assetOverrides.size || 12345,
         sha256: assetOverrides.sha256 || 'sha256:ABCDEF',
+        sha512: assetOverrides.sha512 || '',
       },
       notes: ['修复播放状态同步'],
     },
@@ -457,6 +458,35 @@ test('/api/update/download reports an error when downloaded installer sha256 mis
   assert.equal(lookup.body.ok, false);
   assert.equal(lookup.body.status, 'error');
   assert.equal(lookup.body.error, 'UPDATE_SHA256_MISMATCH');
+  assert.match(lookup.body.errorReason, /文件校验失败/);
+  assert.equal(lookup.body.filePath, '');
+});
+
+test('/api/update/download reports an error when downloaded installer sha512 mismatches', async () => {
+  const content = Buffer.from('sha512 tampered installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-sha512-error.json', manifestWithInstaller('1.2.5', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+    sha512: 'sha512:' + crypto.createHash('sha512').update('expected installer package').digest('hex'),
+  }));
+  fakeDownloadFetch(content);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'UPDATE_SHA512_MISMATCH');
   assert.match(lookup.body.errorReason, /文件校验失败/);
   assert.equal(lookup.body.filePath, '');
 });
