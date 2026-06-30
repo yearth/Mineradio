@@ -2314,6 +2314,59 @@ test('/api/podcast/my summarizes logged-in podcast collections', async () => {
   assert.equal(calls[1][1].uid, 9900);
 });
 
+test('/api/podcast/my keeps available collections when one source fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9902, nickname: 'Partial Podcast User' },
+      api: {
+        dj_sublist: async opts => {
+          calls.push(['dj_sublist', opts]);
+          return { body: { djRadios: [{ id: 915, name: 'Still Collected', picUrl: 'https://img.example/still-collected.jpg' }] } };
+        },
+        user_audio: async opts => {
+          calls.push(['user_audio', opts]);
+          throw new Error('created podcasts unavailable');
+        },
+        sati_resource_sub_list: async opts => {
+          calls.push(['sati_resource_sub_list', opts]);
+          return { body: { data: [] } };
+        },
+        record_recent_voice: async opts => {
+          calls.push(['record_recent_voice', opts]);
+          return {
+            body: {
+              data: [
+                {
+                  id: 9912,
+                  name: 'Recent Voice',
+                  coverUrl: 'https://img.example/recent-voice.jpg',
+                  radio: { id: 916, name: 'Recent Radio' },
+                },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    const { status, body } = await getJson('/api/podcast/my');
+
+    assert.equal(status, 200);
+    assert.equal(body.loggedIn, true);
+    assert.deepEqual(body.collections, [
+      { key: 'collect', title: '收藏播客', sub: '你收藏的播客', itemType: 'radio', count: 1, cover: 'https://img.example/still-collected.jpg' },
+      { key: 'created', title: '创建播客', sub: '你创建的播客', itemType: 'radio', count: 0, cover: '' },
+      { key: 'liked', title: '喜欢的声音', sub: '收藏或最近喜欢的声音', itemType: 'voice', count: 1, cover: 'https://img.example/recent-voice.jpg' },
+    ]);
+    assert.deepEqual(calls.map(call => call[0]), ['dj_sublist', 'user_audio', 'sati_resource_sub_list', 'record_recent_voice']);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/podcast/my/items returns logged-out defaults', async () => {
   const { status, body } = await getJson('/api/podcast/my/items?key=collect');
 
@@ -2361,6 +2414,29 @@ test('/api/podcast/my/items maps collected podcast radios for logged-in users', 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].limit, 8);
   assert.equal(calls[0].offset, 3);
+});
+
+test('/api/podcast/my/items returns an error when the selected source fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9903, nickname: 'Podcast Item Error User' },
+      api: {
+        dj_sublist: async () => {
+          throw new Error('collected podcasts unavailable');
+        },
+      },
+    });
+
+    const { status, body } = await getJson('/api/podcast/my/items?key=collect');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'collected podcasts unavailable');
+    assert.deepEqual(body.items, []);
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/weather/ip-location maps IP location data', async () => {
