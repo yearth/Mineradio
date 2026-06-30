@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for QQ provider failure/partial-success paths: `/api/qq/search`, `/api/qq/song/url`, `/api/qq/lyric`, and `/api/qq/user/playlists`.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for remaining QQ route provider-failure paths: `/api/qq/playlist/tracks`, `/api/qq/artist/detail`, and `/api/qq/song/comments`.
 
 ## Changes Made
 
@@ -60,10 +60,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/qq/login/cookie` invalid cookie rejection and valid QQ cookie persistence with profile-fallback behavior.
   - Covers `/api/qq/login/status` logged-out defaults and `/api/qq/logout` clearing the saved QQ cookie.
   - Covers `/api/qq/user/playlists` logged-out behavior plus logged-in created/collected playlist mapping, duplicate filtering, Qzone/background filtering, favorite-list ordering, and partial collected-list results when the created-list source fails.
-  - Covers `/api/qq/playlist/tracks` logged-out behavior plus logged-in playlist detail and track mapping.
-  - Covers `/api/qq/artist/detail` missing-mid validation and artist/song mapping from QQ musicu responses.
+  - Covers `/api/qq/playlist/tracks` logged-out behavior plus logged-in playlist detail/track mapping and provider error responses.
+  - Covers `/api/qq/artist/detail` missing-mid validation, artist/song mapping from QQ musicu responses, and provider error responses.
   - Covers `/api/artist/detail` missing-id validation, artist metadata mapping, hot song mapping from `artist_songs`, limit clamping, and fallback to `artist_top_song` when hot songs are empty.
-  - Covers `/api/qq/song/comments` missing-id behavior and first-page hot comment mapping.
+  - Covers `/api/qq/song/comments` missing-id behavior, first-page hot comment mapping, and provider error responses.
   - Covers `/api/podcast/search` blank keyword short-circuiting and podcast radio mapping from `cloudsearch`.
   - Covers `/api/podcast/hot` pagination and hot podcast radio mapping.
   - Covers `/api/podcast/detail` missing-id validation and detail mapping.
@@ -123,9 +123,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 6 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 84 tests.
-- `npm test`: passed, 121 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 121 tests; all-files line coverage 88.68%, branch coverage 57.82%, function coverage 87.88%; `server.js` line coverage 84.86%.
+- `node --test tests/music-routes.test.js`: passed, 87 tests.
+- `npm test`: passed, 124 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 124 tests; all-files line coverage 88.85%, branch coverage 58.29%, function coverage 88.03%; `server.js` line coverage 85.07%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -181,4 +181,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue covering remaining non-UI gaps: QQ playlist/artist/comments failure branches, `dj-analyzer.js` range/full-stream success paths, and any remaining beatmap-cache disabled-drive/deeper filesystem branches that can be tested without broad hooks. Defer UI-heavy `public/index.html`.
+6. Next implementation step: continue covering remaining non-UI gaps: `dj-analyzer.js` range/full-stream success paths, any deeper weather/discover/update route edge branches still reachable through test hooks, and any remaining beatmap-cache disabled-drive/deeper filesystem branches that can be tested without broad hooks. Defer UI-heavy `public/index.html`.

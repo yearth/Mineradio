@@ -883,6 +883,36 @@ test('/api/qq/playlist/tracks maps QQ playlist detail tracks', async () => {
   assert.equal(calls.some(url => url.includes('loginUin=12345')), true);
 });
 
+test('/api/qq/playlist/tracks returns a provider error when detail lookup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(targetUrl => {
+    if (targetUrl.includes('fcg_get_profile_homepage.fcg')) {
+      return { data: { creator: { nick: 'QQ Profile' } } };
+    }
+    if (targetUrl.includes('fcg_ucc_getcdinfo_byids_cp.fcg')) {
+      throw new Error('playlist detail unavailable');
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  try {
+    await postJson('/api/qq/login/cookie', {
+      cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key',
+    });
+    const { status, body } = await getJson('/api/qq/playlist/tracks?id=77');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, {
+      provider: 'qq',
+      error: 'playlist detail unavailable',
+      tracks: [],
+    });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/qq/artist/detail requires a singer mid', async () => {
   const { status, body } = await getJson('/api/qq/artist/detail');
 
@@ -949,6 +979,28 @@ test('/api/qq/artist/detail maps QQ artist and hot songs', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].payload.singer.param.singermid, 'singer001');
   assert.equal(calls[0].payload.singer.param.num, 10);
+});
+
+test('/api/qq/artist/detail returns a provider error when singer lookup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('artist detail unavailable');
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/artist/detail?mid=singer001');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, {
+      provider: 'qq',
+      error: 'artist detail unavailable',
+      artist: null,
+      songs: [],
+    });
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/artist/detail requires an artist id', async () => {
@@ -1150,6 +1202,27 @@ test('/api/qq/song/comments maps first-page hot QQ comments', async () => {
   assert.equal(calls[0].includes('topid=22001'), true);
   assert.equal(calls[0].includes('pagesize=6'), true);
   assert.equal(calls[0].includes('pagenum=0'), true);
+});
+
+test('/api/qq/song/comments returns a provider error when comments lookup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('comments unavailable');
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/song/comments?id=22001&limit=6');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, {
+      provider: 'qq',
+      error: 'comments unavailable',
+      comments: [],
+    });
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/login/status returns logged-out defaults without a saved cookie', async () => {
