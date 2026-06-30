@@ -587,6 +587,71 @@ test('/api/qq/song/url returns a provider error when vkey lookup fails', async (
   }
 });
 
+test('/api/qq/song/url reports login_required when QQ returns no URL for a logged-out user', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, payload: JSON.parse(requestBody) });
+    return {
+      req_0: {
+        data: {
+          midurlinfo: [
+            { filename: 'M800media001.mp3', purl: '', result: 104003, msg: 'need login' },
+          ],
+        },
+      },
+    };
+  });
+
+  const { status, body } = await getJson('/api/qq/song/url?mid=qqmid001&mediaMid=media001&quality=exhigh');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.playable, false);
+  assert.equal(body.reason, 'login_required');
+  assert.equal(body.loggedIn, false);
+  assert.equal(body.playbackKeyReady, false);
+  assert.equal(body.restriction.action, 'login');
+  assert.equal(body.restriction.rawMessage, 'need login');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.comm.uin, '0');
+});
+
+test('/api/qq/song/url reports missing playback authorization for partial QQ sessions', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    if (targetUrl.includes('fcg_get_profile_homepage')) {
+      return { data: { creator: { nick: 'Partial QQ User' } } };
+    }
+    calls.push({ targetUrl, payload: JSON.parse(requestBody) });
+    return {
+      req_0: {
+        data: {
+          midurlinfo: [
+            { filename: 'M800media001.mp3', purl: '', result: 104003, msg: 'missing vkey' },
+          ],
+        },
+      },
+    };
+  });
+  await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; p_skey=web-session-key; ptnick_12345=Partial%20QQ%20User',
+  });
+
+  const { status, body } = await getJson('/api/qq/song/url?mid=qqmid001&mediaMid=media001&quality=exhigh');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.playable, false);
+  assert.equal(body.reason, 'login_required');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.playbackKeyReady, false);
+  assert.equal(body.restriction.missingPlaybackKey, true);
+  assert.match(body.message, /播放授权/);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.comm.uin, '12345');
+  assert.equal(calls[0].payload.comm.authst, 'web-session-key');
+});
+
 test('/api/qq/lyric requires a QQ song mid or id', async () => {
   const { status, body } = await getJson('/api/qq/lyric');
 
