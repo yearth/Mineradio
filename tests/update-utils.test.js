@@ -60,6 +60,15 @@ test('pickPatchAsset falls back to current-version patch assets', () => {
   assert.deepEqual(asset.downloadUrls, ['https://example.com/current.patch']);
 });
 
+test('pickPatchAsset falls back to current-version patch assets when latest does not match', () => {
+  const asset = pickPatchAsset([
+    { name: 'Mineradio-1.1.1.patch', browser_download_url: 'https://example.com/current.patch' },
+  ], '1.1.1', '1.2.0', { uniqueDownloadCandidates: candidates });
+
+  assert.equal(asset.name, 'Mineradio-1.1.1.patch');
+  assert.equal(asset.downloadUrl, 'https://example.com/current.patch');
+});
+
 test('pickPatchAsset returns null when no patch assets are available', () => {
   assert.equal(pickPatchAsset([{ name: 'Mineradio-1.2.0-Setup.exe' }], '1.1.1', '1.2.0'), null);
 });
