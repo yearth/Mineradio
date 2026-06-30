@@ -1649,7 +1649,9 @@ const QQ_HEADERS = {
   'User-Agent': UA,
 };
 
+let requestTextOverride = null;
 function requestText(targetUrl, opts, body) {
+  if (requestTextOverride) return requestTextOverride(targetUrl, opts || {}, body);
   opts = opts || {};
   return new Promise((resolve, reject) => {
     const u = new URL(targetUrl);
@@ -4159,9 +4161,14 @@ if (process.env.NODE_ENV === 'test') {
     setNeteaseApi(overrides) {
       applyNeteaseApi(overrides);
     },
+    setRequestText(fn) {
+      requestTextOverride = fn;
+    },
     resetMusicRuntime() {
       applyNeteaseApi();
       userCookie = '';
+      qqCookie = '';
+      requestTextOverride = null;
     },
     setUpdatePlatform(value) {
       updateRuntimeOverrides.platform = String(value || '');

@@ -62,6 +62,13 @@ async function postJson(pathname, body) {
   return requestJson('POST', pathname, body);
 }
 
+function setRequestTextResponder(responder) {
+  server.__test.setRequestText(async (targetUrl, opts, requestBody) => {
+    const value = await responder(targetUrl, opts, requestBody);
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  });
+}
+
 async function loginAs(overrides) {
   const profile = Object.assign({
     userId: 9001,
@@ -283,6 +290,224 @@ test('/api/song/url reports login_required when Netease returns no playable URL 
   assert.equal(body.restriction.provider, 'netease');
   assert.equal(body.restriction.action, 'login');
   assert.match(body.message, /需要登录/);
+});
+
+test('/api/qq/search maps smartbox results with song detail enrichment', async () => {
+  const calls = [];
+  const originalLog = console.log;
+  console.log = () => {};
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, method: opts.method || 'GET', requestBody });
+    if (targetUrl.includes('smartbox_new.fcg')) {
+      return {
+        data: {
+          song: {
+            itemlist: [
+              { id: '12001', mid: 'qqmid001', name: 'QQ Rain', singer: 'QQ Artist' },
+            ],
+          },
+        },
+      };
+    }
+    if (targetUrl.includes('musicu.fcg')) {
+      return {
+        songinfo: {
+          data: {
+            track_info: {
+              id: 12001,
+              mid: 'qqmid001',
+              name: 'QQ Rain Detail',
+              singer: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+              album: { mid: 'album001', name: 'QQ Album' },
+              interval: 188,
+              pay: { pay_play: 0 },
+              file: { media_mid: 'media001' },
+            },
+          },
+        },
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/search?keywords=rain&limit=1');
+
+    assert.equal(status, 200);
+    assert.equal(body.provider, 'qq');
+    assert.deepEqual(body.songs, [
+      {
+        provider: 'qq',
+        source: 'qq',
+        type: 'qq',
+        id: 'qqmid001',
+        qqId: 12001,
+        mid: 'qqmid001',
+        songmid: 'qqmid001',
+        mediaMid: 'media001',
+        name: 'QQ Rain Detail',
+        artist: 'QQ Artist',
+        artists: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+        artistId: 66,
+        artistMid: 'singer001',
+        album: 'QQ Album',
+        albumMid: 'album001',
+        cover: 'https://y.qq.com/music/photo_new/T002R300x300M000album001.jpg?max_age=2592000',
+        duration: 188000,
+        fee: 0,
+        playable: false,
+      },
+    ]);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].targetUrl, /smartbox_new\.fcg/);
+    assert.match(calls[1].targetUrl, /musicu\.fcg/);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('/api/qq/search returns an empty list for blank keywords', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/search?keywords=%20%20');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.deepEqual(body.songs, []);
+  assert.equal(requested, false);
+});
+
+test('/api/qq/song/url returns the first playable QQ vkey URL', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, opts, payload: JSON.parse(requestBody) });
+    return {
+      req_0: {
+        data: {
+          sip: ['https://audio.qq.example/'],
+          midurlinfo: [
+            { filename: 'M800media001.mp3', purl: 'M800media001.mp3?vkey=abc' },
+            { filename: 'C400media001.m4a', purl: 'C400media001.m4a?p=0' },
+          ],
+        },
+      },
+    };
+  });
+
+  const { status, body } = await getJson('/api/qq/song/url?mid=qqmid001&mediaMid=media001&quality=exhigh');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.url, 'https://audio.qq.example/M800media001.mp3?vkey=abc');
+  assert.equal(body.playable, true);
+  assert.equal(body.trial, false);
+  assert.equal(body.level, 'exhigh');
+  assert.equal(body.quality, '320k MP3');
+  assert.equal(body.requestedQuality, 'exhigh');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.req_0.param.songmid[0], 'qqmid001');
+  assert.ok(calls[0].payload.req_0.param.filename.includes('M800media001.mp3'));
+});
+
+test('/api/qq/song/url reports a missing QQ mid without an upstream request', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/song/url');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.url, '');
+  assert.equal(body.error, 'MISSING_MID');
+  assert.match(body.message, /Missing QQ song mid/);
+  assert.equal(requested, false);
+});
+
+test('/api/qq/lyric requires a QQ song mid or id', async () => {
+  const { status, body } = await getJson('/api/qq/lyric');
+
+  assert.equal(status, 400);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.error, 'Missing QQ song mid or id');
+  assert.equal(body.lyric, '');
+});
+
+test('/api/qq/lyric returns decoded musicu lyric data', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, payload: JSON.parse(requestBody) });
+    return {
+      lyric: {
+        data: {
+          lyric: Buffer.from('[00:00.00]QQ Rain').toString('base64'),
+          trans: '[00:00.00]QQ 雨',
+          qrc: '[0,1000]QQ Rain',
+          roma: '[00:00.00]Q Q Rain',
+        },
+      },
+    };
+  });
+
+  const { status, body } = await getJson('/api/qq/lyric?mid=qqmid001&id=12001');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.id, 12001);
+  assert.equal(body.mid, 'qqmid001');
+  assert.equal(body.lyric, '[00:00.00]QQ Rain');
+  assert.equal(body.tlyric, '[00:00.00]QQ 雨');
+  assert.equal(body.qrc, '[0,1000]QQ Rain');
+  assert.equal(body.roma, '[00:00.00]Q Q Rain');
+  assert.equal(body.source, 'qq-musicu');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.lyric.param.songMID, 'qqmid001');
+  assert.equal(calls[0].payload.lyric.param.songID, 12001);
+});
+
+test('/api/qq/login/cookie rejects invalid QQ cookies', async () => {
+  const { status, body } = await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; ptnick=QQ%20User',
+  });
+
+  assert.equal(status, 400);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, false);
+  assert.equal(body.error, 'INVALID_QQ_COOKIE');
+  assert.match(body.message, /uin/);
+});
+
+test('/api/qq/login/cookie saves a valid QQ cookie and falls back when profile lookup fails', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('profile unavailable');
+  });
+
+  try {
+    const { status, body } = await postJson('/api/qq/login/cookie', {
+      cookie: 'uin=o12345; qm_keyst=music-key; ptnick_12345=QQ%20User; qqmusic_key=play-key',
+    });
+
+    assert.equal(status, 200);
+    assert.equal(body.provider, 'qq');
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.saved, true);
+    assert.equal(body.hasCookie, true);
+    assert.equal(body.userId, '12345');
+    assert.equal(body.nickname, 'QQ User');
+    assert.equal(body.playbackKeyReady, true);
+    assert.equal(body.profileUnavailable, true);
+    assert.equal(fs.readFileSync(process.env.QQ_COOKIE_FILE, 'utf8'), 'uin=12345; qm_keyst=music-key; ptnick_12345=QQ%20User; qqmusic_key=play-key');
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test('/api/login/status returns logged-out defaults without a saved cookie', async () => {

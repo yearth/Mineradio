@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login cookie, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work extends music route tests to song comments and playlist tracks, including hot/regular comments and playlist_track_all/playlist_detail paths.
+- Current uncommitted work extends music route tests to QQ music routes, including smartbox search/detail enrichment, blank search, vkey URL success, missing QQ mid, lyric validation/decoding, and QQ login cookie validation/persistence fallback.
 
 ## Changes Made
 
@@ -54,6 +54,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
   - Covers `/api/lyric` missing-id validation, `lyric_new` success, and fallback to `lyric` when `lyric_new` has no timed lyrics.
   - Covers `/api/song/url` returning the first playable Netease URL and reporting `login_required` restrictions for logged-out users when no playable URL is returned.
+  - Covers `/api/qq/search` smartbox result mapping with song-detail enrichment and blank keyword short-circuiting without upstream requests.
+  - Covers `/api/qq/song/url` successful vkey URL selection and missing-mid validation without upstream requests.
+  - Covers `/api/qq/lyric` missing-mid/id validation and musicu lyric decoding for base64/plain lyric fields.
+  - Covers `/api/qq/login/cookie` invalid cookie rejection and valid QQ cookie persistence with profile-fallback behavior.
   - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, and logout cookie clearing.
   - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, cookie persistence, and profile mapping.
   - Covers `/api/user/playlists` logged-out empty response and logged-in playlist mapping.
@@ -68,6 +72,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
   - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
   - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch, override Netease API functions for route tests, and reset update/music route state.
+  - Exposes a test-only `requestText` override so QQ route tests can exercise success/error branches without real network access.
+  - Resets in-memory QQ cookie and the request-text override in `resetMusicRuntime()` to prevent route tests from leaking state.
   - Classifies `UPDATE_SHA256_MISMATCH` / SHA-like update errors as file verification failures.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
@@ -84,8 +90,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 57 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 57 tests; all-files line coverage 54.48%, branch coverage 56.18%, function coverage 66.90%.
+- `npm test`: passed, 65 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 65 tests; all-files line coverage 62.24%, branch coverage 55.09%, function coverage 74.09%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -114,7 +120,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
-- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks; QQ music, podcast, weather, audio proxy, and UI behaviors remain largely untested.
+- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL, QQ search/song URL/lyrics/login cookie, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks; QQ playlists/comments/artist detail, podcast, weather, audio proxy, and UI behaviors remain largely untested.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -139,4 +145,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue into QQ music routes, then podcast/weather routes, then UI-heavy `public/index.html` behavior once safer seams exist.
+6. Next implementation step: continue into remaining QQ routes such as QQ playlists/comments/artist detail, then podcast/weather routes, then UI-heavy `public/index.html` behavior once safer seams exist.
