@@ -235,6 +235,28 @@ test('/api/update/latest reads remote manifest updates with Mineradio user agent
   assert.equal(calls[0].opts.headers['User-Agent'], 'Mineradio/1.1.1');
 });
 
+test('/api/update/latest falls back when a remote manifest returns an HTTP error', async () => {
+  const calls = fakeFetchSequence([
+    fakeHttpResponse(503),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest('https://updates.example.com/mineradio/manifest.json');
+
+  const { status, body } = await getJson('/api/update/latest');
+
+  assert.equal(status, 200);
+  assert.equal(body.configured, true);
+  assert.equal(body.preview, true);
+  assert.equal(body.updateAvailable, false);
+  assert.equal(body.currentVersion, '1.1.1');
+  assert.equal(body.latestVersion, '1.1.1');
+  assert.equal(body.release.downloadUrl, '');
+  assert.equal(body.reason, 'Update manifest 503');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /updates\.example\.com\/mineradio\/manifest\.json/);
+});
+
 test('/api/update/latest reads the latest GitHub release on the Windows update path', async () => {
   const calls = fakeFetchSequence([
     fakeJsonResponse({
@@ -546,6 +568,41 @@ test('/api/update/download switches to the next candidate after an HTTP failure'
   assert.equal(lookup.body.status, 'ready');
   assert.equal(lookup.body.failedAttempts.length, 1);
   assert.match(lookup.body.failedAttempts[0].reason, /更新文件不存在/);
+  assert.equal(calls.length, 2);
+  assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download switches to the next candidate after a DNS failure', async () => {
+  const content = Buffer.from('dns fallback installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-dns-fallback.json', manifestWithInstaller('1.2.10', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+  const calls = fakeFetchSequence([
+    () => {
+      const err = new Error('getaddrinfo ENOTFOUND github.com');
+      err.code = 'ENOTFOUND';
+      throw err;
+    },
+    fakeDownloadResponse(content),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.failedAttempts.length, 1);
+  assert.match(lookup.body.failedAttempts[0].reason, /域名解析失败/);
   assert.equal(calls.length, 2);
   assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
 });

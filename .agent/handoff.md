@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/update-routes.test.js` coverage for installer sha512 verification failures.
+- Current uncommitted work adds `tests/update-routes.test.js` coverage for remote manifest HTTP fallback and installer DNS-line fallback.
 
 ## Changes Made
 
@@ -44,6 +44,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
   - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
   - Covers Windows update path reading a remote HTTP manifest with the Mineradio User-Agent and normalizing latest-version release data without real network access.
+  - Covers Windows update path falling back to local update metadata when a remote manifest returns an HTTP error.
   - Covers Windows update path reading the GitHub latest release API, choosing installer/patch assets, normalizing digests, and extracting release notes without real network access.
   - Covers Windows update path falling back to `latest.yml` when the GitHub latest release API fails.
   - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
@@ -51,7 +52,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/update/download` reusing a verified cached installer and moving an invalid cached installer aside before queuing a fresh job.
   - Covers `/api/update/download` successful fake download reaching `ready`, sha256 mismatch reaching `error`, and size mismatch reaching `error`.
   - Covers `/api/update/download` sha512 mismatch reaching `error` with a file verification failure reason.
-  - Covers `/api/update/download` switching to the next candidate after HTTP failure and reporting `error` after all candidates fail.
+  - Covers `/api/update/download` switching to the next candidate after HTTP or DNS failure and reporting `error` after all candidates fail.
   - Covers `/api/update/patch` rejecting an unsafe `../package.json` file path and applying an allowed `public/.mineradio-patch-test.txt` file patch.
 - `tests/music-routes.test.js`
   - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
@@ -132,9 +133,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/music-routes.test.js`: passed, 93 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
-- `node --test tests/update-routes.test.js`: passed, 19 tests.
-- `npm test`: passed, 139 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 139 tests; all-files line coverage 90.05%, branch coverage 60.21%, function coverage 89.50%; `server.js` line coverage 86.45%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `node --test tests/update-routes.test.js`: passed, 21 tests.
+- `npm test`: passed, 141 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 141 tests; all-files line coverage 90.15%, branch coverage 60.41%, function coverage 89.55%; `server.js` line coverage 86.55%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
