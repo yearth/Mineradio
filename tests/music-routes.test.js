@@ -1287,6 +1287,42 @@ test('/api/login/cookie saves a valid Netease cookie and returns profile info', 
   assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=secret; __csrf=token');
 });
 
+test('/api/login/cookie normalizes structured Netease cookie input', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_status: async opts => {
+      calls.push(['login_status', opts]);
+      return {
+        body: {
+          data: {
+            profile: {
+              userId: 9102,
+              nickname: 'Structured User',
+            },
+            account: { id: 9102 },
+          },
+        },
+      };
+    },
+  });
+
+  const { status, body } = await postJson('/api/login/cookie', {
+    cookie: [
+      { name: 'MUSIC_U', value: 'structured-secret' },
+      { __csrf: { value: 'structured-token' }, Path: '/', HttpOnly: true },
+      'NMTID=abc; Secure; max-age=3600',
+    ],
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.userId, 9102);
+  assert.equal(body.nickname, 'Structured User');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].cookie, 'MUSIC_U=structured-secret; __csrf=structured-token; NMTID=abc');
+  assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=structured-secret; __csrf=structured-token; NMTID=abc');
+});
+
 test('/api/logout calls Netease logout and clears the saved cookie', async () => {
   const calls = [];
   server.__test.setNeteaseApi({

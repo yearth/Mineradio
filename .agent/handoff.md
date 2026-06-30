@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/dj-analyzer.test.js` coverage for ordinary full-stream empty decoded audio metadata.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for structured Netease cookie normalization through `/api/login/cookie`.
 
 ## Changes Made
 
@@ -92,6 +92,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `analyzePodcastDjIntro()` returning partial intro map metadata for an empty decoded audio stream.
 - `tests/music-routes.test.js`
   - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, and logout cookie clearing.
+  - Covers `/api/login/cookie` structured cookie inputs, including array recursion, `{ name, value }` items, nested `{ value }` fields, and cookie attribute filtering.
   - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, cookie persistence, and profile mapping.
   - Covers `/api/user/playlists` logged-out empty response and logged-in playlist mapping.
   - Covers `/api/song/like/check` login requirement, direct liked-song checks, and fallback to `likelist`.
@@ -126,11 +127,11 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 7 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 92 tests.
+- `node --test tests/music-routes.test.js`: passed, 93 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
-- `npm test`: passed, 136 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 136 tests; all-files line coverage 89.58%, branch coverage 59.74%, function coverage 88.86%; `server.js` line coverage 85.62%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `npm test`: passed, 137 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 137 tests; all-files line coverage 89.80%, branch coverage 59.98%, function coverage 89.16%; `server.js` line coverage 86.02%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
