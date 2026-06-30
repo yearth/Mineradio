@@ -210,6 +210,30 @@ test('/api/update/latest reads manifest updates on the Windows update path', asy
   assert.deepEqual(body.release.notes, ['修复播放状态同步']);
 });
 
+test('/api/update/latest reads remote manifest updates with Mineradio user agent', async () => {
+  const calls = [];
+  global.fetch = async (targetUrl, opts) => {
+    calls.push({ targetUrl: String(targetUrl), opts });
+    return fakeJsonResponse(manifestWithInstaller('1.2.1'));
+  };
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest('https://updates.example.com/mineradio/manifest.json');
+
+  const { status, body } = await getJson('/api/update/latest');
+
+  assert.equal(status, 200);
+  assert.equal(body.configured, true);
+  assert.equal(body.preview, false);
+  assert.equal(body.updateAvailable, true);
+  assert.equal(body.latestVersion, '1.2.1');
+  assert.equal(body.release.asset.name, 'Mineradio-1.2.1-Setup.exe');
+  assert.equal(body.source, 'manifest');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].targetUrl, 'https://updates.example.com/mineradio/manifest.json');
+  assert.equal(calls[0].opts.headers['User-Agent'], 'Mineradio/1.1.1');
+});
+
 test('/api/update/latest reads the latest GitHub release on the Windows update path', async () => {
   const calls = fakeFetchSequence([
     fakeJsonResponse({

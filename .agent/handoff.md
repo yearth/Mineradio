@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for structured Netease cookie normalization through `/api/login/cookie`.
+- Current uncommitted work adds `tests/update-routes.test.js` coverage for remote HTTP update manifests and the Mineradio User-Agent.
 
 ## Changes Made
 
@@ -43,6 +43,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `tests/update-routes.test.js`
   - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
   - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
+  - Covers Windows update path reading a remote HTTP manifest with the Mineradio User-Agent and normalizing latest-version release data without real network access.
   - Covers Windows update path reading the GitHub latest release API, choosing installer/patch assets, normalizing digests, and extracting release notes without real network access.
   - Covers Windows update path falling back to `latest.yml` when the GitHub latest release API fails.
   - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
@@ -130,8 +131,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/music-routes.test.js`: passed, 93 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
-- `npm test`: passed, 137 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 137 tests; all-files line coverage 89.80%, branch coverage 59.98%, function coverage 89.16%; `server.js` line coverage 86.02%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `node --test tests/update-routes.test.js`: passed, 18 tests.
+- `npm test`: passed, 138 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 138 tests; all-files line coverage 89.89%, branch coverage 60.05%, function coverage 89.19%; `server.js` line coverage 86.17%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -159,7 +161,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
+- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local/remote-manifest latest route paths, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
 - Music route behavior now has first-pass coverage for search, lyrics, Netease song URL/artist detail, discover home, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments plus selected QQ failure/partial paths, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, podcast DJ beatmap route validation/failure/intro-empty success paths, weather ip-location/weather radio, audio/cover proxy success/failure behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, and selected playlist/podcast error branches.
 - `dj-analyzer.js` pure beat-map generation is covered for empty and pulse-grid paths, and wrapper failure/full-stream-empty/empty-intro paths have first-pass coverage; range-sampled and non-empty decoded audio success paths remain largely untested.
 - Beatmap cache routes are covered on the normal disk-cache path and a cache-dir-blocked memory-only fallback path; disabled-drive and deeper filesystem error paths remain untested.
