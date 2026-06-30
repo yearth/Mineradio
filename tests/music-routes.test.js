@@ -1557,6 +1557,198 @@ test('/api/playlist/tracks falls back to playlist_detail when playlist_track_all
   }
 });
 
+test('/api/discover/home returns starter data when logged out', async () => {
+  let upstreamCalled = false;
+  server.__test.setNeteaseApi({
+    personalized: async () => {
+      upstreamCalled = true;
+      return { body: {} };
+    },
+    dj_hot: async () => {
+      upstreamCalled = true;
+      return { body: {} };
+    },
+    recommend_resource: async () => {
+      upstreamCalled = true;
+      return { body: {} };
+    },
+    recommend_songs: async () => {
+      upstreamCalled = true;
+      return { body: {} };
+    },
+  });
+
+  const { status, body } = await getJson('/api/discover/home');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, false);
+  assert.equal(body.user, null);
+  assert.deepEqual(body.dailySongs, []);
+  assert.deepEqual(body.playlists, []);
+  assert.deepEqual(body.podcasts, []);
+  assert.equal(body.mode, 'starter');
+  assert.equal(typeof body.updatedAt, 'number');
+  assert.equal(upstreamCalled, false);
+});
+
+test('/api/discover/home combines personalized playlists, private recommendations, podcasts, and daily songs', async () => {
+  const calls = [];
+  await loginAs({
+    profile: {
+      userId: 9600,
+      nickname: 'Discover User',
+      avatarUrl: 'https://img.example/discover-avatar.jpg',
+    },
+    api: {
+      personalized: async opts => {
+        calls.push(['personalized', opts]);
+        return {
+          body: {
+            result: [
+              {
+                id: 510,
+                name: 'Public Picks',
+                picUrl: 'https://img.example/public.jpg',
+                trackCount: 42,
+                playCount: 1200,
+                creator: { nickname: 'Public Curator' },
+              },
+            ],
+          },
+        };
+      },
+      dj_hot: async opts => {
+        calls.push(['dj_hot', opts]);
+        return {
+          body: {
+            djRadios: [
+              {
+                id: 610,
+                name: 'Clean Podcast',
+                picUrl: 'https://img.example/podcast-clean.jpg',
+                desc: 'Good signal',
+                category: '音乐',
+                programCount: 11,
+                subCount: 200,
+                dj: { nickname: 'Podcast DJ' },
+              },
+              {
+                id: 611,
+                name: 'Qzone 背景音乐',
+                picUrl: 'https://img.example/low-signal.jpg',
+              },
+            ],
+          },
+        };
+      },
+      recommend_resource: async opts => {
+        calls.push(['recommend_resource', opts]);
+        return {
+          body: {
+            recommend: [
+              {
+                id: 520,
+                name: 'Private Picks',
+                coverImgUrl: 'https://img.example/private.jpg',
+                trackCount: 7,
+                playCount: 99,
+                creator: { nickname: 'Private Curator' },
+              },
+            ],
+          },
+        };
+      },
+      recommend_songs: async opts => {
+        calls.push(['recommend_songs', opts]);
+        return {
+          body: {
+            data: {
+              dailySongs: [
+                {
+                  id: 710,
+                  name: 'Daily Track',
+                  ar: [{ id: 81, name: 'Daily Artist' }],
+                  al: { name: 'Daily Album', picUrl: 'https://img.example/daily.jpg' },
+                  dt: 203000,
+                  fee: 0,
+                },
+              ],
+            },
+          },
+        };
+      },
+    },
+  });
+
+  const { status, body } = await getJson('/api/discover/home');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.deepEqual(body.user, {
+    userId: 9600,
+    nickname: 'Discover User',
+    avatar: 'https://img.example/discover-avatar.jpg',
+  });
+  assert.deepEqual(body.playlists, [
+    {
+      provider: 'netease',
+      source: 'netease',
+      type: 'playlist',
+      id: 520,
+      name: 'Private Picks',
+      cover: 'https://img.example/private.jpg',
+      trackCount: 7,
+      playCount: 99,
+      creator: 'Private Curator',
+      tag: '私人推荐',
+    },
+    {
+      provider: 'netease',
+      source: 'netease',
+      type: 'playlist',
+      id: 510,
+      name: 'Public Picks',
+      cover: 'https://img.example/public.jpg',
+      trackCount: 42,
+      playCount: 1200,
+      creator: 'Public Curator',
+      tag: '推荐歌单',
+    },
+  ]);
+  assert.deepEqual(body.podcasts, [
+    {
+      id: 610,
+      rid: 610,
+      name: 'Clean Podcast',
+      cover: 'https://img.example/podcast-clean.jpg',
+      desc: 'Good signal',
+      djName: 'Podcast DJ',
+      category: '音乐',
+      programCount: 11,
+      subCount: 200,
+    },
+  ]);
+  assert.deepEqual(body.dailySongs, [
+    {
+      provider: 'netease',
+      source: 'netease',
+      type: 'song',
+      id: 710,
+      name: 'Daily Track',
+      artist: 'Daily Artist',
+      artists: [{ id: 81, name: 'Daily Artist' }],
+      artistId: 81,
+      album: 'Daily Album',
+      cover: 'https://img.example/daily.jpg',
+      duration: 203000,
+      fee: 0,
+    },
+  ]);
+  assert.equal(typeof body.updatedAt, 'number');
+  assert.deepEqual(calls.map(call => call[0]), ['personalized', 'dj_hot', 'recommend_resource', 'recommend_songs']);
+  assert.equal(calls.every(call => call[1].cookie === 'MUSIC_U=test-user; __csrf=test-csrf'), true);
+});
+
 test('/api/podcast/search returns an empty list for blank keywords', async () => {
   let called = false;
   server.__test.setNeteaseApi({
