@@ -496,3 +496,230 @@ test('/api/song/like/check falls back to likelist when direct check has no match
   assert.deepEqual(calls.map(call => call[0]), ['song_like_check', 'likelist']);
   assert.equal(calls[1][1].uid, 9300);
 });
+
+test('/api/login/qr/key returns the Netease QR unikey', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_qr_key: async opts => {
+      calls.push(opts);
+      return { body: { data: { unikey: 'qr-key-123' } } };
+    },
+  });
+
+  const { status, body } = await getJson('/api/login/qr/key');
+
+  assert.equal(status, 200);
+  assert.equal(body.key, 'qr-key-123');
+  assert.equal(calls.length, 1);
+  assert.equal(typeof calls[0].timestamp, 'number');
+});
+
+test('/api/login/qr/create returns QR image and URL for a key', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_qr_create: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          data: {
+            qrimg: 'data:image/png;base64,abc',
+            qrurl: 'https://music.example/qr',
+          },
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/login/qr/create?key=qr-key-123');
+
+  assert.equal(status, 200);
+  assert.equal(body.img, 'data:image/png;base64,abc');
+  assert.equal(body.url, 'https://music.example/qr');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].key, 'qr-key-123');
+  assert.equal(calls[0].qrimg, true);
+});
+
+test('/api/login/qr/check returns waiting scan status without saving a cookie', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_qr_check: async opts => {
+      calls.push(opts);
+      return {
+        body: {
+          code: 801,
+          message: '等待扫码',
+          nickname: 'Waiting User',
+          avatarUrl: 'https://img.example/waiting.jpg',
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/login/qr/check?key=qr-key-123');
+
+  assert.equal(status, 200);
+  assert.equal(body.code, 801);
+  assert.equal(body.message, '等待扫码');
+  assert.equal(body.nickname, 'Waiting User');
+  assert.equal(body.avatar, 'https://img.example/waiting.jpg');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].key, 'qr-key-123');
+  assert.equal(calls[0].noCookie, true);
+  assert.equal(fs.existsSync(process.env.COOKIE_FILE), false);
+});
+
+test('/api/login/qr/check retries and saves cookie when QR auth succeeds without an initial cookie', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_qr_check: async opts => {
+      calls.push(opts);
+      if (opts.noCookie) {
+        return {
+          body: {
+            code: 803,
+            message: '授权登录成功',
+            profile: { userId: 9400, nickname: 'QR User', avatarUrl: 'https://img.example/qr.jpg' },
+            account: { id: 9400 },
+          },
+        };
+      }
+      return {
+        body: {
+          code: 803,
+          message: '授权登录成功',
+          cookie: 'MUSIC_U=qr-secret; __csrf=qr-csrf',
+          profile: { userId: 9400, nickname: 'QR User', avatarUrl: 'https://img.example/qr.jpg' },
+          account: { id: 9400 },
+        },
+      };
+    },
+    login_status: async () => ({
+      body: {
+        data: {
+          profile: { userId: 9400, nickname: 'QR User', avatarUrl: 'https://img.example/qr.jpg' },
+          account: { id: 9400 },
+        },
+      },
+    }),
+  });
+
+  const { status, body } = await getJson('/api/login/qr/check?key=qr-key-123');
+
+  assert.equal(status, 200);
+  assert.equal(body.code, 803);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.userId, 9400);
+  assert.equal(body.nickname, 'QR User');
+  assert.equal(body.avatar, 'https://img.example/qr.jpg');
+  assert.equal(body.hasCookie, true);
+  assert.deepEqual(calls.map(call => call.noCookie), [true, undefined]);
+  assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=qr-secret; __csrf=qr-csrf');
+});
+
+test('/api/song/like toggles liked state for logged-in users', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9500, nickname: 'Toggle Like User' },
+    api: {
+      like: async opts => {
+        calls.push(opts);
+        return { body: { code: 200 } };
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/song/like', { id: '101', like: false });
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.id, '101');
+  assert.equal(body.liked, false);
+  assert.equal(body.code, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].id, '101');
+  assert.equal(calls[0].like, 'false');
+});
+
+test('/api/playlist/create creates a playlist for logged-in users', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9600, nickname: 'Playlist Creator' },
+    api: {
+      playlist_create: async opts => {
+        calls.push(opts);
+        return {
+          body: {
+            code: 200,
+            playlist: { id: 77, name: 'Night Rain' },
+          },
+        };
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/playlist/create', { name: ' Night Rain ', privacy: '10' });
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.deepEqual(body.playlist, { id: 77, name: 'Night Rain' });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'Night Rain');
+  assert.equal(calls[0].privacy, '10');
+});
+
+test('/api/playlist/add-song reports success from playlist_tracks', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9700, nickname: 'Playlist Add User' },
+    api: {
+      playlist_tracks: async opts => {
+        calls.push(['playlist_tracks', opts]);
+        return { body: { code: 200, message: 'ok' } };
+      },
+      playlist_track_add: async opts => {
+        calls.push(['playlist_track_add', opts]);
+        return { body: { code: 200 } };
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/playlist/add-song', { pid: '77', id: '101' });
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.success, true);
+  assert.equal(body.pid, '77');
+  assert.equal(body.id, '101');
+  assert.deepEqual(body.attempts.map(item => item.api), ['playlist_tracks']);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].op, 'add');
+  assert.equal(calls[0][1].pid, '77');
+  assert.equal(calls[0][1].tracks, '101');
+});
+
+test('/api/playlist/add-song falls back to playlist_track_add when playlist_tracks fails', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9800, nickname: 'Playlist Fallback User' },
+    api: {
+      playlist_tracks: async opts => {
+        calls.push(['playlist_tracks', opts]);
+        return { body: { code: 500, message: 'primary failed', error: 'PRIMARY_FAILED' } };
+      },
+      playlist_track_add: async opts => {
+        calls.push(['playlist_track_add', opts]);
+        return { body: { code: 200, message: 'fallback ok' } };
+      },
+    },
+  });
+
+  const { status, body } = await postJson('/api/playlist/add-song', { pid: '77', ids: '101,102' });
+
+  assert.equal(status, 200);
+  assert.equal(body.success, true);
+  assert.equal(body.id, '101,102');
+  assert.deepEqual(body.attempts.map(item => item.api), ['playlist_tracks', 'playlist_track_add']);
+  assert.deepEqual(calls.map(call => call[0]), ['playlist_tracks', 'playlist_track_add']);
+  assert.equal(calls[1][1].ids, '101,102');
+});
