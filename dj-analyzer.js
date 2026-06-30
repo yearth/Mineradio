@@ -1,5 +1,7 @@
 const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const FULL_STREAM_QUALITY_LIMIT_SEC = 7200;
+const IS_TEST_RUNTIME = process.env.NODE_ENV === 'test' || process.argv.some(arg => /(?:^|[\\/])tests[\\/].+\.test\.js$/.test(arg));
+let decodePodcastDjEnergyRangeOverride = null;
 
 function clamp01(v) {
   return Math.max(0, Math.min(1, Number(v) || 0));
@@ -485,12 +487,18 @@ async function decodePodcastDjEnergyRange(audioUrl, opts) {
   };
 }
 
+function decodePodcastDjEnergyRangeForAnalysis(audioUrl, opts) {
+  return decodePodcastDjEnergyRangeOverride
+    ? decodePodcastDjEnergyRangeOverride(audioUrl, opts || {})
+    : decodePodcastDjEnergyRange(audioUrl, opts);
+}
+
 async function analyzePodcastDjIntro(audioUrl, opts) {
   opts = opts || {};
   if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) throw new Error('Invalid audio url');
   const requestedDuration = Math.max(0, Number(opts.durationSec) || 0);
   const introSec = clampRange(Number(opts.introSec) || 180, 90, 240);
-  const decoded = await decodePodcastDjEnergyRange(audioUrl, {
+  const decoded = await decodePodcastDjEnergyRangeForAnalysis(audioUrl, {
     durationSec: introSec,
     userAgent: opts.userAgent,
     limitSec: introSec + 8,
@@ -559,7 +567,7 @@ async function analyzePodcastDjRangeSamples(audioUrl, opts) {
     const windowBytes = Math.max(768 * 1024, Math.floor(sampleWindow * bytePerSec) + prerollBytes + 128 * 1024);
     const endByte = Math.min(contentLength - 1, startByte + windowBytes);
     const approxOffset = startByte / contentLength * duration;
-    const decoded = await decodePodcastDjEnergyRange(audioUrl, {
+    const decoded = await decodePodcastDjEnergyRangeForAnalysis(audioUrl, {
       durationSec: sampleWindow,
       userAgent: opts.userAgent,
       range: 'bytes=' + startByte + '-' + endByte,
@@ -857,8 +865,21 @@ async function analyzePodcastDjStreamFull(audioUrl, opts) {
   return map;
 }
 
-module.exports = {
+const exported = {
   analyzePodcastDjStream,
   analyzePodcastDjIntro,
   buildBeatMapFromLowEnergy,
 };
+
+if (IS_TEST_RUNTIME) {
+  exported.__test = {
+    setDecodePodcastDjEnergyRange(fn) {
+      decodePodcastDjEnergyRangeOverride = typeof fn === 'function' ? fn : null;
+    },
+    reset() {
+      decodePodcastDjEnergyRangeOverride = null;
+    },
+  };
+}
+
+module.exports = exported;

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  __test,
   analyzePodcastDjIntro,
   analyzePodcastDjStream,
   buildBeatMapFromLowEnergy,
@@ -302,6 +303,76 @@ test('analyzePodcastDjStream samples long podcasts with ranged empty audio', asy
     assert.deepEqual(result.cameraBeats, []);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test('analyzePodcastDjStream builds a sampled range beat grid from decoded range maps', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  const decodedRanges = [];
+  global.fetch = async (targetUrl, opts = {}) => {
+    calls.push({ targetUrl, opts });
+    if (opts.method === 'HEAD') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: name => (String(name).toLowerCase() === 'content-length' ? '8000000' : '') },
+      };
+    }
+    throw new Error('range body fetch should be handled by decode override');
+  };
+  __test.setDecodePodcastDjEnergyRange(async (audioUrl, opts = {}) => {
+    decodedRanges.push({ audioUrl, opts });
+    const { lowEnergy, hitEnergy } = makePulseEnergy(1200, 50, 30);
+    return {
+      lowEnergy,
+      hitEnergy,
+      hopSec: 0.01,
+      duration: 12,
+      decode: { chunks: 1, decodedSamples: 1200 },
+    };
+  });
+
+  try {
+    const result = await analyzePodcastDjStream('https://audio.example/range-pulse.mp3', {
+      durationSec: 8000,
+      userAgent: 'Range Pulse UA',
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].opts.method, 'HEAD');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'Range Pulse UA');
+    assert.equal(decodedRanges.length, 8);
+    assert.ok(decodedRanges.every(call => call.audioUrl === 'https://audio.example/range-pulse.mp3'));
+    assert.ok(decodedRanges.every(call => call.opts.userAgent === 'Range Pulse UA'));
+    assert.ok(decodedRanges.every(call => /^bytes=\d+-\d+$/.test(call.opts.range)));
+    assert.equal(result.tempoSource, 'podcast-dj-server-range-offline');
+    assert.equal(result.duration, 8000);
+    assert.equal(result.debug.rangeSampled, true);
+    assert.equal(result.debug.samples, 8);
+    assert.equal(result.debug.contentLength, 8000000);
+    assert.deepEqual(result.debug.decode, { chunks: 8, decodedSamples: 9600 });
+    assert.equal(result.debug.profiles.length, 8);
+    assert.ok(result.visualBeatCount > 1000);
+    assert.equal(result.visualBeatCount, result.cameraBeats.length);
+    assert.equal(result.beats.length, result.kicks.length);
+    assert.ok(result.pulseBeats.length > 0);
+    assert.ok(result.gridStep >= 0.32 && result.gridStep <= 0.86);
+    assert.equal(result.sectionSteps.length, 8);
+
+    const first = result.beats[0];
+    assert.equal(first.dj, true);
+    assert.equal(first.grid, true);
+    assert.equal(first.server, true);
+    assert.equal(first.sampled, true);
+    assert.equal(first.kickOnly, true);
+    assert.ok(first.time >= 0 && first.time < result.duration);
+    assert.ok(first.impact >= 0.02 && first.impact <= 0.90);
+    assert.ok(first.strength >= 0.12 && first.strength <= 0.93);
+    assert.ok(['downbeat', 'push', 'drop', 'rebound', 'accent'].includes(first.combo));
+  } finally {
+    global.fetch = originalFetch;
+    __test.reset();
   }
 });
 
