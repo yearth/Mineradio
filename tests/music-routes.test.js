@@ -704,6 +704,70 @@ test('/api/qq/song/url reports missing playback authorization for partial QQ ses
   assert.equal(calls[0].payload.comm.authst, 'web-session-key');
 });
 
+test('/api/qq/song/url classifies logged-in QQ playback restrictions', async () => {
+  setRequestTextResponder(targetUrl => {
+    if (targetUrl.includes('fcg_get_profile_homepage')) {
+      return { data: { creator: { nick: 'Full QQ User' } } };
+    }
+    throw new Error('unexpected QQ request during login');
+  });
+  await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key; ptnick_12345=Full%20QQ%20User',
+  });
+
+  const cases = [
+    {
+      info: { filename: 'M800media001.mp3', purl: '', result: 104003, msg: 'copyright limited' },
+      reason: 'copyright_unavailable',
+      action: 'switch_source',
+    },
+    {
+      info: { filename: 'M800media001.mp3', purl: '', result: 0, msg: 'VIP 会员付费歌曲' },
+      reason: 'paid_required',
+      action: 'upgrade',
+    },
+    {
+      info: { filename: 'M800media001.mp3', purl: '', result: 5001, msg: 'only official client' },
+      reason: 'copyright_unavailable',
+      action: 'switch_source',
+    },
+    {
+      info: { filename: 'M800media001.mp3', purl: '', result: 0, msg: '' },
+      reason: 'url_unavailable',
+      action: 'switch_source',
+    },
+  ];
+
+  for (const item of cases) {
+    const calls = [];
+    setRequestTextResponder((targetUrl, opts, requestBody) => {
+      calls.push({ targetUrl, payload: JSON.parse(requestBody) });
+      return {
+        req_0: {
+          data: {
+            midurlinfo: [item.info],
+          },
+        },
+      };
+    });
+
+    const { status, body } = await getJson('/api/qq/song/url?mid=qqmid001&mediaMid=media001&quality=exhigh');
+
+    assert.equal(status, 200);
+    assert.equal(body.provider, 'qq');
+    assert.equal(body.playable, false);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.playbackKeyReady, true);
+    assert.equal(body.reason, item.reason);
+    assert.equal(body.restriction.category, item.reason);
+    assert.equal(body.restriction.action, item.action);
+    assert.equal(body.restriction.provider, 'qq');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].payload.comm.uin, '12345');
+    assert.equal(calls[0].payload.comm.authst, 'music-key');
+  }
+});
+
 test('/api/qq/lyric requires a QQ song mid or id', async () => {
   const { status, body } = await getJson('/api/qq/lyric');
 
