@@ -1552,6 +1552,101 @@ test('/api/login/cookie saves a valid Netease cookie and returns profile info', 
   assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=secret; __csrf=token');
 });
 
+test('/api/login/status falls back to account lookup when login_status fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    login_status: async opts => {
+      calls.push(['login_status', opts]);
+      throw new Error('status unavailable');
+    },
+    user_account: async opts => {
+      calls.push(['user_account', opts]);
+      return {
+        body: {
+          profile: {
+            userId: 9204,
+            nickname: 'Fallback User',
+            avatarUrl: 'https://img.example/fallback.jpg',
+          },
+          account: { id: 9204, vipFlag: 1 },
+        },
+      };
+    },
+  });
+
+  try {
+    await postJson('/api/login/cookie', { cookie: 'MUSIC_U=fallback-secret; __csrf=fallback-token' });
+    const { status, body } = await getJson('/api/login/status');
+
+    assert.equal(status, 200);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.userId, 9204);
+    assert.equal(body.nickname, 'Fallback User');
+    assert.equal(body.avatar, 'https://img.example/fallback.jpg');
+    assert.equal(body.vipLevel, 'vip');
+    assert.equal(body.isVip, true);
+    assert.equal(body.isSvip, false);
+    assert.deepEqual(calls.map(item => item[0]), ['login_status', 'user_account', 'login_status', 'user_account']);
+    assert.equal(calls[0][1].cookie, 'MUSIC_U=fallback-secret; __csrf=fallback-token');
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/login/status clears cookies when account lookup reports invalid auth', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+
+  try {
+    server.__test.setNeteaseApi({
+      login_status: async () => {
+        throw new Error('status unavailable');
+      },
+      user_account: async () => ({ body: { code: 401, message: '需要登录' } }),
+    });
+    const invalid = await postJson('/api/login/cookie', { cookie: 'MUSIC_U=expired-secret; __csrf=expired-token' });
+
+    assert.equal(invalid.status, 200);
+    assert.equal(invalid.body.loggedIn, false);
+    assert.equal(invalid.body.hasCookie, false);
+    assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), '');
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/login/status keeps cookies when account lookup fails unexpectedly', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+
+  try {
+    server.__test.setNeteaseApi({
+      login_status: async () => {
+        throw new Error('status unavailable');
+      },
+      user_account: async () => {
+        throw new Error('account unavailable');
+      },
+    });
+    const failed = await postJson('/api/login/cookie', { cookie: 'MUSIC_U=kept-secret; __csrf=kept-token' });
+
+    assert.equal(failed.status, 200);
+    assert.equal(failed.body.loggedIn, true);
+    assert.equal(failed.body.pendingProfile, true);
+    assert.equal(failed.body.hasCookie, true);
+    assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=kept-secret; __csrf=kept-token');
+
+    const lookup = await getJson('/api/login/status');
+    assert.equal(lookup.status, 200);
+    assert.equal(lookup.body.loggedIn, false);
+    assert.equal(lookup.body.hasCookie, true);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/login/cookie accepts form-encoded cookie submissions', async () => {
   const calls = [];
   server.__test.setNeteaseApi({
