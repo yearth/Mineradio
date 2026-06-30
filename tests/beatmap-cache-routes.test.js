@@ -63,6 +63,26 @@ async function postJson(pathname, body) {
   return requestJson('POST', pathname, body);
 }
 
+async function withBlockedCacheDir(fn) {
+  const backupDir = cacheDir + '.backup';
+  let hadDir = false;
+  if (fs.existsSync(cacheDir)) {
+    fs.renameSync(cacheDir, backupDir);
+    hadDir = true;
+  }
+  fs.writeFileSync(cacheDir, 'not a directory');
+  try {
+    return await fn();
+  } finally {
+    if (fs.existsSync(cacheDir) && fs.statSync(cacheDir).isFile()) {
+      fs.unlinkSync(cacheDir);
+    }
+    if (hadDir) {
+      fs.renameSync(backupDir, cacheDir);
+    }
+  }
+}
+
 test('/api/beatmap/cache/status reports the configured disk cache directory', async () => {
   const { status, body } = await getJson('/api/beatmap/cache/status');
 
@@ -135,4 +155,30 @@ test('/api/beatmap/cache rejects invalid writes and unsupported methods', async 
 
   assert.equal(method.status, 405);
   assert.deepEqual(method.body, { ok: false, error: 'METHOD_NOT_ALLOWED' });
+});
+
+test('/api/beatmap/cache falls back to memory-only responses when cache dir cannot be created', async () => {
+  await withBlockedCacheDir(async () => {
+    const read = await getJson('/api/beatmap/cache?key=blocked-cache');
+
+    assert.equal(read.status, 200);
+    assert.equal(read.body.ok, false);
+    assert.equal(read.body.hit, false);
+    assert.equal(read.body.enabled, false);
+    assert.equal(read.body.mode, 'memory-only');
+    assert.equal(read.body.reason, 'EEXIST');
+    assert.equal(read.body.dir, cacheDir);
+
+    const write = await postJson('/api/beatmap/cache', {
+      key: 'blocked-cache',
+      map: { beats: [] },
+    });
+
+    assert.equal(write.status, 200);
+    assert.equal(write.body.ok, false);
+    assert.equal(write.body.enabled, false);
+    assert.equal(write.body.mode, 'memory-only');
+    assert.equal(write.body.reason, 'EEXIST');
+    assert.equal(write.body.dir, cacheDir);
+  });
 });

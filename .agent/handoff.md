@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, and selected playlist/podcast error branches. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for `/api/playlist/tracks` `tracks` payload compatibility and fallback failure handling, plus `/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, and `/api/podcast/programs` upstream failure responses.
+- Current uncommitted work adds `tests/beatmap-cache-routes.test.js` coverage for read/write fallback responses when the configured beatmap cache directory cannot be created.
 
 ## Changes Made
 
@@ -78,6 +78,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `tests/beatmap-cache-routes.test.js`
   - Covers `/api/beatmap/cache/status` reporting an enabled disk cache under a test-only temp directory.
   - Covers `/api/beatmap/cache` miss, compact write, safe hashed filename, metadata truncation, ignored field exclusion, hit readback, invalid payload rejection, and unsupported method handling.
+  - Covers `/api/beatmap/cache` read/write memory-only fallback responses when the configured cache directory path is blocked by a regular file.
 - `tests/dj-analyzer.test.js`
   - Covers `buildBeatMapFromLowEnergy()` empty-map behavior for short inputs and long flat inputs without usable onsets.
   - Covers repeated low-energy pulse input producing a visual beat grid, including tempo range, beat/camera counts, kick time mapping, section step metadata, debug metadata, and beat contract ranges.
@@ -119,10 +120,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 6 tests.
-- `node --test tests/beatmap-cache-routes.test.js`: passed, 3 tests.
+- `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
 - `node --test tests/music-routes.test.js`: passed, 78 tests.
-- `npm test`: passed, 114 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 114 tests; all-files line coverage 87.68%, branch coverage 55.80%, function coverage 87.41%; `server.js` line coverage 83.38%.
+- `npm test`: passed, 115 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 115 tests; all-files line coverage 87.97%, branch coverage 56.05%, function coverage 87.46%; `server.js` line coverage 83.85%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -153,7 +154,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
 - Music route behavior now has first-pass coverage for search, lyrics, Netease song URL/artist detail, discover home, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, and selected playlist/podcast error branches.
 - `dj-analyzer.js` pure beat-map generation is covered for empty and pulse-grid paths, and wrapper failure/empty-intro paths have first-pass coverage; range-sampled/full-stream decoded audio success paths remain largely untested.
-- Beatmap cache routes are covered on the normal disk-cache path; disabled-drive and read/write filesystem error paths remain untested.
+- Beatmap cache routes are covered on the normal disk-cache path and a cache-dir-blocked memory-only fallback path; disabled-drive and deeper filesystem error paths remain untested.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -178,4 +179,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue covering remaining non-UI gaps: beatmap-cache disabled/filesystem error paths, `/api/podcast/my` and `/api/podcast/my/items` partial/failure branches, QQ failure branches, and `dj-analyzer.js` range/full-stream success paths. Defer UI-heavy `public/index.html`.
+6. Next implementation step: continue covering remaining non-UI gaps: `/api/podcast/my` and `/api/podcast/my/items` partial/failure branches, QQ failure branches, `dj-analyzer.js` range/full-stream success paths, and any remaining beatmap-cache disabled-drive/deeper filesystem branches that can be tested without broad hooks. Defer UI-heavy `public/index.html`.
