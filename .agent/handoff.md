@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, installer/patch job creation, installer cache handling, installer download ready/error branches, HTTP candidate fallback/all-fail branches, and patch application success/error branches.
+- Status: macOS preview build is usable enough for manual product evaluation; update route tests now cover non-Windows fallback, Windows manifest latest checks, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache handling, installer download ready/error branches, HTTP candidate fallback/all-fail branches, and patch application success/error branches.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds patch application tests for unsafe patch paths and successful allowed `public/` file writes.
+- Current uncommitted work adds GitHub release fetching tests: successful GitHub latest release parsing and `latest.yml` fallback after GitHub API failure.
 
 ## Changes Made
 
@@ -42,6 +42,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `tests/update-routes.test.js`
   - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
   - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
+  - Covers Windows update path reading the GitHub latest release API, choosing installer/patch assets, normalizing digests, and extracting release notes without real network access.
+  - Covers Windows update path falling back to `latest.yml` when the GitHub latest release API fails.
   - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
   - Covers Windows manifest `/api/update/patch` creating a queued patch job without applying a real patch in tests.
   - Covers `/api/update/download` reusing a verified cached installer and moving an invalid cached installer aside before queuing a fresh job.
@@ -70,7 +72,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Verification Run
 
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `npm test`: passed, 25 tests.
+- `npm test`: passed, 27 tests.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -98,7 +100,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Update UI is intentionally disabled on non-Windows preview builds.
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches; GitHub release fetching coverage is still pending.
+- Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
 - UI behavior in `public/index.html` remains largely untested.
 
 ## Next Session Bootstrap
@@ -122,4 +124,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/update-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue into GitHub release fetching coverage, then playback/search/login flows.
+6. Next implementation step: continue into playback/search/login API flows, then UI-heavy `public/index.html` behavior once safer seams exist.

@@ -102,6 +102,24 @@ function fakeDownloadFetch(content) {
   global.fetch = async () => fakeDownloadResponse(content);
 }
 
+function fakeJsonResponse(data) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get() { return ''; } },
+    json: async () => data,
+  };
+}
+
+function fakeTextResponse(text) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get() { return ''; } },
+    text: async () => text,
+  };
+}
+
 function fakeHttpResponse(status) {
   return {
     ok: false,
@@ -190,6 +208,89 @@ test('/api/update/latest reads manifest updates on the Windows update path', asy
   assert.equal(body.release.downloadUrl, 'https://example.com/Mineradio-1.2.0-Setup.exe');
   assert.equal(body.release.asset.sha256, 'abcdef');
   assert.deepEqual(body.release.notes, ['修复播放状态同步']);
+});
+
+test('/api/update/latest reads the latest GitHub release on the Windows update path', async () => {
+  const calls = fakeFetchSequence([
+    fakeJsonResponse({
+      tag_name: 'v1.3.0',
+      name: 'Mineradio v1.3.0',
+      published_at: '2026-06-29T10:00:00Z',
+      html_url: 'https://github.com/XxHuberrr/Mineradio/releases/tag/v1.3.0',
+      body: '## Changes\n- Better playback\n- Faster updates\nhttps://example.com/full-log',
+      assets: [
+        {
+          name: 'Source code.zip',
+          size: 100,
+          content_type: 'application/zip',
+          browser_download_url: 'https://github.com/XxHuberrr/Mineradio/archive/refs/tags/v1.3.0.zip',
+        },
+        {
+          name: 'Mineradio-1.3.0-Setup.exe',
+          size: 45678,
+          content_type: 'application/octet-stream',
+          digest: 'sha256:DEADBEEF',
+          browser_download_url: 'https://github.com/XxHuberrr/Mineradio/releases/download/v1.3.0/Mineradio-1.3.0-Setup.exe',
+        },
+        {
+          name: 'Mineradio-1.1.1-to-1.3.0.patch.json',
+          size: 789,
+          content_type: 'application/json',
+          browser_download_url: 'https://github.com/XxHuberrr/Mineradio/releases/download/v1.3.0/Mineradio-1.1.1-to-1.3.0.patch.json',
+        },
+      ],
+    }),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+
+  const { status, body } = await getJson('/api/update/latest');
+
+  assert.equal(status, 200);
+  assert.equal(body.configured, true);
+  assert.equal(body.preview, false);
+  assert.equal(body.updateAvailable, true);
+  assert.equal(body.latestVersion, '1.3.0');
+  assert.equal(body.release.asset.name, 'Mineradio-1.3.0-Setup.exe');
+  assert.equal(body.release.asset.size, 45678);
+  assert.equal(body.release.asset.sha256, 'deadbeef');
+  assert.equal(body.release.patch.name, 'Mineradio-1.1.1-to-1.3.0.patch.json');
+  assert.equal(body.release.patchAvailable, true);
+  assert.deepEqual(body.release.notes, ['Better playback', 'Faster updates']);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /api\.github\.com\/repos\/XxHuberrr\/Mineradio\/releases\/latest/);
+});
+
+test('/api/update/latest falls back to latest.yml when the GitHub release API fails', async () => {
+  const calls = fakeFetchSequence([
+    fakeHttpResponse(500),
+    fakeTextResponse([
+      'version: 1.4.0',
+      'path: Mineradio-1.4.0-Setup.exe',
+      'sha512: abc123',
+      'size: 654321',
+      'releaseDate: 2026-06-30T09:00:00.000Z',
+    ].join('\n')),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+
+  const { status, body } = await getJson('/api/update/latest');
+
+  assert.equal(status, 200);
+  assert.equal(body.configured, true);
+  assert.equal(body.preview, false);
+  assert.equal(body.updateAvailable, true);
+  assert.equal(body.latestVersion, '1.4.0');
+  assert.equal(body.source, 'latest-yml');
+  assert.equal(body.reason, 'GitHub Releases 500');
+  assert.equal(body.release.asset.name, 'Mineradio-1.4.0-Setup.exe');
+  assert.equal(body.release.asset.size, 654321);
+  assert.equal(body.release.asset.sha512, 'abc123');
+  assert.equal(body.release.patchAvailable, false);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0], /api\.github\.com\/repos\/XxHuberrr\/Mineradio\/releases\/latest/);
+  assert.match(calls[1], /latest\.yml/);
 });
 
 test('/api/update/download creates an installer job from a Windows manifest without starting a test download', async () => {
