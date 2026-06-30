@@ -100,6 +100,7 @@ const updateDownloadJobs = new Map();
 const updateRuntimeOverrides = {
   platform: '',
   manifest: '',
+  autoDownload: true,
 };
 
 function applySystemCertificateAuthorities() {
@@ -1034,7 +1035,7 @@ function startUpdateDownloadJob(info) {
   };
   updateDownloadJobs.set(job.id, job);
   trimUpdateJobs();
-  downloadUpdateAssetWithMirrors(job);
+  if (updateRuntimeOverrides.autoDownload !== false) downloadUpdateAssetWithMirrors(job);
   return publicUpdateJob(job);
 }
 function sha256Hex(buffer) {
@@ -4119,9 +4120,13 @@ if (process.env.NODE_ENV === 'test') {
     setUpdateManifest(value) {
       updateRuntimeOverrides.manifest = String(value || '');
     },
+    setUpdateAutoDownload(value) {
+      updateRuntimeOverrides.autoDownload = value !== false;
+    },
     resetUpdateRuntime() {
       updateRuntimeOverrides.platform = '';
       updateRuntimeOverrides.manifest = '';
+      updateRuntimeOverrides.autoDownload = true;
       updateDownloadJobs.clear();
     },
   };
