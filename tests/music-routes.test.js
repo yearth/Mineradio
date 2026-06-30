@@ -415,6 +415,23 @@ test('/api/qq/search returns an empty list for blank keywords', async () => {
   assert.equal(requested, false);
 });
 
+test('/api/qq/search returns a provider error when smartbox search fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('qq search unavailable');
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/search?keywords=rain');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { provider: 'qq', error: 'qq search unavailable', songs: [] });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/qq/song/url returns the first playable QQ vkey URL', async () => {
   const calls = [];
   setRequestTextResponder((targetUrl, opts, requestBody) => {
@@ -464,6 +481,28 @@ test('/api/qq/song/url reports a missing QQ mid without an upstream request', as
   assert.equal(requested, false);
 });
 
+test('/api/qq/song/url returns a provider error when vkey lookup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('vkey unavailable');
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/song/url?mid=qqmid001');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, {
+      provider: 'qq',
+      url: '',
+      playable: false,
+      error: 'vkey unavailable',
+    });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/qq/lyric requires a QQ song mid or id', async () => {
   const { status, body } = await getJson('/api/qq/lyric');
 
@@ -503,6 +542,33 @@ test('/api/qq/lyric returns decoded musicu lyric data', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].payload.lyric.param.songMID, 'qqmid001');
   assert.equal(calls[0].payload.lyric.param.songID, 12001);
+});
+
+test('/api/qq/lyric returns an empty lyric payload when all QQ lyric lookups fail', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('qq lyric unavailable');
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/lyric?mid=qqmid001');
+
+    assert.equal(status, 200);
+    assert.deepEqual(body, {
+      provider: 'qq',
+      id: '',
+      mid: 'qqmid001',
+      lyric: '',
+      tlyric: '',
+      yrc: '',
+      qrc: '',
+      roma: '',
+      source: 'qq-empty',
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test('/api/qq/login/cookie rejects invalid QQ cookies', async () => {
@@ -687,6 +753,61 @@ test('/api/qq/user/playlists maps created and collected QQ playlists', async () 
   assert.equal(calls.filter(url => url.includes('fcg_get_profile_homepage.fcg')).length, 2);
   assert.equal(calls.some(url => url.includes('hostuin=12345')), true);
   assert.equal(calls.some(url => url.includes('userid=12345')), true);
+});
+
+test('/api/qq/user/playlists keeps collected playlists when created list fails', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    if (targetUrl.includes('fcg_get_profile_homepage.fcg')) {
+      return { data: { creator: { nick: 'QQ Profile' } } };
+    }
+    if (targetUrl.includes('fcg_user_created_diss')) {
+      throw new Error('created list unavailable');
+    }
+    if (targetUrl.includes('fcg_get_profile_order_asset.fcg')) {
+      return {
+        data: {
+          cdlist: [
+            {
+              dissid: 'collect-1',
+              diss_name: 'Collected Only',
+              diss_cover: 'https://img.example/collected-only.jpg',
+              songnum: 9,
+              visitnum: 88,
+              nick: 'QQ Profile',
+            },
+          ],
+        },
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+  await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key',
+  });
+
+  const { status, body } = await getJson('/api/qq/user/playlists');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.deepEqual(body.playlists, [
+    {
+      provider: 'qq',
+      source: 'qq',
+      id: 'collect-1',
+      name: 'Collected Only',
+      cover: 'https://img.example/collected-only.jpg',
+      trackCount: 9,
+      playCount: 88,
+      creator: 'QQ Profile',
+      subscribed: true,
+      specialType: 0,
+    },
+  ]);
+  assert.equal(calls.some(url => url.includes('fcg_user_created_diss')), true);
+  assert.equal(calls.some(url => url.includes('fcg_get_profile_order_asset.fcg')), true);
 });
 
 test('/api/qq/playlist/tracks returns an empty list when logged out', async () => {
