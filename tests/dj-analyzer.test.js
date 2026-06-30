@@ -304,3 +304,61 @@ test('analyzePodcastDjStream samples long podcasts with ranged empty audio', asy
     global.fetch = originalFetch;
   }
 });
+
+test('analyzePodcastDjStream falls back to range sampling when quality full-stream fails', async () => {
+  const originalFetch = global.fetch;
+  const originalWarn = console.warn;
+  const calls = [];
+  const warnings = [];
+  global.fetch = async (targetUrl, opts = {}) => {
+    calls.push({ targetUrl, opts });
+    if (!opts.method && !opts.headers.Range) {
+      return { ok: false, status: 503, body: null };
+    }
+    if (opts.method === 'HEAD') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: name => (String(name).toLowerCase() === 'content-length' ? '8000000' : '') },
+      };
+    }
+    return {
+      ok: true,
+      status: 206,
+      body: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    };
+  };
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    const result = await analyzePodcastDjStream('https://audio.example/quality-fallback.mp3', {
+      durationSec: 4000,
+      userAgent: 'Fallback UA',
+    });
+
+    assert.equal(calls.length, 10);
+    assert.equal(calls[0].targetUrl, 'https://audio.example/quality-fallback.mp3');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'Fallback UA');
+    assert.equal(calls[0].opts.headers.Referer, 'https://music.163.com/');
+    assert.equal(calls[1].opts.method, 'HEAD');
+    assert.equal(calls[1].opts.headers['User-Agent'], 'Fallback UA');
+
+    const rangeCalls = calls.slice(2);
+    assert.equal(rangeCalls.length, 8);
+    assert.ok(rangeCalls.every(call => /^bytes=\d+-\d+$/.test(call.opts.headers.Range)));
+    assert.ok(rangeCalls.every(call => call.opts.headers['User-Agent'] === 'Fallback UA'));
+    assert.equal(warnings.length, 1);
+    assert.match(String(warnings[0][0]), /full-stream quality path failed/);
+    assert.equal(String(warnings[0][1]), 'Audio fetch failed: 503');
+    assert.equal(result.tempoSource, 'podcast-dj-server-range-empty');
+    assert.equal(result.duration, 4000);
+    assert.deepEqual(result.beats, []);
+  } finally {
+    global.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
