@@ -510,6 +510,361 @@ test('/api/qq/login/cookie saves a valid QQ cookie and falls back when profile l
   }
 });
 
+test('/api/qq/login/status returns logged-out defaults without a saved QQ cookie', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/login/status');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { provider: 'qq', loggedIn: false, hasCookie: false });
+  assert.equal(requested, false);
+});
+
+test('/api/qq/logout clears the saved QQ cookie', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  setRequestTextResponder(() => {
+    throw new Error('profile unavailable');
+  });
+
+  try {
+    await postJson('/api/qq/login/cookie', {
+      cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key',
+    });
+
+    const { status, body } = await getJson('/api/qq/logout');
+
+    assert.equal(status, 200);
+    assert.deepEqual(body, { provider: 'qq', ok: true, loggedIn: false });
+    assert.equal(fs.readFileSync(process.env.QQ_COOKIE_FILE, 'utf8'), '');
+
+    const lookup = await getJson('/api/qq/login/status');
+    assert.equal(lookup.body.loggedIn, false);
+    assert.equal(lookup.body.hasCookie, false);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/qq/user/playlists returns an empty list when logged out', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/user/playlists');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { loggedIn: false, provider: 'qq', playlists: [] });
+  assert.equal(requested, false);
+});
+
+test('/api/qq/user/playlists maps created and collected QQ playlists', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    if (targetUrl.includes('fcg_get_profile_homepage.fcg')) {
+      return { data: { creator: { nick: 'QQ Profile', headpic: 'https://img.example/qq-profile.jpg' } } };
+    }
+    if (targetUrl.includes('fcg_user_created_diss')) {
+      return {
+        data: {
+          disslist: [
+            {
+              dissid: 'created-1',
+              diss_name: 'QQ Created',
+              diss_cover: 'https://img.example/created.jpg',
+              song_cnt: 12,
+              listen_num: 345,
+              hostname: 'QQ Profile',
+            },
+            {
+              dissid: 'qzone-1',
+              diss_name: 'Qzone 背景音乐',
+              hostname: '空间',
+            },
+          ],
+        },
+      };
+    }
+    if (targetUrl.includes('fcg_get_profile_order_asset.fcg')) {
+      return {
+        data: {
+          cdlist: [
+            {
+              dissid: 'created-1',
+              diss_name: 'Duplicate Collected',
+            },
+            {
+              dissid: 'fav-1',
+              diss_name: '我喜欢的音乐',
+              diss_cover: 'https://img.example/favorite.jpg',
+              songnum: 21,
+              visitnum: 678,
+              nick: 'QQ Profile',
+            },
+          ],
+        },
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+  await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key',
+  });
+
+  const { status, body } = await getJson('/api/qq/user/playlists');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.userId, '12345');
+  assert.deepEqual(body.playlists, [
+    {
+      provider: 'qq',
+      source: 'qq',
+      id: 'fav-1',
+      name: '我喜欢的音乐',
+      cover: 'https://img.example/favorite.jpg',
+      trackCount: 21,
+      playCount: 678,
+      creator: 'QQ Profile',
+      subscribed: true,
+      specialType: 0,
+    },
+    {
+      provider: 'qq',
+      source: 'qq',
+      id: 'created-1',
+      name: 'QQ Created',
+      cover: 'https://img.example/created.jpg',
+      trackCount: 12,
+      playCount: 345,
+      creator: 'QQ Profile',
+      subscribed: false,
+      specialType: 0,
+    },
+  ]);
+  assert.equal(calls.filter(url => url.includes('fcg_get_profile_homepage.fcg')).length, 2);
+  assert.equal(calls.some(url => url.includes('hostuin=12345')), true);
+  assert.equal(calls.some(url => url.includes('userid=12345')), true);
+});
+
+test('/api/qq/playlist/tracks returns an empty list when logged out', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/playlist/tracks?id=77');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { loggedIn: false, provider: 'qq', tracks: [] });
+  assert.equal(requested, false);
+});
+
+test('/api/qq/playlist/tracks maps QQ playlist detail tracks', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    if (targetUrl.includes('fcg_get_profile_homepage.fcg')) {
+      return { data: { creator: { nick: 'QQ Profile' } } };
+    }
+    if (targetUrl.includes('fcg_ucc_getcdinfo_byids_cp.fcg')) {
+      return {
+        cdlist: [
+          {
+            dissname: 'QQ Track List',
+            logo: 'https://img.example/qq-playlist.jpg',
+            songlist: [
+              {
+                id: 22001,
+                mid: 'trackmid001',
+                name: 'QQ Track',
+                singer: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+                album: { mid: 'albummid001', name: 'QQ Album' },
+                interval: 201,
+                file: { media_mid: 'media-track-001' },
+                pay: { pay_play: 1 },
+              },
+            ],
+          },
+        ],
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+  await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o12345; qm_keyst=music-key; qqmusic_key=play-key',
+  });
+
+  const { status, body } = await getJson('/api/qq/playlist/tracks?id=77');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.deepEqual(body.playlist, {
+    provider: 'qq',
+    id: '77',
+    name: 'QQ Track List',
+    cover: 'https://img.example/qq-playlist.jpg',
+    trackCount: 1,
+  });
+  assert.equal(body.tracks.length, 1);
+  assert.equal(body.tracks[0].id, 'trackmid001');
+  assert.equal(body.tracks[0].qqId, 22001);
+  assert.equal(body.tracks[0].artist, 'QQ Artist');
+  assert.equal(body.tracks[0].album, 'QQ Album');
+  assert.equal(body.tracks[0].cover, 'https://y.qq.com/music/photo_new/T002R300x300M000albummid001.jpg?max_age=2592000');
+  assert.equal(body.tracks[0].duration, 201000);
+  assert.equal(body.tracks[0].fee, 1);
+  assert.equal(calls.some(url => url.includes('disstid=77')), true);
+  assert.equal(calls.some(url => url.includes('loginUin=12345')), true);
+});
+
+test('/api/qq/artist/detail requires a singer mid', async () => {
+  const { status, body } = await getJson('/api/qq/artist/detail');
+
+  assert.equal(status, 400);
+  assert.deepEqual(body, { provider: 'qq', error: 'MISSING_SINGER_MID', artist: null, songs: [] });
+});
+
+test('/api/qq/artist/detail maps QQ artist and hot songs', async () => {
+  const calls = [];
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, payload: JSON.parse(requestBody) });
+    return {
+      singer: {
+        code: 0,
+        data: {
+          singer_info: {
+            id: 66,
+            mid: 'singer001',
+            name: 'QQ Artist',
+            pic: 'https://img.example/singer.jpg',
+            fans: 1234,
+          },
+          total_song: 42,
+          total_album: 5,
+          total_mv: 3,
+          songlist: [
+            {
+              track_info: {
+                id: 33001,
+                mid: 'artisttrack001',
+                name: 'Artist Track',
+                singer: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+                album: { mid: 'artistalbum001', name: 'Artist Album' },
+                interval: 199,
+                pay: { pay_play: 0 },
+                file: { media_mid: 'artist-media-001' },
+              },
+            },
+          ],
+        },
+      },
+    };
+  });
+
+  const { status, body } = await getJson('/api/qq/artist/detail?mid=singer001&limit=4');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.deepEqual(body.artist, {
+    provider: 'qq',
+    id: 66,
+    mid: 'singer001',
+    name: 'QQ Artist',
+    avatar: 'https://img.example/singer.jpg',
+    fans: 1234,
+    musicSize: 42,
+    albumSize: 5,
+    mvSize: 3,
+  });
+  assert.equal(body.total, 42);
+  assert.equal(body.songs.length, 1);
+  assert.equal(body.songs[0].id, 'artisttrack001');
+  assert.equal(body.songs[0].artist, 'QQ Artist');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].payload.singer.param.singermid, 'singer001');
+  assert.equal(calls[0].payload.singer.param.num, 10);
+});
+
+test('/api/qq/song/comments requires a QQ song id when detail lookup cannot resolve one', async () => {
+  let requested = false;
+  setRequestTextResponder(() => {
+    requested = true;
+    return {};
+  });
+
+  const { status, body } = await getJson('/api/qq/song/comments');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, { provider: 'qq', error: 'Missing QQ song id', comments: [] });
+  assert.equal(requested, false);
+});
+
+test('/api/qq/song/comments maps first-page hot QQ comments', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    if (targetUrl.includes('fcg_global_comment_h5.fcg')) {
+      return {
+        comment: { commenttotal: 7, commentlist: [] },
+        hot_comment: {
+          commentlist: [
+            {
+              commentid: 'comment-1',
+              rootcommentcontent: 'QQ hot comment',
+              praisenum: 8,
+              time: 1710000000,
+              encrypt_uin: 'encrypted-user',
+              nick: 'QQ Listener',
+              avatarurl: 'https://img.example/commenter.jpg',
+            },
+            {
+              commentid: 'comment-empty',
+              rootcommentcontent: '',
+            },
+          ],
+        },
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  const { status, body } = await getJson('/api/qq/song/comments?id=22001&mid=trackmid001&limit=6&offset=0');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.id, '22001');
+  assert.equal(body.total, 7);
+  assert.equal(body.hot, true);
+  assert.deepEqual(body.comments, [
+    {
+      id: 'comment-1',
+      content: 'QQ hot comment',
+      likedCount: 8,
+      time: 1710000000000,
+      user: {
+        id: 'encrypted-user',
+        nickname: 'QQ Listener',
+        avatar: 'https://img.example/commenter.jpg',
+      },
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].includes('topid=22001'), true);
+  assert.equal(calls[0].includes('pagesize=6'), true);
+  assert.equal(calls[0].includes('pagenum=0'), true);
+});
+
 test('/api/login/status returns logged-out defaults without a saved cookie', async () => {
   const { status, body } = await getJson('/api/login/status');
 
