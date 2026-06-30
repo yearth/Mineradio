@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, and selected playlist/podcast error branches. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for `/api/artist/detail` missing-id validation, hot song mapping from `artist_songs`, and fallback mapping from `artist_top_song`.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for `/api/playlist/tracks` `tracks` payload compatibility and fallback failure handling, plus `/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, and `/api/podcast/programs` upstream failure responses.
 
 ## Changes Made
 
@@ -92,7 +92,8 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/song/like` toggling liked state for logged-in users.
   - Covers `/api/playlist/create` and `/api/playlist/add-song` logged-in success paths, including fallback from `playlist_tracks` to `playlist_track_add`.
   - Covers `/api/song/comments` missing-id validation, first-page hot comment mapping, regular comment mapping on later pages, and empty-content filtering.
-  - Covers `/api/playlist/tracks` missing-id validation, track mapping from `playlist_track_all`, and fallback to `playlist_detail` when `playlist_track_all` fails.
+  - Covers `/api/playlist/tracks` missing-id validation, track mapping from `playlist_track_all` `songs` and `tracks` payloads, fallback to `playlist_detail` when `playlist_track_all` fails, and 500 behavior when the fallback detail call fails.
+  - Covers `/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, and `/api/podcast/programs` upstream failure responses.
 - `server.js`
   - Uses `defaultBeatMapCacheDir()`.
   - Disables Windows update channel on non-Windows preview builds via local fallback.
@@ -119,9 +120,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 6 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 3 tests.
-- `node --test tests/music-routes.test.js`: passed, 72 tests.
-- `npm test`: passed, 108 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 108 tests; all-files line coverage 87.33%, branch coverage 54.86%, function coverage 87.15%; `server.js` line coverage 83.02%.
+- `node --test tests/music-routes.test.js`: passed, 78 tests.
+- `npm test`: passed, 114 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 114 tests; all-files line coverage 87.68%, branch coverage 55.80%, function coverage 87.41%; `server.js` line coverage 83.38%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
@@ -150,7 +151,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
 - The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
 - Update flow behavior is covered at helper level, on the non-Windows preview route fallback path, on the Windows local-manifest latest route path, GitHub latest release fetching, latest.yml fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/hash/size branches, installer HTTP fallback/all-fail branches, and patch application success/error branches.
-- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL/artist detail, discover home, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, and playlist tracks.
+- Music route behavior now has first-pass coverage for search, lyrics, Netease song URL/artist detail, discover home, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, and selected playlist/podcast error branches.
 - `dj-analyzer.js` pure beat-map generation is covered for empty and pulse-grid paths, and wrapper failure/empty-intro paths have first-pass coverage; range-sampled/full-stream decoded audio success paths remain largely untested.
 - Beatmap cache routes are covered on the normal disk-cache path; disabled-drive and read/write filesystem error paths remain untested.
 - UI behavior in `public/index.html` remains largely untested.
@@ -177,4 +178,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue covering remaining `server.js` route families such as beatmap-cache error paths, Netease playlist/detail edge cases, and remaining QQ/podcast failure branches, then return to `dj-analyzer.js` range/full-stream success paths or UI-heavy `public/index.html` once safer seams exist.
+6. Next implementation step: continue covering remaining non-UI gaps: beatmap-cache disabled/filesystem error paths, `/api/podcast/my` and `/api/podcast/my/items` partial/failure branches, QQ failure branches, and `dj-analyzer.js` range/full-stream success paths. Defer UI-heavy `public/index.html`.

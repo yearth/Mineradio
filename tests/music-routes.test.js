@@ -1634,6 +1634,36 @@ test('/api/playlist/tracks maps songs from playlist_track_all', async () => {
   assert.equal(calls[0][1].limit, 500);
 });
 
+test('/api/playlist/tracks accepts tracks from playlist_track_all', async () => {
+  server.__test.setNeteaseApi({
+    playlist_track_all: async () => ({
+      body: {
+        tracks: [
+          {
+            id: 803,
+            name: 'Track Field Song',
+            ar: [{ id: 14, name: 'Track Field Artist' }],
+            al: { name: 'Track Field Album', coverUrl: 'https://img.example/track-field.jpg' },
+            dt: 203000,
+            fee: 0,
+          },
+        ],
+      },
+    }),
+    playlist_detail: async () => {
+      throw new Error('playlist_detail should not be called');
+    },
+  });
+
+  const { status, body } = await getJson('/api/playlist/tracks?id=79');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.playlist, { id: '79', name: '', cover: '', trackCount: 1 });
+  assert.equal(body.tracks.length, 1);
+  assert.equal(body.tracks[0].id, 803);
+  assert.equal(body.tracks[0].cover, 'https://img.example/track-field.jpg');
+});
+
 test('/api/playlist/tracks falls back to playlist_detail when playlist_track_all fails', async () => {
   const calls = [];
   const originalWarn = console.warn;
@@ -1686,6 +1716,36 @@ test('/api/playlist/tracks falls back to playlist_detail when playlist_track_all
     assert.equal(calls[1][1].s, 0);
   } finally {
     console.warn = originalWarn;
+  }
+});
+
+test('/api/playlist/tracks returns an error when fallback detail fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  console.warn = () => {};
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    playlist_track_all: async opts => {
+      calls.push(['playlist_track_all', opts]);
+      throw new Error('track all unavailable');
+    },
+    playlist_detail: async opts => {
+      calls.push(['playlist_detail', opts]);
+      throw new Error('detail unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/playlist/tracks?id=80');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'detail unavailable');
+    assert.deepEqual(body.tracks, []);
+    assert.deepEqual(calls.map(call => call[0]), ['playlist_track_all', 'playlist_detail']);
+  } finally {
+    console.warn = originalWarn;
+    console.error = originalError;
   }
 });
 
@@ -1947,6 +2007,26 @@ test('/api/podcast/search maps Netease podcast radios', async () => {
   assert.equal(calls[0].limit, 6);
 });
 
+test('/api/podcast/search returns an error when upstream search fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    cloudsearch: async () => {
+      throw new Error('podcast search unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/podcast/search?keywords=talk');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'podcast search unavailable');
+    assert.deepEqual(body.podcasts, []);
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/podcast/hot maps hot podcast radios and pagination', async () => {
   const calls = [];
   server.__test.setNeteaseApi({
@@ -1994,6 +2074,26 @@ test('/api/podcast/hot maps hot podcast radios and pagination', async () => {
   assert.equal(calls[0].offset, 6);
 });
 
+test('/api/podcast/hot returns an error when upstream hot list fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    dj_hot: async () => {
+      throw new Error('podcast hot unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/podcast/hot');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'podcast hot unavailable');
+    assert.deepEqual(body.podcasts, []);
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/podcast/detail requires a podcast id', async () => {
   const { status, body } = await getJson('/api/podcast/detail');
 
@@ -2039,6 +2139,25 @@ test('/api/podcast/detail maps podcast detail data', async () => {
   });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].rid, '903');
+});
+
+test('/api/podcast/detail returns an error when upstream detail fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    dj_detail: async () => {
+      throw new Error('podcast detail unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/podcast/detail?id=903');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'podcast detail unavailable');
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/podcast/programs requires a podcast id', async () => {
@@ -2115,6 +2234,26 @@ test('/api/podcast/programs maps podcast programs', async () => {
   assert.equal(calls[0].limit, 10);
   assert.equal(calls[0].offset, 10);
   assert.equal(calls[0].asc, false);
+});
+
+test('/api/podcast/programs returns an error when upstream programs fail', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    dj_program: async () => {
+      throw new Error('podcast programs unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/podcast/programs?id=903');
+
+    assert.equal(status, 500);
+    assert.equal(body.error, 'podcast programs unavailable');
+    assert.deepEqual(body.programs, []);
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/podcast/my returns empty collections when logged out', async () => {
