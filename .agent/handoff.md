@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/update-utils.test.js` coverage for update helper fallback/null/digest branches.
+- Current uncommitted work adds `tests/version-utils.test.js` coverage for version normalization/comparison edge inputs.
 
 ## Changes Made
 
@@ -34,7 +34,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `lib/version-utils.js`
   - Extracted version normalization and numeric version comparison from `server.js`.
 - `tests/version-utils.test.js`
-  - Covers `v` prefix removal, prerelease/build metadata stripping, numeric segment comparison, and missing segment zero-fill behavior.
+  - Covers `v`/`V` prefix removal, prerelease/build metadata stripping, blank/null normalization, numeric segment comparison, missing segment zero-fill behavior, prerelease comparison, and non-numeric segment zero coercion.
 - `lib/update-utils.js`
   - Extracted release asset, patch asset, release-note, digest, URL basename, and safe update filename helpers from `server.js`.
 - `tests/update-utils.test.js`
@@ -126,8 +126,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
 - `node --test tests/music-routes.test.js`: passed, 90 tests.
 - `node --test tests/update-utils.test.js`: passed, 10 tests.
+- `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `npm test`: passed, 132 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 132 tests; all-files line coverage 89.22%, branch coverage 59.19%, function coverage 88.56%; `server.js` line coverage 85.57%.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 132 tests; all-files line coverage 89.25%, branch coverage 59.33%, function coverage 88.56%; `server.js` line coverage 85.62%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.
