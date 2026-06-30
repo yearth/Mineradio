@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, and beatmap cache disk/memory-only behavior. `dj-analyzer.js` now has first-pass pure beat-map and wrapper-path coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work adds `tests/music-routes.test.js` coverage for QR login retry/pending/error branches, lyric fallback/error branches, and logged-in user playlist provider failures.
+- Current uncommitted work adds `tests/music-routes.test.js` coverage for song comment provider failures and artist detail fallback/error branches.
 
 ## Changes Made
 
@@ -70,7 +70,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/qq/user/playlists` logged-out behavior plus logged-in created/collected playlist mapping, duplicate filtering, Qzone/background filtering, favorite-list ordering, and partial collected-list results when the created-list source fails.
   - Covers `/api/qq/playlist/tracks` logged-out behavior plus logged-in playlist detail/track mapping and provider error responses.
   - Covers `/api/qq/artist/detail` missing-mid validation, artist/song mapping from QQ musicu responses, and provider error responses.
-  - Covers `/api/artist/detail` missing-id validation, artist metadata mapping, hot song mapping from `artist_songs`, limit clamping, and fallback to `artist_top_song` when hot songs are empty.
+  - Covers `/api/artist/detail` missing-id validation, artist metadata mapping, hot song mapping from `artist_songs`, limit clamping, detail/hot-song warning fallbacks, fallback to `artist_top_song` when hot songs are empty, and 500 behavior when top-song fallback fails.
   - Covers `/api/qq/song/comments` missing-id behavior, first-page hot comment mapping, and provider error responses.
   - Covers `/api/podcast/search` blank keyword short-circuiting and podcast radio mapping from `cloudsearch`.
   - Covers `/api/podcast/hot` pagination and hot podcast radio mapping.
@@ -108,7 +108,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/playlist/create` and `/api/playlist/add-song` logged-in success paths, including fallback from `playlist_tracks` to `playlist_track_add`.
   - Covers `/api/song/like/check`, `/api/song/like`, and `/api/playlist/create` validation and provider-error branches.
   - Covers `/api/playlist/add-song` missing playlist/song id validation before provider calls, failed `playlist_tracks` plus failed `playlist_track_add` attempts, fallback exceptions, and primary provider exceptions.
-  - Covers `/api/song/comments` missing-id validation, first-page hot comment mapping, regular comment mapping on later pages, and empty-content filtering.
+  - Covers `/api/song/comments` missing-id validation, first-page hot comment mapping, regular comment mapping on later pages, empty-content filtering, and provider failure responses.
   - Covers `/api/playlist/tracks` missing-id validation, track mapping from `playlist_track_all` `songs` and `tracks` payloads, fallback to `playlist_detail` when `playlist_track_all` fails, and 500 behavior when the fallback detail call fails.
   - Covers `/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, and `/api/podcast/programs` upstream failure responses.
 - `server.js`
@@ -137,12 +137,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 7 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 117 tests.
+- `node --test tests/music-routes.test.js`: passed, 120 tests.
 - `node --test tests/update-utils.test.js`: passed, 11 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 165 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 165 tests; all-files line coverage 92.05%, branch coverage 64.63%, function coverage 90.56%; `server.js` line coverage 89.58%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
+- `npm test`: passed, 168 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 168 tests; all-files line coverage 92.22%, branch coverage 65.25%, function coverage 90.61%; `server.js` line coverage 89.82%; `lib/update-utils.js` line coverage 100.00%; `dj-analyzer.js` line coverage 62.04%.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
 - `git diff --check`: passed.

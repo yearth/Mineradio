@@ -1505,6 +1505,81 @@ test('/api/artist/detail falls back to top songs when hot songs are empty', asyn
   assert.equal(calls[1][1].limit, 80);
 });
 
+test('/api/artist/detail falls back when detail and hot songs fail', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  server.__test.setNeteaseApi({
+    artist_detail: async opts => {
+      calls.push(['artist_detail', opts]);
+      throw new Error('detail unavailable');
+    },
+    artist_songs: async opts => {
+      calls.push(['artist_songs', opts]);
+      throw new Error('hot songs unavailable');
+    },
+    artist_top_song: async opts => {
+      calls.push(['artist_top_song', opts]);
+      return {
+        body: {
+          songs: [
+            {
+              id: 44002,
+              name: 'Recovered Top Song',
+              artists: [{ id: 78, name: 'Recovered Artist' }],
+              album: { name: 'Recovered Album', coverUrl: 'https://img.example/recovered.jpg' },
+              duration: 177000,
+            },
+          ],
+        },
+      };
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/artist/detail?id=78&limit=20');
+
+    assert.equal(status, 200);
+    assert.deepEqual(body.artist, {
+      id: '78',
+      name: '',
+      avatar: '',
+      brief: '',
+      musicSize: 0,
+      albumSize: 0,
+    });
+    assert.equal(body.songs.length, 1);
+    assert.equal(body.songs[0].id, 44002);
+    assert.deepEqual(calls.map(call => call[0]), ['artist_detail', 'artist_songs', 'artist_top_song']);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/artist/detail reports errors when all song lookups fail', async () => {
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  console.warn = () => {};
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    artist_detail: async () => ({ body: {} }),
+    artist_songs: async () => ({ body: { songs: [] } }),
+    artist_top_song: async () => {
+      throw new Error('top songs unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/artist/detail?id=79');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { error: 'top songs unavailable', songs: [] });
+  } finally {
+    console.warn = originalWarn;
+    console.error = originalError;
+  }
+});
+
 test('/api/qq/song/comments requires a QQ song id when detail lookup cannot resolve one', async () => {
   let requested = false;
   setRequestTextResponder(() => {
@@ -2597,6 +2672,25 @@ test('/api/song/comments maps regular comments after the first page', async () =
       user: { id: 91, nickname: 'Later User', avatar: '' },
     },
   ]);
+});
+
+test('/api/song/comments reports provider failures', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  server.__test.setNeteaseApi({
+    comment_music: async () => {
+      throw new Error('comments unavailable');
+    },
+  });
+
+  try {
+    const { status, body } = await getJson('/api/song/comments?id=101');
+
+    assert.equal(status, 500);
+    assert.deepEqual(body, { error: 'comments unavailable', comments: [] });
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('/api/playlist/tracks requires a playlist id', async () => {
