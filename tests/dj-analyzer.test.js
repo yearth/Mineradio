@@ -199,3 +199,57 @@ test('analyzePodcastDjIntro marks empty decoded audio as a partial intro map', a
     global.fetch = originalFetch;
   }
 });
+
+test('analyzePodcastDjStream samples long podcasts with ranged empty audio', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (targetUrl, opts = {}) => {
+    calls.push({ targetUrl, opts });
+    if (opts.method === 'HEAD') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: name => (String(name).toLowerCase() === 'content-length' ? '16000000' : '') },
+      };
+    }
+    return {
+      ok: true,
+      status: 206,
+      body: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const result = await analyzePodcastDjStream('https://audio.example/long-empty.mp3', {
+      durationSec: 8000,
+      userAgent: 'Range UA',
+    });
+
+    assert.equal(calls.length, 9);
+    assert.equal(calls[0].targetUrl, 'https://audio.example/long-empty.mp3');
+    assert.equal(calls[0].opts.method, 'HEAD');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'Range UA');
+    assert.equal(calls[0].opts.headers.Referer, 'https://music.163.com/');
+
+    const rangeCalls = calls.slice(1);
+    assert.equal(rangeCalls.length, 8);
+    assert.ok(rangeCalls.every(call => call.targetUrl === 'https://audio.example/long-empty.mp3'));
+    assert.ok(rangeCalls.every(call => call.opts.headers['User-Agent'] === 'Range UA'));
+    assert.ok(rangeCalls.every(call => call.opts.headers.Referer === 'https://music.163.com/'));
+    assert.ok(rangeCalls.every(call => /^bytes=\d+-\d+$/.test(call.opts.headers.Range)));
+
+    assert.equal(result.tempoSource, 'podcast-dj-server-range-empty');
+    assert.equal(result.duration, 8000);
+    assert.equal(result.visualBeatCount, 0);
+    assert.deepEqual(result.kicks, []);
+    assert.deepEqual(result.beats, []);
+    assert.deepEqual(result.pulseBeats, []);
+    assert.deepEqual(result.cameraBeats, []);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
