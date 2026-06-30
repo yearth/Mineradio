@@ -830,6 +830,138 @@ test('/api/qq/artist/detail maps QQ artist and hot songs', async () => {
   assert.equal(calls[0].payload.singer.param.num, 10);
 });
 
+test('/api/artist/detail requires an artist id', async () => {
+  const { status, body } = await getJson('/api/artist/detail');
+
+  assert.equal(status, 400);
+  assert.deepEqual(body, { error: 'Missing artist id', songs: [] });
+});
+
+test('/api/artist/detail maps artist metadata and hot songs', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    artist_detail: async opts => {
+      calls.push(['artist_detail', opts]);
+      return {
+        body: {
+          artist: {
+            id: 66,
+            name: 'Netease Artist',
+            picUrl: 'https://img.example/artist.jpg',
+            briefDesc: 'A test artist',
+            musicSize: 42,
+            albumSize: 5,
+          },
+        },
+      };
+    },
+    artist_songs: async opts => {
+      calls.push(['artist_songs', opts]);
+      return {
+        body: {
+          songs: [
+            {
+              id: 33001,
+              name: 'Artist Hot Song',
+              ar: [{ id: 66, name: 'Netease Artist' }],
+              al: { name: 'Artist Album', picUrl: 'https://img.example/song.jpg' },
+              dt: 199000,
+              fee: 0,
+            },
+          ],
+        },
+      };
+    },
+    artist_top_song: async opts => {
+      calls.push(['artist_top_song', opts]);
+      return { body: { songs: [] } };
+    },
+  });
+
+  const { status, body } = await getJson('/api/artist/detail?id=66&limit=4');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.artist, {
+    id: 66,
+    name: 'Netease Artist',
+    avatar: 'https://img.example/artist.jpg',
+    brief: 'A test artist',
+    musicSize: 42,
+    albumSize: 5,
+  });
+  assert.equal(body.songs.length, 1);
+  assert.equal(body.songs[0].id, 33001);
+  assert.equal(body.songs[0].artist, 'Netease Artist');
+  assert.equal(body.songs[0].album, 'Artist Album');
+  assert.equal(body.songs[0].cover, 'https://img.example/song.jpg');
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][0], 'artist_detail');
+  assert.equal(calls[0][1].id, '66');
+  assert.equal(calls[1][0], 'artist_songs');
+  assert.equal(calls[1][1].limit, 10);
+});
+
+test('/api/artist/detail falls back to top songs when hot songs are empty', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    artist_detail: async opts => {
+      calls.push(['artist_detail', opts]);
+      return {
+        body: {
+          data: {
+            artist: {
+              id: 77,
+              artistName: 'Fallback Artist',
+              img1v1Url: 'https://img.example/fallback.jpg',
+              description: 'Fallback bio',
+              songSize: 9,
+              albumSize: 2,
+            },
+          },
+        },
+      };
+    },
+    artist_songs: async opts => {
+      calls.push(['artist_songs', opts]);
+      return { body: { data: { songs: [] } } };
+    },
+    artist_top_song: async opts => {
+      calls.push(['artist_top_song', opts]);
+      return {
+        body: {
+          songs: [
+            {
+              id: 44001,
+              name: 'Top Song',
+              artists: [{ id: 77, name: 'Fallback Artist' }],
+              album: { name: 'Top Album', coverUrl: 'https://img.example/top.jpg' },
+              duration: 201000,
+              fee: 1,
+            },
+          ],
+        },
+      };
+    },
+  });
+
+  const { status, body } = await getJson('/api/artist/detail?id=77&limit=80');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body.artist, {
+    id: 77,
+    name: 'Fallback Artist',
+    avatar: 'https://img.example/fallback.jpg',
+    brief: 'Fallback bio',
+    musicSize: 9,
+    albumSize: 2,
+  });
+  assert.equal(body.songs.length, 1);
+  assert.equal(body.songs[0].id, 44001);
+  assert.equal(body.songs[0].duration, 201000);
+  assert.deepEqual(calls.map(call => call[0]), ['artist_detail', 'artist_songs', 'artist_top_song']);
+  assert.equal(calls[1][1].limit, 80);
+});
+
 test('/api/qq/song/comments requires a QQ song id when detail lookup cannot resolve one', async () => {
   let requested = false;
   setRequestTextResponder(() => {
