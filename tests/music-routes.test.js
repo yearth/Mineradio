@@ -96,6 +96,40 @@ async function postJson(pathname, body) {
   return requestJson('POST', pathname, body);
 }
 
+async function postForm(pathname, data) {
+  return new Promise((resolve, reject) => {
+    const payload = new URLSearchParams(data).toString();
+    const req = new Readable({
+      read() {
+        this.push(payload);
+        this.push(null);
+      },
+    });
+    req.url = pathname;
+    req.method = 'POST';
+    req.headers = {
+      'content-type': 'application/x-www-form-urlencoded',
+      'content-length': Buffer.byteLength(payload),
+    };
+    const res = {
+      statusCode: 200,
+      headers: {},
+      writeHead(status, headers) {
+        this.statusCode = status;
+        this.headers = headers || {};
+      },
+      end(body) {
+        try {
+          resolve({ status: this.statusCode, body: JSON.parse(String(body || '{}')) });
+        } catch (err) {
+          reject(err);
+        }
+      },
+    };
+    server.emit('request', req, res);
+  });
+}
+
 function setRequestTextResponder(responder) {
   server.__test.setRequestText(async (targetUrl, opts, requestBody) => {
     const value = await responder(targetUrl, opts, requestBody);
@@ -1285,6 +1319,39 @@ test('/api/login/cookie saves a valid Netease cookie and returns profile info', 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1].cookie, 'MUSIC_U=secret; __csrf=token');
   assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=secret; __csrf=token');
+});
+
+test('/api/login/cookie accepts form-encoded cookie submissions', async () => {
+  const calls = [];
+  server.__test.setNeteaseApi({
+    login_status: async opts => {
+      calls.push(['login_status', opts]);
+      return {
+        body: {
+          data: {
+            profile: {
+              userId: 9203,
+              nickname: 'Form User',
+            },
+            account: { id: 9203 },
+          },
+        },
+      };
+    },
+  });
+
+  const { status, body } = await postForm('/api/login/cookie', {
+    cookie: 'MUSIC_U=form-secret; __csrf=form-token',
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.saved, true);
+  assert.equal(body.userId, 9203);
+  assert.equal(body.nickname, 'Form User');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].cookie, 'MUSIC_U=form-secret; __csrf=form-token');
+  assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=form-secret; __csrf=form-token');
 });
 
 test('/api/login/cookie normalizes structured Netease cookie input', async () => {
