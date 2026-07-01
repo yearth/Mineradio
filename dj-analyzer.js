@@ -873,6 +873,7 @@ const exported = {
 
 if (IS_TEST_RUNTIME) {
   exported.__test = {
+    decodePodcastDjEnergyRange,
     setDecodePodcastDjEnergyRange(fn) {
       decodePodcastDjEnergyRangeOverride = typeof fn === 'function' ? fn : null;
     },

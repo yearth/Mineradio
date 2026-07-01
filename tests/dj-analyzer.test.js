@@ -307,6 +307,41 @@ test('analyzePodcastDjIntro decodes a non-empty ranged intro stream', async () =
   }
 });
 
+test('decodePodcastDjEnergyRange ignores reader cancel failures after limit is reached', async () => {
+  const originalFetch = global.fetch;
+  const bytes = makeFixtureMp3Bytes();
+  let cancelled = false;
+  global.fetch = async () => ({
+    ok: true,
+    status: 206,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes);
+      },
+      cancel() {
+        cancelled = true;
+        throw new Error('cancel denied');
+      },
+    }),
+  });
+
+  try {
+    const decoded = await __test.decodePodcastDjEnergyRange('https://audio.example/cancel.mp3', {
+      durationSec: 2,
+      limitSec: 0.0001,
+      range: 'bytes=0-2048',
+      userAgent: 'Cancel UA',
+    });
+
+    assert.equal(cancelled, true);
+    assert.equal(decoded.decode.chunks, 1);
+    assert.ok(decoded.decode.decodedSamples > 0);
+    assert.ok(decoded.duration > 0);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('analyzePodcastDjStream samples long podcasts with ranged empty audio', async () => {
   const originalFetch = global.fetch;
   const calls = [];
