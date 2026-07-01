@@ -854,6 +854,125 @@ test('/api/update/patch applies an allowed public file patch', async () => {
   assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), content);
 });
 
+test('/api/update/patch rejects allowed patch files without content', async () => {
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.10',
+    files: [
+      { path: 'public/.mineradio-patch-test.txt' },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.10', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-missing-content.json', manifest);
+  fakeDownloadFetch(raw);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/patch');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.match(lookup.body.errorDetail, /INVALID_PATCH_FILE/);
+  assert.equal(fs.existsSync(PATCH_TEST_FILE), false);
+});
+
+test('/api/update/patch rejects hash mismatches before writing files', async () => {
+  const original = 'original public content';
+  fs.writeFileSync(PATCH_TEST_FILE, original);
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.11',
+    files: [
+      {
+        path: 'public/.mineradio-patch-test.txt',
+        content: 'tampered public content',
+        sha256: sha256Hex(Buffer.from('expected public content')),
+      },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.11', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-hash-mismatch.json', manifest);
+  fakeDownloadFetch(raw);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/patch');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.match(lookup.body.errorDetail, /PATCH_HASH_MISMATCH/);
+  assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), original);
+});
+
+test('/api/update/patch backs up existing public files before replacing them', async () => {
+  const original = 'public content before patch';
+  const content = 'public content after patch';
+  fs.writeFileSync(PATCH_TEST_FILE, original);
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.12',
+    restartRequired: false,
+    files: [
+      {
+        path: 'public/.mineradio-patch-test.txt',
+        content,
+        sha256: sha256Hex(Buffer.from(content)),
+      },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.12', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-backup.json', manifest);
+  fakeDownloadFetch(raw);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/patch');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+  const backupPath = path.join(
+    process.env.MINERADIO_UPDATE_DIR,
+    'backups',
+    'patches',
+    started.body.id,
+    'public',
+    '.mineradio-patch-test.txt'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, true);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.version, '1.2.12');
+  assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), content);
+  assert.equal(fs.readFileSync(backupPath, 'utf8'), original);
+});
+
 test('/api/update/patch does not start a patch job for the preview fallback', async () => {
   const { status, body } = await getJson('/api/update/patch');
 
