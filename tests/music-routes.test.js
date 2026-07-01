@@ -1556,6 +1556,25 @@ test('/api/qq/artist/detail falls back to song artist names and generated avatar
   assert.equal(body.songs[0].artistMid, 'fallbackSinger');
 });
 
+test('/api/qq/artist/detail returns provider errors from nonzero QQ responses', async () => {
+  setRequestTextResponder(() => ({
+    singer: {
+      code: 1000,
+      message: 'artist auth unavailable',
+    },
+  }));
+
+  const { status, body } = await getJson('/api/qq/artist/detail?mid=singer001');
+
+  assert.equal(status, 200);
+  assert.deepEqual(body, {
+    provider: 'qq',
+    error: 'artist auth unavailable',
+    artist: null,
+    songs: [],
+  });
+});
+
 test('/api/qq/artist/detail returns a provider error when singer lookup fails', async () => {
   const originalError = console.error;
   console.error = () => {};
