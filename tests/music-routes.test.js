@@ -2028,6 +2028,28 @@ test('/api/login/status clears cookies when account lookup reports invalid auth'
   }
 });
 
+test('/api/login/status clears cookies when account lookup message reports invalid auth', async () => {
+  const originalWarn = console.warn;
+  console.warn = () => {};
+
+  try {
+    server.__test.setNeteaseApi({
+      login_status: async () => {
+        throw new Error('status unavailable');
+      },
+      user_account: async () => ({ body: { code: 403, message: '请先登录后再访问' } }),
+    });
+    const invalid = await postJson('/api/login/cookie', { cookie: 'MUSIC_U=message-expired; __csrf=message-token' });
+
+    assert.equal(invalid.status, 200);
+    assert.equal(invalid.body.loggedIn, false);
+    assert.equal(invalid.body.hasCookie, false);
+    assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), '');
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/login/status keeps cookies when account lookup fails unexpectedly', async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
@@ -2102,16 +2124,16 @@ test('/api/login/cookie normalizes structured Netease cookie input', async () =>
             profile: {
               userId: 9102,
               nickname: 'Structured User',
-              privilege: {
-                package: {
-                  title: '黑胶SVIP',
-                },
-              },
             },
             account: { id: 9102 },
+            metadata: [
+              {
+                title: '黑胶SVIP',
+              },
+            ],
             associator: {
               rights: [
-                { label: 'supervip annual member' },
+                { label: 'standard listener' },
               ],
             },
           },
@@ -3777,6 +3799,47 @@ test('/api/podcast/my/items maps collected podcast radios for logged-in users', 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].limit, 8);
   assert.equal(calls[0].offset, 3);
+});
+
+test('/api/podcast/my/items returns empty radios when collected payload has no arrays', async () => {
+  await loginAs({
+    profile: { userId: 9908, nickname: 'Empty Collect Podcast User' },
+    api: {
+      dj_sublist: async () => ({
+        body: {
+          djRadios: { count: 2 },
+          data: { total: 2 },
+          resources: { more: true },
+        },
+      }),
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/my/items?key=collect');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.key, 'collect');
+  assert.equal(body.itemType, 'radio');
+  assert.equal(body.count, 0);
+  assert.equal(body.cover, '');
+  assert.deepEqual(body.items, []);
+});
+
+test('/api/podcast/my/items returns empty radios for unknown collection keys', async () => {
+  await loginAs({
+    profile: { userId: 9907, nickname: 'Unknown Podcast User' },
+  });
+
+  const { status, body } = await getJson('/api/podcast/my/items?key=unknown');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.key, 'unknown');
+  assert.equal(body.itemType, 'radio');
+  assert.equal(body.count, 0);
+  assert.equal(body.cover, '');
+  assert.deepEqual(body.items, []);
 });
 
 test('/api/podcast/my/items maps paid podcast radios for logged-in users', async () => {

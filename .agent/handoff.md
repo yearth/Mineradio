@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, and beatmap cache disk/memory-only/key-boundary behavior. `update-utils.js` now has 100% line/function coverage with broader asset/digest/url/filename branch characterization. `dj-analyzer.js` now has first-pass pure beat-map, wrapper-path, empty full-stream, non-empty full-stream decode metadata, quality full-stream fallback, empty intro, empty range-sampling, and range-sampled success aggregation coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work exposes `buildWeatherMood()` through the existing test-only `server.__test` surface and adds pure weather mood coverage for humid, cloudy dusk, and clear morning variants.
+- Current uncommitted work extends `tests/music-routes.test.js` coverage for Netease invalid-auth message detection, VIP array recursion in structured cookie metadata, empty podcast collection payloads, and unknown podcast collection keys.
 
 ## Changes Made
 
@@ -82,7 +82,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/podcast/detail` missing-id validation and detail mapping.
   - Covers `/api/podcast/programs` missing-id validation and program/radio mapping from `dj_program`.
   - Covers `/api/podcast/my` logged-out collection summaries and logged-in collect/created/liked summary mapping.
-  - Covers `/api/podcast/my/items` logged-out defaults and collected podcast radio item mapping.
+  - Covers `/api/podcast/my/items` logged-out defaults, collected podcast radio item mapping, empty collected payload fallback behavior, and unknown collection-key fallback behavior.
   - Covers `/api/podcast/my/items` paid podcast radio item mapping, liked podcast recent-voice fallback when the liked-resource source fails, and empty liked-list fallback when both liked sources fail.
   - Covers `/api/podcast/my` preserving available collections when one source fails and liked voices fall back to recent voices.
   - Covers `/api/podcast/my/items` 500 behavior when the selected source fails.
@@ -116,9 +116,9 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `dj-analyzer.js`
   - Exposes a test-only `__test` decode override when running under `NODE_ENV=test` or `tests/*.test.js`; production exports remain the three public analyzer functions.
 - `tests/music-routes.test.js`
-  - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, login_status-to-user_account fallback, invalid-auth cookie clearing, unexpected account lookup failure behavior, pending-profile cookie saves, and logout cookie clearing.
+  - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, login_status-to-user_account fallback, invalid-auth cookie clearing including message-based invalid auth, unexpected account lookup failure behavior, pending-profile cookie saves, and logout cookie clearing.
   - Covers `/api/login/cookie` accepting form-encoded cookie submissions through the shared request-body fallback parser.
-  - Covers `/api/login/cookie` structured cookie inputs, including array recursion, `{ name, value }` items, nested `{ value }` fields, cookie attribute filtering, and nested VIP/SVIP metadata string collection.
+  - Covers `/api/login/cookie` structured cookie inputs, including array recursion, `{ name, value }` items, nested `{ value }` fields, cookie attribute filtering, nested VIP/SVIP metadata string collection, and VIP metadata discovered under array-valued object fields.
   - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, retry-warning profile fallback, cookie persistence, pending-profile fallback, provider errors, and profile mapping.
   - Covers `/api/user/playlists` logged-out empty response, logged-in playlist mapping, and logged-in provider failure responses.
   - Covers `/api/song/like/check` login requirement, direct liked-song checks, and fallback to `likelist`.
@@ -157,13 +157,13 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 14 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 134 tests.
+- `node --test tests/music-routes.test.js`: passed, 137 tests.
 - `node --test tests/update-utils.test.js`: passed, 13 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
 - `node --test tests/weather-mood.test.js`: passed, 3 tests.
-- `npm test`: passed, 194 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 194 tests; all-files line coverage 96.81%, branch coverage 69.93%, function coverage 93.28%; `server.js` line coverage 93.01%, branch coverage 62.24%, function coverage 91.44%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
+- `npm test`: passed, 197 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 197 tests; all-files line coverage 96.88%, branch coverage 70.24%, function coverage 93.44%; `server.js` line coverage 93.16%, branch coverage 62.61%, function coverage 91.78%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
 - Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
