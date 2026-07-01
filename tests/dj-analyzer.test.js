@@ -105,6 +105,79 @@ test('buildBeatMapFromLowEnergy builds a visual beat grid from repeated low-ener
   assert.ok(first.confidence >= 0.44 && first.confidence <= 0.99);
 });
 
+test('buildBeatMapFromLowEnergy prefers a stronger nearby pulse candidate', () => {
+  const hopSec = 0.01;
+  const lowEnergy = new Float32Array(900).fill(0.01);
+  const hitEnergy = new Float32Array(900).fill(0.006);
+  const pulses = [
+    [100, 0.12],
+    [112, 0.45],
+    [162, 0.34],
+    [212, 0.34],
+    [262, 0.34],
+    [312, 0.34],
+    [362, 0.34],
+    [412, 0.34],
+    [462, 0.34],
+    [512, 0.34],
+    [562, 0.34],
+    [612, 0.34],
+  ];
+  for (const [frame, amp] of pulses) {
+    lowEnergy[frame - 1] = 0.01 + amp * 0.18;
+    lowEnergy[frame] = 0.01 + amp;
+    lowEnergy[frame + 1] = 0.01 + amp * 0.42;
+    hitEnergy[frame] = 0.006 + amp * 0.62;
+  }
+
+  const result = buildBeatMapFromLowEnergy(lowEnergy, hitEnergy, hopSec, 9);
+
+  assert.equal(result.tempoSource, 'podcast-dj-server-low-offline');
+  assert.equal(result.debug.candidates, pulses.length - 1);
+  assert.ok(result.beats.some(beat => Math.abs(beat.time - 1.12) < 0.04));
+  assert.equal(result.beats.some(beat => Math.abs(beat.time - 1.00) < 0.04), false);
+});
+
+test('buildBeatMapFromLowEnergy shifts a candidate to a stronger adjacent local peak', () => {
+  const hopSec = 0.01;
+  const lowEnergy = new Float32Array(1000).fill(0.01);
+  const hitEnergy = new Float32Array(1000).fill(0.006);
+  const pulseFrames = [100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650];
+  for (const frame of pulseFrames) {
+    lowEnergy[frame] = 0.51;
+    lowEnergy[frame + 1] = 0.6575;
+    lowEnergy[frame + 2] = 0.02;
+    hitEnergy[frame] = 0.12;
+  }
+
+  const result = buildBeatMapFromLowEnergy(lowEnergy, hitEnergy, hopSec, 10);
+
+  assert.equal(result.tempoSource, 'podcast-dj-server-low-offline');
+  assert.equal(result.debug.candidates, pulseFrames.length);
+  assert.ok(result.beats.some(beat => Math.abs(beat.time - 1.01) < 0.01));
+  assert.equal(result.beats.some(beat => Math.abs(beat.time - 1.00) < 0.005), false);
+});
+
+test('buildBeatMapFromLowEnergy falls back when sparse candidates cannot estimate a step', () => {
+  const hopSec = 0.01;
+  const lowEnergy = new Float32Array(2600).fill(0.01);
+  const hitEnergy = new Float32Array(2600).fill(0.006);
+  const pulseFrames = [100, 650, 1200, 1750];
+  for (const frame of pulseFrames) {
+    lowEnergy[frame - 1] = 0.03;
+    lowEnergy[frame] = 0.85;
+    lowEnergy[frame + 1] = 0.30;
+    hitEnergy[frame] = 0.55;
+  }
+
+  const result = buildBeatMapFromLowEnergy(lowEnergy, hitEnergy, hopSec, 26);
+
+  assert.equal(result.tempoSource, 'podcast-dj-server-low-offline');
+  assert.equal(result.debug.candidates, pulseFrames.length);
+  assert.equal(result.gridStep, 0.5);
+  assert.equal(result.sectionSteps[0], 0.5);
+});
+
 test('analyzePodcastDjStream rejects invalid audio URLs before fetching', async () => {
   const originalFetch = global.fetch;
   let fetched = false;

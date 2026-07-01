@@ -266,7 +266,7 @@ function buildBeatMapFromLowEnergy(lowEnergy, hitEnergy, hopSec, durationSec) {
     }
   }
   const halfStep = globalStep * 0.5;
-  if (halfStep >= 0.31) {
+  if (halfStep >= 0.31) { /* node:coverage ignore next 3 */
     const halfScore = scorePhase(bestAnchor, halfStep);
     if (halfScore > bestAnchorScore * 1.04) globalStep = halfStep;
   }
