@@ -341,6 +341,41 @@ test('/api/update/latest falls back to latest.yml when the GitHub release API fa
   assert.match(calls[1], /latest\.yml/);
 });
 
+test('/api/update/latest falls back locally when GitHub and latest.yml both fail', async () => {
+  const calls = fakeFetchSequence([
+    () => {
+      const err = new Error('network offline');
+      err.code = 'ECONNRESET';
+      throw err;
+    },
+    () => {
+      const err = new Error('getaddrinfo ENOTFOUND github.com');
+      err.code = 'ENOTFOUND';
+      throw err;
+    },
+    fakeHttpResponse(503),
+    fakeHttpResponse(503),
+    fakeHttpResponse(503),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+
+  const { status, body } = await getJson('/api/update/latest');
+
+  assert.equal(status, 200);
+  assert.equal(body.configured, true);
+  assert.equal(body.preview, true);
+  assert.equal(body.updateAvailable, false);
+  assert.equal(body.currentVersion, '1.1.1');
+  assert.equal(body.latestVersion, '1.1.1');
+  assert.match(body.reason, /域名解析失败/);
+  assert.match(body.reason, /服务器异常/);
+  assert.equal(calls.length, 5);
+  assert.match(calls[0], /api\.github\.com\/repos\/XxHuberrr\/Mineradio\/releases\/latest/);
+  assert.match(calls[1], /gh\.llkk\.cc/);
+  assert.match(calls[4], /github\.com\/XxHuberrr\/Mineradio\/releases\/latest\/download\/latest\.yml/);
+});
+
 test('/api/update/download creates an installer job from a Windows manifest without starting a test download', async () => {
   const manifestPath = writeUpdateManifest('manifest-download.json', manifestWithInstaller('1.2.0'));
 
