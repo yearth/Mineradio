@@ -4157,6 +4157,23 @@ test('/api/weather/ip-location reports provider failures', async () => {
   }
 });
 
+test('/api/weather/ip-location reports invalid JSON responses with source context', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  setRequestTextResponder(() => 'not valid json');
+
+  try {
+    const { status, body } = await getJson('/api/weather/ip-location');
+
+    assert.equal(status, 500);
+    assert.equal(body.ok, false);
+    assert.match(body.error, /^Invalid JSON from http:\/\/ip-api\.com\/json/);
+    assert.equal(body.location, null);
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/weather/radio builds a rainy weather radio from coordinates', async () => {
   const weatherCalls = [];
   const searchCalls = [];
