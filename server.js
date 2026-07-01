@@ -67,7 +67,7 @@ const {
 } = require('./lib/update-utils');
 const {
   createHttpServer,
-  createRequestUrl,
+  createRequestHandler,
   listenIfNeeded,
 } = require('./server-dist/server/http-utils');
 const {
@@ -2981,9 +2981,9 @@ async function getLoginInfo() {
 // ====================================================================
 const server = createHttpServer({
   createServer: http.createServer.bind(http),
-  requestHandler: async (req, res) => {
-  const url = createRequestUrl(req.url, PORT);
-  const pn = url.pathname;
+  requestHandler: createRequestHandler({
+    port: PORT,
+    handleRequest: async ({ req, res, url, pathname: pn }) => {
 
   if (pn === '/api/app/version') {
     sendJSON(res, {
@@ -3925,7 +3925,8 @@ const server = createHttpServer({
 
   // ---------- 静态资源 ----------
   serveStatic(res, resolveStaticFilePath(pn, __dirname));
-  }
+    }
+  })
 });
 
 listenIfNeeded({ /* node:coverage ignore next 7 */

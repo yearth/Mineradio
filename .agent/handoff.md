@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean after `cdece0b refactor: extract server factory helper`.
+- Worktree: has uncommitted Stage 2 request handler shell slice after `b0745eb docs: refresh refactor handoff status`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -17,6 +17,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 fifth slice is committed: `listenIfNeeded` in `server/http-utils.ts` centralizes listener gating and startup banner logging; `server.js` delegates startup listening to it.
 - Coverage gate slice is committed: `npm run coverage` enforces 100% production-code line coverage with Node's built-in test coverage, excluding `tests/**` from the report.
 - Stage 2 sixth slice is complete: `createHttpServer` in `server/http-utils.ts` centralizes HTTP server factory composition; `server.js` now creates the server through that helper.
+- Stage 2 seventh slice is complete: `createRequestHandler` in `server/http-utils.ts` centralizes URL parsing and passes `{ req, res, url, pathname }` into the legacy route chain.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -133,6 +134,19 @@ Stage 2 HTTP server factory slice:
 - `npm test`: passed, 237 tests.
 - `npm run coverage`: passed, 237 tests; production-code line coverage `100.00%`, branch coverage `67.67%`, function coverage `95.03%`.
 - QA subagent review: `PASS`. Read-only verification by QA included `node --check server.js`, `npm run typecheck`, route-focused tests, full test suite, coverage-equivalent 100% line coverage check, and generated file tracking checks.
+
+Stage 2 request handler shell slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `createRequestHandler` was not exported.
+- Added `createRequestHandler` to `server/http-utils.ts`; it resolves `req.url` with `createRequestUrl`, then delegates to a supplied `handleRequest` with `{ req, res, url, pathname }`.
+- `server.js` now passes the legacy route chain as `handleRequest` instead of parsing `req.url` inline.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js`: passed, 10 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js`: passed, 172 tests.
+- `npm test`: passed, 238 tests.
+- `npm run coverage`: passed, 238 tests; production-code line coverage `100.00%`, branch coverage `67.69%`, function coverage `95.05%`.
+- QA subagent review: `PASS`. Read-only verification by QA included targeted helper/structure tests, `node --check server.js`, `npm run typecheck`, route-focused tests, `npm test`, `npm run coverage`, and generated file tracking checks.
 
 ## Decisions
 

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   createHttpServer,
+  createRequestHandler,
   createRequestUrl,
   listenIfNeeded,
   shouldAutoListen,
@@ -36,6 +37,28 @@ test('createHttpServer delegates to the provided HTTP factory with the request h
 
   assert.equal(server, expectedServer);
   assert.deepEqual(calls, [handler]);
+});
+
+test('createRequestHandler resolves the request URL before delegating', async () => {
+  const calls = [];
+  const req = { url: '/api/search?keywords=rain' };
+  const res = {};
+  const handler = createRequestHandler({
+    port: 5000,
+    handleRequest(context) {
+      calls.push(context);
+      return 'handled';
+    }
+  });
+
+  const result = await handler(req, res);
+
+  assert.equal(result, 'handled');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].req, req);
+  assert.equal(calls[0].res, res);
+  assert.equal(calls[0].url.href, 'http://localhost:5000/api/search?keywords=rain');
+  assert.equal(calls[0].pathname, '/api/search');
 });
 
 test('shouldAutoListen disables the server listener under node:test', () => {

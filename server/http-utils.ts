@@ -24,6 +24,18 @@ export interface CreateHttpServerOptions<TServer> {
   readonly requestHandler: (req: unknown, res: unknown) => unknown;
 }
 
+export interface RequestHandlerContext {
+  readonly req: { readonly url?: string };
+  readonly res: unknown;
+  readonly url: URL;
+  readonly pathname: string;
+}
+
+export interface CreateRequestHandlerOptions {
+  readonly port: string | number;
+  readonly handleRequest: (context: RequestHandlerContext) => unknown;
+}
+
 export interface StartupLogger {
   log(message: string): void;
 }
@@ -46,6 +58,13 @@ export function startupBannerLines(options: StartupBannerOptions): string[] {
 
 export function createHttpServer<TServer>(options: CreateHttpServerOptions<TServer>): TServer {
   return options.createServer(options.requestHandler);
+}
+
+export function createRequestHandler(options: CreateRequestHandlerOptions): (req: { readonly url?: string }, res: unknown) => unknown {
+  return (req, res) => {
+    const url = createRequestUrl(req.url, options.port);
+    return options.handleRequest({ req, res, url, pathname: url.pathname });
+  };
 }
 
 export function listenIfNeeded(options: ListenIfNeededOptions): boolean {
