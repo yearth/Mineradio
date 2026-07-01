@@ -4046,3 +4046,16 @@ test('/api/cover streams upstream images with canvas-safe headers', async () => 
     global.fetch = originalFetch;
   }
 });
+
+test('static routes serve the app favicon and report missing files', async () => {
+  const favicon = await requestRaw('GET', '/favicon.ico');
+
+  assert.equal(favicon.status, 200);
+  assert.equal(favicon.headers['Content-Type'], 'image/x-icon');
+  assert.ok(favicon.body.length > 0);
+
+  const missing = await requestRaw('GET', '/missing-static-test.txt');
+
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.toString(), 'Not Found');
+});
