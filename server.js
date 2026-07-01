@@ -3998,6 +3998,7 @@ if (process.env.NODE_ENV === 'test') {
     parseGitHubRepository,
     readUpdateConfig,
     requestText,
+    moveInvalidUpdateFile,
     buildWeatherMood,
     resetMusicRuntime() {
       applyNeteaseApi();

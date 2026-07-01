@@ -16,6 +16,7 @@ process.env.QQ_COOKIE_FILE = path.join(testDir, '.qq-cookie');
 const server = require('../server');
 const {
   normalizeCookieHeader,
+  moveInvalidUpdateFile,
   parseGitHubRepository,
   rawCookieFallback,
   requestText,
@@ -180,5 +181,28 @@ test('requestText performs real HTTP requests and surfaces HTTP errors', async (
     );
   } finally {
     await new Promise(resolve => upstream.close(resolve));
+  }
+});
+
+test('moveInvalidUpdateFile ignores rename failures for stale cached installers', () => {
+  const cached = path.join(testDir, 'stale-installer.exe');
+  fs.writeFileSync(cached, 'stale');
+  const originalRename = fs.renameSync;
+  const originalWarn = console.warn;
+  const warnings = [];
+  fs.renameSync = (from, to) => {
+    if (from === cached) throw new Error('rename denied');
+    return originalRename.call(fs, from, to);
+  };
+  console.warn = (...args) => warnings.push(args.join(' '));
+
+  try {
+    assert.doesNotThrow(() => moveInvalidUpdateFile(cached, 'test failure'));
+    assert.equal(fs.readFileSync(cached, 'utf8'), 'stale');
+    assert.equal(warnings.some(line => line.includes('failed to move invalid cached installer')), true);
+  } finally {
+    fs.renameSync = originalRename;
+    console.warn = originalWarn;
+    if (fs.existsSync(cached)) fs.unlinkSync(cached);
   }
 });
