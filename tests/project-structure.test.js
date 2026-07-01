@@ -10,11 +10,13 @@ const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
 test('TypeScript migration tooling is wired for incremental refactors', () => {
   assert.equal(packageJson.scripts.typecheck, 'tsc --noEmit');
   assert.equal(packageJson.scripts['build:ts'], 'tsc');
+  assert.match(packageJson.scripts.start, /^npm run build:ts && /);
   assert.match(packageJson.scripts.test, /^npm run build:ts && /);
   assert.ok(packageJson.devDependencies.typescript, 'typescript devDependency is required');
   assert.ok(fs.existsSync(path.join(root, 'tsconfig.json')), 'tsconfig.json is required');
   assert.ok(fs.existsSync(path.join(root, 'server', 'index.ts')), 'server/index.ts is required');
   assert.ok(fs.existsSync(path.join(root, 'server', 'router.ts')), 'server/router.ts is required');
+  assert.ok(fs.existsSync(path.join(root, 'server', 'http-utils.ts')), 'server/http-utils.ts is required');
   assert.ok(
     fs.existsSync(path.join(root, 'server', 'test-support', 'runtime.ts')),
     'server/test-support/runtime.ts is required'

@@ -7,7 +7,7 @@
   "main": "desktop/main.js",
   "private": true,
   "scripts": {
-    "start": "electron .",
+    "start": "npm run build:ts && electron .",
     "test": "npm run build:ts && node --test tests/*.test.js",
     "typecheck": "tsc --noEmit",
     "build:ts": "tsc",

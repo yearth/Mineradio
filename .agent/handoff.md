@@ -7,10 +7,11 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 route-descriptor slice after `2bbea8b chore: add ts refactor foundation`.
+- Worktree: expected clean after `refactor: extract server http shell helpers`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
-- Stage 2 first slice is ready to commit: `server/router.ts` now describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
+- Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
+- Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -57,6 +58,21 @@ Stage 2 route-descriptor slice:
 - `hdiutil verify dist/Mineradio-1.1.1-arm64.dmg`: passed.
 - QA subagent review for this slice: `PASS`.
 
+Stage 2 HTTP utility slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `server-dist/server/http-utils` did not exist.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js`: passed, 6 tests.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js`: passed, 172 tests.
+- `node --check server.js`: passed.
+- `npm test`: passed, 228 tests.
+- `npm run build:mac`: passed.
+- `codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Mineradio.app`: passed.
+- `hdiutil verify dist/Mineradio-1.1.1-arm64.dmg`: passed.
+- QA subagent first pass: `PASS` with one non-blocking URL coercion note.
+- URL coercion note was fixed: `createRequestUrl(undefined, port)` now preserves legacy `new URL(undefined, base)` behavior and yields `/undefined`.
+- Final QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck`, `node --check server.js`, and `node --test tests/server-http-utils.test.js tests/project-structure.test.js`.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -74,8 +90,10 @@ Stage 2 route-descriptor slice:
 - Roadmap: `docs/superpowers/plans/2026-07-01-mineradio-refactor-roadmap.md`
 - Legacy server: `server.js`
 - TS skeleton: `server/index.ts`, `server/router.ts`, `server/test-support/runtime.ts`
+- HTTP utility: `server/http-utils.ts`
 - Structure guard: `tests/project-structure.test.js`
 - Router guard: `tests/server-router.test.js`
+- HTTP utility guard: `tests/server-http-utils.test.js`
 - TS config: `tsconfig.json`
 - Build config: `package.json`
 - Test-heavy route suites: `tests/music-routes.test.js`, `tests/update-routes.test.js`, `tests/beatmap-cache-routes.test.js`
@@ -90,8 +108,7 @@ Stage 2 route-descriptor slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 2:
-   - Commit the route-descriptor slice if it is still uncommitted.
-   - Then choose the next small behavior-neutral extraction around server runtime/test-support.
+   - Choose the next small behavior-neutral extraction around test-support runtime or server creation.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:

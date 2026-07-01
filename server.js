@@ -65,6 +65,11 @@ const {
   safeUpdateFileName,
   updateAssetNameFromUrl,
 } = require('./lib/update-utils');
+const {
+  createRequestUrl,
+  shouldAutoListen,
+  startupBannerLines,
+} = require('./server-dist/server/http-utils');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -2983,7 +2988,7 @@ async function getLoginInfo() {
 //  HTTP Server
 // ====================================================================
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost:' + PORT);
+  const url = createRequestUrl(req.url, PORT);
   const pn = url.pathname;
 
   if (pn === '/api/app/version') {
@@ -3935,12 +3940,9 @@ const server = http.createServer(async (req, res) => {
   serveStatic(res, filePath);
 });
 
-if (process.env.NODE_ENV !== 'test') { /* node:coverage ignore next 7 */
+if (shouldAutoListen(process.env)) { /* node:coverage ignore next 7 */
   server.listen(PORT, HOST, () => {
-    console.log('======================================================');
-    console.log(' 粒子音乐可视化 v2  →  http://localhost:' + PORT);
-    console.log(' 登录态: ' + (userCookie ? '已登录(cookie已加载)' : '未登录'));
-    console.log('======================================================');
+    startupBannerLines({ port: PORT, hasUserCookie: !!userCookie }).forEach(line => console.log(line));
   });
 }
 
