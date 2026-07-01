@@ -955,6 +955,65 @@ test('/api/update/patch applies an allowed public file patch', async () => {
   assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), content);
 });
 
+test('/api/update/patch tracks chunk speed while applying a verified patch', async () => {
+  const content = 'chunked patch content';
+  const payload = {
+    type: 'mineradio-resource-patch',
+    from: '1.1.1',
+    to: '1.2.91',
+    restartRequired: false,
+    files: [
+      {
+        path: 'public/.mineradio-patch-test.txt',
+        content,
+        sha256: sha256Hex(Buffer.from(content)),
+      },
+    ],
+  };
+  const { manifest, raw } = manifestWithPatchPayload('1.2.91', payload);
+  const manifestPath = writeUpdateManifest('manifest-patch-chunk-speed.json', manifest);
+  const splitAt = Math.floor(raw.length / 3);
+  const chunks = [
+    raw.subarray(0, splitAt),
+    raw.subarray(splitAt, splitAt * 2),
+    raw.subarray(splitAt * 2),
+  ];
+  const calls = fakeFetchSequence([
+    fakeChunkedDownloadResponse(chunks, raw.length),
+  ]);
+  const originalNow = Date.now;
+  let now = 1800000000000;
+  Date.now = () => {
+    now += 1000;
+    return now;
+  };
+
+  try {
+    server.__test.setUpdatePlatform('win32');
+    server.__test.setUpdateManifest(manifestPath);
+
+    const started = await getJson('/api/update/patch');
+    assert.equal(started.status, 200);
+    assert.equal(started.body.ok, true);
+
+    const lookup = await waitForUpdateStatus(
+      '/api/update/patch/status?id=' + encodeURIComponent(started.body.id),
+      body => body.status === 'ready'
+    );
+
+    assert.equal(lookup.status, 200);
+    assert.equal(lookup.body.status, 'ready');
+    assert.equal(lookup.body.received, raw.length);
+    assert.equal(lookup.body.total, raw.length);
+    assert.equal(lookup.body.speedBps > 0, true);
+    assert.equal(lookup.body.restartRequired, false);
+    assert.equal(calls.length, 1);
+    assert.equal(fs.readFileSync(PATCH_TEST_FILE, 'utf8'), content);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test('/api/update/patch rejects allowed patch files without content', async () => {
   const payload = {
     type: 'mineradio-resource-patch',
