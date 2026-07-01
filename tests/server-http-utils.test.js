@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  createHttpServer,
   createRequestUrl,
   listenIfNeeded,
   shouldAutoListen,
@@ -19,6 +20,22 @@ test('createRequestUrl resolves request URLs against the local server port', () 
 test('createRequestUrl preserves legacy URL coercion for empty and undefined request URLs', () => {
   assert.equal(createRequestUrl('', 5000).pathname, '/');
   assert.equal(createRequestUrl(undefined, 5000).pathname, '/undefined');
+});
+
+test('createHttpServer delegates to the provided HTTP factory with the request handler', () => {
+  const calls = [];
+  const handler = async () => {};
+  const expectedServer = { emit() {} };
+  const server = createHttpServer({
+    createServer(requestHandler) {
+      calls.push(requestHandler);
+      return expectedServer;
+    },
+    requestHandler: handler
+  });
+
+  assert.equal(server, expectedServer);
+  assert.deepEqual(calls, [handler]);
 });
 
 test('shouldAutoListen disables the server listener under node:test', () => {

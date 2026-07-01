@@ -15,6 +15,15 @@ export interface ListenableServer {
   listen(port: string | number, host: string, callback: () => void): unknown;
 }
 
+export interface HttpServerFactory<TServer> {
+  createServer(requestHandler: (req: unknown, res: unknown) => unknown): TServer;
+}
+
+export interface CreateHttpServerOptions<TServer> {
+  readonly createServer: HttpServerFactory<TServer>['createServer'];
+  readonly requestHandler: (req: unknown, res: unknown) => unknown;
+}
+
 export interface StartupLogger {
   log(message: string): void;
 }
@@ -33,6 +42,10 @@ export function startupBannerLines(options: StartupBannerOptions): string[] {
     ` 登录态: ${options.hasUserCookie ? '已登录(cookie已加载)' : '未登录'}`,
     '======================================================'
   ];
+}
+
+export function createHttpServer<TServer>(options: CreateHttpServerOptions<TServer>): TServer {
+  return options.createServer(options.requestHandler);
 }
 
 export function listenIfNeeded(options: ListenIfNeededOptions): boolean {

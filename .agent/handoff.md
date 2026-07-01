@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted coverage gate slice after `2bd34d2 refactor: extract server listener startup`.
+- Worktree: has uncommitted Stage 2 HTTP server factory slice after `9c4ed87 test: add production coverage gate`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -15,7 +15,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 third slice is committed: `server/test-support/runtime.ts` describes the legacy `module.exports.__test` surface by owner and legacy export order; `tests/server-test-runtime.test.js` compares it to the actual `server.js` test export block.
 - Stage 2 fourth slice is committed: `server/static-utils.ts` extracts static content type and static file path resolution; `server.js` uses it from compiled TS.
 - Stage 2 fifth slice is committed: `listenIfNeeded` in `server/http-utils.ts` centralizes listener gating and startup banner logging; `server.js` delegates startup listening to it.
-- Coverage gate slice is complete: `npm run coverage` enforces 100% production-code line coverage with Node's built-in test coverage, excluding `tests/**` from the report.
+- Coverage gate slice is committed: `npm run coverage` enforces 100% production-code line coverage with Node's built-in test coverage, excluding `tests/**` from the report.
+- Stage 2 sixth slice is complete: `createHttpServer` in `server/http-utils.ts` centralizes HTTP server factory composition; `server.js` now creates the server through that helper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -119,6 +120,19 @@ Coverage gate slice:
 - `npm test`: passed, 236 tests after the flaky assertion fix.
 - `npm run coverage`: passed, 236 tests after the flaky assertion fix; production-code line coverage `100.00%`, branch coverage `67.66%`, function coverage `95.01%`.
 - Final QA subagent review: `PASS`. Read-only verification by QA included `npm run coverage` and `npm test`, both passing 236 tests; generated `dist/` and `server-dist/` were not tracked or staged.
+
+Stage 2 HTTP server factory slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `createHttpServer` was not exported.
+- Added `createHttpServer` to `server/http-utils.ts`; it delegates to an injected HTTP factory with the request handler.
+- `server.js` now calls `createHttpServer({ createServer: http.createServer.bind(http), requestHandler })` instead of calling `http.createServer` inline.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js`: passed, 9 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js`: passed, 172 tests.
+- `npm test`: passed, 237 tests.
+- `npm run coverage`: passed, 237 tests; production-code line coverage `100.00%`, branch coverage `67.67%`, function coverage `95.03%`.
+- QA subagent review: `PASS`. Read-only verification by QA included `node --check server.js`, `npm run typecheck`, route-focused tests, full test suite, coverage-equivalent 100% line coverage check, and generated file tracking checks.
 
 ## Decisions
 

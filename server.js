@@ -66,6 +66,7 @@ const {
   updateAssetNameFromUrl,
 } = require('./lib/update-utils');
 const {
+  createHttpServer,
   createRequestUrl,
   listenIfNeeded,
 } = require('./server-dist/server/http-utils');
@@ -2978,7 +2979,9 @@ async function getLoginInfo() {
 // ====================================================================
 //  HTTP Server
 // ====================================================================
-const server = http.createServer(async (req, res) => {
+const server = createHttpServer({
+  createServer: http.createServer.bind(http),
+  requestHandler: async (req, res) => {
   const url = createRequestUrl(req.url, PORT);
   const pn = url.pathname;
 
@@ -3922,6 +3925,7 @@ const server = http.createServer(async (req, res) => {
 
   // ---------- 静态资源 ----------
   serveStatic(res, resolveStaticFilePath(pn, __dirname));
+  }
 });
 
 listenIfNeeded({ /* node:coverage ignore next 7 */
