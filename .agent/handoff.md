@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 request handler shell slice after `b0745eb docs: refresh refactor handoff status`.
+- Worktree: has uncommitted Stage 2 JSON response helper slice after `72495bb refactor: extract request handler shell`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -18,6 +18,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Coverage gate slice is committed: `npm run coverage` enforces 100% production-code line coverage with Node's built-in test coverage, excluding `tests/**` from the report.
 - Stage 2 sixth slice is complete: `createHttpServer` in `server/http-utils.ts` centralizes HTTP server factory composition; `server.js` now creates the server through that helper.
 - Stage 2 seventh slice is complete: `createRequestHandler` in `server/http-utils.ts` centralizes URL parsing and passes `{ req, res, url, pathname }` into the legacy route chain.
+- Stage 2 eighth slice is complete: `sendJson` in `server/http-utils.ts` centralizes legacy JSON response headers/body serialization; `server.js` imports it as `sendJSON`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -147,6 +148,19 @@ Stage 2 request handler shell slice:
 - `npm test`: passed, 238 tests.
 - `npm run coverage`: passed, 238 tests; production-code line coverage `100.00%`, branch coverage `67.69%`, function coverage `95.05%`.
 - QA subagent review: `PASS`. Read-only verification by QA included targeted helper/structure tests, `node --check server.js`, `npm run typecheck`, route-focused tests, `npm test`, `npm run coverage`, and generated file tracking checks.
+
+Stage 2 JSON response helper slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `sendJson` was not exported.
+- Added `sendJson` to `server/http-utils.ts`; it preserves the legacy JSON status default, `Content-Type`, CORS, no-cache headers, and `JSON.stringify` body.
+- `server.js` now imports `sendJson` as `sendJSON`, removing the local `sendJSON` implementation without changing route call sites.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js`: passed, 11 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js tests/beatmap-cache-routes.test.js`: passed, 176 tests.
+- `npm test`: passed, 239 tests.
+- `npm run coverage`: passed, 239 tests; production-code line coverage `100.00%`, branch coverage `67.68%`, function coverage `95.05%`.
+- QA subagent review: `PASS`. Read-only verification by QA included targeted helper/structure tests, `node --check server.js`, `npm run typecheck`, route-focused tests, `npm test`, `npm run coverage`, default-status probing, and generated file tracking checks.
 
 ## Decisions
 

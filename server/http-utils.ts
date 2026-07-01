@@ -40,6 +40,11 @@ export interface StartupLogger {
   log(message: string): void;
 }
 
+export interface JsonResponse {
+  writeHead(status: number, headers: Record<string, string>): unknown;
+  end(body: string): unknown;
+}
+
 export interface ListenIfNeededOptions extends StartupBannerOptions {
   readonly server: ListenableServer;
   readonly host: string;
@@ -65,6 +70,17 @@ export function createRequestHandler(options: CreateRequestHandlerOptions): (req
     const url = createRequestUrl(req.url, options.port);
     return options.handleRequest({ req, res, url, pathname: url.pathname });
   };
+}
+
+export function sendJson(res: JsonResponse, data: unknown, status = 200): void {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  });
+  res.end(JSON.stringify(data));
 }
 
 export function listenIfNeeded(options: ListenIfNeededOptions): boolean {

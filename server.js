@@ -69,6 +69,7 @@ const {
   createHttpServer,
   createRequestHandler,
   listenIfNeeded,
+  sendJson: sendJSON,
 } = require('./server-dist/server/http-utils');
 const {
   contentTypeForPath,
@@ -209,16 +210,6 @@ function serveStatic(res, filePath) {
     res.writeHead(200, { 'Content-Type': contentTypeForPath(filePath) });
     res.end(data);
   });
-}
-function sendJSON(res, data, status) {
-  res.writeHead(status || 200, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-  });
-  res.end(JSON.stringify(data));
 }
 function readPackageInfo() {
   try {

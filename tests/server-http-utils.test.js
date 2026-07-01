@@ -6,6 +6,7 @@ const {
   createRequestHandler,
   createRequestUrl,
   listenIfNeeded,
+  sendJson,
   shouldAutoListen,
   startupBannerLines
 } = require('../server-dist/server/http-utils');
@@ -59,6 +60,28 @@ test('createRequestHandler resolves the request URL before delegating', async ()
   assert.equal(calls[0].res, res);
   assert.equal(calls[0].url.href, 'http://localhost:5000/api/search?keywords=rain');
   assert.equal(calls[0].pathname, '/api/search');
+});
+
+test('sendJson writes legacy JSON headers and body', () => {
+  const calls = [];
+  const res = {
+    writeHead(status, headers) {
+      calls.push({ status, headers });
+    },
+    end(body) {
+      calls.push({ body });
+    }
+  };
+
+  sendJson(res, { ok: true }, 201);
+
+  assert.equal(calls[0].status, 201);
+  assert.equal(calls[0].headers['Content-Type'], 'application/json; charset=utf-8');
+  assert.equal(calls[0].headers['Access-Control-Allow-Origin'], '*');
+  assert.equal(calls[0].headers['Cache-Control'], 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  assert.equal(calls[0].headers.Pragma, 'no-cache');
+  assert.equal(calls[0].headers.Expires, '0');
+  assert.equal(calls[1].body, '{"ok":true}');
 });
 
 test('shouldAutoListen disables the server listener under node:test', () => {
