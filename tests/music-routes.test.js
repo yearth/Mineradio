@@ -3683,6 +3683,95 @@ test('/api/weather/radio builds a rainy weather radio from coordinates', async (
   assert.deepEqual(searchCalls.slice(0, 4).map(call => call.keywords), body.radio.seedQueries);
 });
 
+test('/api/weather/radio resolves city weather into a storm night radio', async () => {
+  const weatherCalls = [];
+  const searchCalls = [];
+  setRequestTextResponder(targetUrl => {
+    weatherCalls.push(targetUrl);
+    if (targetUrl.includes('geocoding-api.open-meteo.com')) {
+      return {
+        results: [
+          {
+            name: '南京',
+            country: '中国',
+            admin1: '江苏',
+            latitude: 32.06,
+            longitude: 118.79,
+            timezone: 'Asia/Shanghai',
+          },
+        ],
+      };
+    }
+    assert.match(targetUrl, /api\.open-meteo\.com/);
+    return {
+      timezone: 'Asia/Shanghai',
+      current: {
+        time: '2026-06-30T22:00',
+        temperature_2m: 19,
+        apparent_temperature: 18,
+        relative_humidity_2m: 81,
+        is_day: 0,
+        precipitation: 3.6,
+        rain: 2.8,
+        showers: 0.8,
+        snowfall: 0,
+        weather_code: 95,
+        cloud_cover: 100,
+        wind_speed_10m: 31,
+        wind_gusts_10m: 48,
+      },
+    };
+  });
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      searchCalls.push(opts);
+      return {
+        body: {
+          result: {
+            songs: [
+              {
+                id: 7100 + searchCalls.length,
+                name: opts.keywords,
+                ar: [{ id: 90 + searchCalls.length, name: searchCalls.length === 1 ? '方大同' : 'Storm Artist' }],
+                al: { name: 'Storm Album', picUrl: 'https://img.example/storm.jpg' },
+                dt: 190000,
+                fee: 0,
+              },
+            ],
+          },
+        },
+      };
+    },
+    song_detail: async () => ({ body: { songs: [] } }),
+  });
+
+  const { status, body } = await getJson('/api/weather/radio?city=南京');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.weather.location.name, '南京');
+  assert.equal(body.weather.location.country, '中国');
+  assert.equal(body.weather.location.admin1, '江苏');
+  assert.equal(body.weather.weatherCode, 95);
+  assert.equal(body.weather.label, '雷雨');
+  assert.equal(body.weather.mood.key, 'storm-night');
+  assert.equal(body.weather.mood.title, '雷雨夜听');
+  assert.equal(body.weather.mood.energy, 0.56);
+  assert.equal(body.weather.mood.focus, 0.68);
+  assert.equal(body.weather.mood.melancholy, 0.62);
+  assert.equal(body.weather.mood.keywords[0], '公路 摇滚');
+  assert.deepEqual(body.radio.seedQueries, ['陈奕迅 阴天快乐', '周杰伦 雨下一整晚', '孙燕姿 遇见', '林宥嘉 说谎']);
+  assert.equal(body.radio.songs.length, 6);
+  assert.equal(weatherCalls.length, 2);
+  assert.equal(weatherCalls[0].includes('geocoding-api.open-meteo.com'), true);
+  assert.equal(weatherCalls[0].includes('%E5%8D%97%E4%BA%AC'), true);
+  assert.equal(weatherCalls[1].includes('latitude=32.06'), true);
+  assert.equal(weatherCalls[1].includes('longitude=118.79'), true);
+  assert.equal(searchCalls.length, 6);
+  assert.deepEqual(searchCalls.slice(0, 4).map(call => call.keywords), body.radio.seedQueries);
+  assert.deepEqual(searchCalls.slice(4).map(call => call.keywords), ['公路 摇滚', 'windy day playlist']);
+});
+
 test('/api/weather/radio uses fallback weather when the provider fails', async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
