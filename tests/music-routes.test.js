@@ -3326,6 +3326,38 @@ test('/api/discover/home combines personalized playlists, private recommendation
   assert.equal(calls.every(call => call[1].cookie === 'MUSIC_U=test-user; __csrf=test-csrf'), true);
 });
 
+test('/api/discover/home returns a fallback payload when discovery setup fails', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+
+  try {
+    server.__test.setNeteaseApi({
+      login_status: async () => ({
+        body: {
+          data: {
+            profile: { userId: 9610, nickname: 'Broken Discover User' },
+            account: { id: 9610 },
+          },
+        },
+      }),
+      personalized: null,
+    });
+    const login = await postJson('/api/login/cookie', { cookie: 'MUSIC_U=discover-broken; __csrf=discover-csrf' });
+    assert.equal(login.body.loggedIn, true);
+
+    const { status, body } = await getJson('/api/discover/home');
+
+    assert.equal(status, 500);
+    assert.match(body.error, /personalized is not a function/);
+    assert.equal(body.loggedIn, false);
+    assert.deepEqual(body.dailySongs, []);
+    assert.deepEqual(body.playlists, []);
+    assert.deepEqual(body.podcasts, []);
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/podcast/search returns an empty list for blank keywords', async () => {
   let called = false;
   server.__test.setNeteaseApi({
