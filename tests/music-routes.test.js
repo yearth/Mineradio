@@ -11,6 +11,18 @@ process.env.HOST = '127.0.0.1';
 process.env.NODE_ENV = 'test';
 process.env.COOKIE_FILE = path.join(testDir, '.cookie');
 process.env.QQ_COOKIE_FILE = path.join(testDir, '.qq-cookie');
+[
+  'GITHUB_REPOSITORY',
+  'MINERADIO_VERSION',
+  'MINERADIO_UPDATE_MANIFEST',
+  'MINERADIO_UPDATE_MANIFEST_FILE',
+  'MINERADIO_UPDATE_MANIFEST_URL',
+  'MINERADIO_UPDATE_OWNER',
+  'MINERADIO_UPDATE_REPOSITORY',
+  'MINERADIO_UPDATE_REPO',
+].forEach(name => {
+  delete process.env[name];
+});
 
 const server = require('../server');
 
@@ -153,6 +165,23 @@ async function loginAs(overrides) {
   await postJson('/api/login/cookie', { cookie: 'MUSIC_U=test-user; __csrf=test-csrf' });
   return { profile, account };
 }
+
+test('/api/app/version returns package and update metadata', async () => {
+  const pkg = require('../package.json');
+
+  const { status, body } = await getJson('/api/app/version');
+
+  assert.equal(status, 200);
+  assert.equal(body.name, pkg.name);
+  assert.equal(body.productName, pkg.productName);
+  assert.equal(body.version, pkg.version);
+  assert.equal(body.update.provider, pkg.mineradio.update.provider);
+  assert.equal(body.update.owner, pkg.mineradio.update.owner);
+  assert.equal(body.update.repo, pkg.mineradio.update.repo);
+  assert.equal(body.update.preview, pkg.mineradio.update.preview);
+  assert.equal(body.update.manifestOverride, false);
+  assert.equal(typeof body.update.configured, 'boolean');
+});
 
 test('/api/search maps cloudsearch songs and backfills missing covers', async () => {
   const calls = [];
@@ -926,6 +955,24 @@ test('/api/qq/login/cookie saves a valid QQ cookie and falls back when profile l
   }
 });
 
+test('/api/qq/login/cookie falls back when QQ profile reports auth unavailable', async () => {
+  setRequestTextResponder(() => ({ code: 1000, message: 'login expired' }));
+
+  const { status, body } = await postJson('/api/qq/login/cookie', {
+    cookie: 'uin=o67890; qm_keyst=music-key; qqmusic_key=play-key; ptnick_67890=Expired%20QQ',
+  });
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.saved, true);
+  assert.equal(body.userId, '67890');
+  assert.equal(body.nickname, 'Expired QQ');
+  assert.equal(body.profileSource, 'cookie');
+  assert.equal(body.profileUnavailable, true);
+  assert.equal(body.playbackKeyReady, true);
+});
+
 test('/api/qq/login/cookie maps QQ profile data from a successful lookup', async () => {
   const calls = [];
   setRequestTextResponder((targetUrl, opts) => {
@@ -1349,6 +1396,42 @@ test('/api/qq/artist/detail maps QQ artist and hot songs', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].payload.singer.param.singermid, 'singer001');
   assert.equal(calls[0].payload.singer.param.num, 10);
+});
+
+test('/api/qq/artist/detail falls back to song artist names and generated avatars', async () => {
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    assert.equal(JSON.parse(requestBody).singer.param.singermid, 'fallbackSinger');
+    return {
+      singer: {
+        code: 0,
+        data: {
+          singer_info: {},
+          song_count: 1,
+          songlist: [
+            {
+              track_info: {
+                id: 33002,
+                mid: 'fallback-track',
+                name: 'Fallback Track',
+                singer: [{ id: 77, mid: 'fallbackSinger', name: 'Fallback Artist' }],
+                album: { name: 'Fallback Album' },
+                interval: 201,
+              },
+            },
+          ],
+        },
+      },
+    };
+  });
+
+  const { status, body } = await getJson('/api/qq/artist/detail?mid=fallbackSinger');
+
+  assert.equal(status, 200);
+  assert.equal(body.artist.mid, 'fallbackSinger');
+  assert.equal(body.artist.name, 'Fallback Artist');
+  assert.equal(body.artist.avatar, 'https://y.qq.com/music/photo_new/T001R300x300M000fallbackSinger.jpg?max_age=2592000');
+  assert.equal(body.artist.musicSize, 1);
+  assert.equal(body.songs[0].artistMid, 'fallbackSinger');
 });
 
 test('/api/qq/artist/detail returns a provider error when singer lookup fails', async () => {
@@ -4008,6 +4091,41 @@ test('/api/audio proxies range requests with music-friendly headers', async () =
     assert.equal(calls[0].targetUrl, audioUrl);
     assert.equal(calls[0].headers.Range, 'bytes=0-2');
     assert.equal(calls[0].headers.Referer, 'https://y.qq.com/');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('/api/audio infers common audio content types from file extensions', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/octet-stream' }),
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(Buffer.from('ok'));
+        controller.close();
+      },
+    }),
+  });
+
+  try {
+    const cases = [
+      ['https://audio.example/song.mp3', 'audio/mpeg'],
+      ['https://audio.example/song.m4a', 'audio/mp4'],
+      ['https://audio.example/song.mp4', 'audio/mp4'],
+      ['https://audio.example/song.ogg', 'audio/ogg'],
+      ['https://audio.example/song.wav', 'audio/wav'],
+      ['https://audio.example/song.bin', 'application/octet-stream'],
+    ];
+
+    for (const [audioUrl, expectedType] of cases) {
+      const res = await requestRaw('GET', '/api/audio?url=' + encodeURIComponent(audioUrl));
+
+      assert.equal(res.status, 200);
+      assert.equal(res.headers['Content-Type'], expectedType);
+      assert.equal(res.body.toString(), 'ok');
+    }
   } finally {
     global.fetch = originalFetch;
   }
