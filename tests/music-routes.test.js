@@ -416,6 +416,70 @@ test('/api/song/url returns the first playable Netease URL', async () => {
   assert.equal(calls[0][1].level, 'exhigh');
 });
 
+test('/api/song/url falls back to legacy Netease URL lookup when v1 fails', async () => {
+  const calls = [];
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    server.__test.setNeteaseApi({
+      song_url_v1: async opts => {
+        calls.push(['song_url_v1', opts]);
+        throw new Error('v1 unavailable');
+      },
+      song_url: async opts => {
+        calls.push(['song_url', opts]);
+        return {
+          body: {
+            data: [
+              { id: opts.id, url: 'https://audio.example/legacy.mp3', br: opts.br, code: 200 },
+            ],
+          },
+        };
+      },
+    });
+
+    const { status, body } = await getJson('/api/song/url?id=102&quality=exhigh');
+
+    assert.equal(status, 200);
+    assert.equal(body.url, 'https://audio.example/legacy.mp3');
+    assert.equal(body.playable, true);
+    assert.equal(body.trial, false);
+    assert.equal(body.level, 'exhigh');
+    assert.equal(body.br, 999000);
+    assert.deepEqual(calls.map(call => call[0]), ['song_url_v1', 'song_url']);
+    assert.equal(calls[1][1].br, 999000);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('/api/song/url reports the last provider error when all Netease lookups fail', async () => {
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    server.__test.setNeteaseApi({
+      song_url_v1: async () => {
+        throw new Error('v1 unavailable');
+      },
+      song_url: async () => {
+        throw new Error('legacy unavailable');
+      },
+    });
+
+    const { status, body } = await getJson('/api/song/url?id=103&quality=standard');
+
+    assert.equal(status, 200);
+    assert.equal(body.url, null);
+    assert.equal(body.playable, false);
+    assert.equal(body.reason, 'login_required');
+    assert.equal(body.error, 'legacy unavailable');
+    assert.equal(body.lastCode, null);
+    assert.equal(body.fee, null);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
 test('/api/song/url reports login_required when Netease returns no playable URL for a logged-out user', async () => {
   server.__test.setNeteaseApi({
     song_url_v1: async opts => ({
@@ -1954,8 +2018,18 @@ test('/api/login/cookie normalizes structured Netease cookie input', async () =>
             profile: {
               userId: 9102,
               nickname: 'Structured User',
+              privilege: {
+                package: {
+                  title: '黑胶SVIP',
+                },
+              },
             },
             account: { id: 9102 },
+            associator: {
+              rights: [
+                { label: 'supervip annual member' },
+              ],
+            },
           },
         },
       };
@@ -1974,6 +2048,10 @@ test('/api/login/cookie normalizes structured Netease cookie input', async () =>
   assert.equal(body.loggedIn, true);
   assert.equal(body.userId, 9102);
   assert.equal(body.nickname, 'Structured User');
+  assert.equal(body.vipLevel, 'svip');
+  assert.equal(body.isVip, true);
+  assert.equal(body.isSvip, true);
+  assert.equal(body.vipLabel, 'SVIP');
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1].cookie, 'MUSIC_U=structured-secret; __csrf=structured-token; NMTID=abc');
   assert.equal(fs.readFileSync(process.env.COOKIE_FILE, 'utf8'), 'MUSIC_U=structured-secret; __csrf=structured-token; NMTID=abc');
