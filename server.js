@@ -4164,6 +4164,7 @@ if (process.env.NODE_ENV === 'test') {
     setRequestText(fn) {
       requestTextOverride = fn;
     },
+    buildWeatherMood,
     resetMusicRuntime() {
       applyNeteaseApi();
       userCookie = '';
