@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   buildMirrorUrl,
+  publicDownloadUrls,
   uniqueDownloadCandidates,
 } = require('../server-dist/server/services/update-download-candidates');
 
@@ -78,4 +79,24 @@ test('uniqueDownloadCandidates preserves legacy direct-first and no-mirror modes
       mirrored: false,
     },
   ]);
+});
+
+test('publicDownloadUrls preserves legacy candidate URL filtering', () => {
+  function callableCandidate() {}
+  callableCandidate.url = 'https://callable.example.com/app.exe';
+
+  assert.deepEqual(publicDownloadUrls([
+    { url: 'https://example.com/app.exe' },
+    callableCandidate,
+    null,
+    { url: '' },
+    { label: 'missing url' },
+    { url: 'https://mirror.example.com/app.exe' },
+  ]), [
+    'https://example.com/app.exe',
+    'https://callable.example.com/app.exe',
+    'https://mirror.example.com/app.exe',
+  ]);
+
+  assert.deepEqual(publicDownloadUrls(null), []);
 });

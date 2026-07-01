@@ -55,3 +55,9 @@ export function uniqueDownloadCandidates(urls: unknown, opts: DownloadCandidateO
     return true;
   });
 }
+
+export function publicDownloadUrls(candidates: unknown): string[] {
+  return (Array.isArray(candidates) ? candidates : [])
+    .map(item => item ? (item as { url?: string }).url : undefined)
+    .filter(Boolean) as string[];
+}

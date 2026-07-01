@@ -82,6 +82,7 @@ const {
 } = require('./server-dist/server/services/update-config');
 const {
   buildMirrorUrl,
+  publicDownloadUrls,
   uniqueDownloadCandidates: buildUniqueDownloadCandidates,
 } = require('./server-dist/server/services/update-download-candidates');
 
@@ -237,11 +238,6 @@ function uniqueDownloadCandidates(urls, opts) {
     mirrors: UPDATE_CONFIG.mirrors || [],
     preferMirrors: UPDATE_CONFIG.preferMirrors,
   });
-}
-function publicDownloadUrls(candidates) {
-  return (Array.isArray(candidates) ? candidates : [])
-    .map(item => item && item.url)
-    .filter(Boolean);
 }
 function normalizeManifestUpdateInfo(data) {
   data = data || {};
