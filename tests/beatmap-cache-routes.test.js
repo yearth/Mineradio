@@ -146,10 +146,23 @@ test('/api/beatmap/cache returns misses, writes compact entries, and reads hits'
 });
 
 test('/api/beatmap/cache rejects invalid writes and unsupported methods', async () => {
+  const emptyKey = await getJson('/api/beatmap/cache');
+
+  assert.equal(emptyKey.status, 200);
+  assert.deepEqual(emptyKey.body, { ok: true, hit: false, key: '' });
+
   const invalid = await postJson('/api/beatmap/cache', { key: 'missing-map' });
 
   assert.equal(invalid.status, 200);
   assert.deepEqual(invalid.body, { ok: false, error: 'INVALID_BEATMAP_CACHE_PAYLOAD' });
+
+  const tooLongKey = await postJson('/api/beatmap/cache', {
+    key: 'x'.repeat(241),
+    map: { beats: [] },
+  });
+
+  assert.equal(tooLongKey.status, 200);
+  assert.deepEqual(tooLongKey.body, { ok: false, error: 'INVALID_BEATMAP_CACHE_KEY' });
 
   const method = await requestJson('DELETE', '/api/beatmap/cache');
 
