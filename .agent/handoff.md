@@ -7,12 +7,13 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 test runtime guard slice after `d5c0d26 refactor: extract server http shell helpers`.
+- Worktree: has uncommitted Stage 2 static utility slice after `102952c test: guard server test runtime surface`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
-- Stage 2 third slice is in progress: `server/test-support/runtime.ts` now describes the legacy `module.exports.__test` surface by owner and legacy export order; `tests/server-test-runtime.test.js` compares it to the actual `server.js` test export block.
+- Stage 2 third slice is committed: `server/test-support/runtime.ts` describes the legacy `module.exports.__test` surface by owner and legacy export order; `tests/server-test-runtime.test.js` compares it to the actual `server.js` test export block.
+- Stage 2 fourth slice is in progress: `server/static-utils.ts` extracts static content type and static file path resolution; `server.js` uses it from compiled TS.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -84,6 +85,16 @@ Stage 2 test runtime guard slice:
 - `npm test`: passed, 230 tests.
 - QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck` and `npm run build:ts && node --test tests/server-test-runtime.test.js tests/project-structure.test.js`.
 
+Stage 2 static utility slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-static-utils.test.js` failed because `server-dist/server/static-utils` did not exist.
+- First GREEN attempt hit TS compile error for `node:path` because current TS setup has no Node type declarations; fixed without adding dependencies by using a local `require('path')` declaration inside `server/static-utils.ts`.
+- `npm run build:ts && node --test tests/server-static-utils.test.js tests/project-structure.test.js tests/music-routes.test.js`: passed, 148 tests.
+- `npm run typecheck`: passed.
+- `node --check server.js`: passed.
+- `npm test`: passed, 234 tests.
+- QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck`, `node --check server.js`, `npm run build:ts && node --test tests/server-static-utils.test.js tests/project-structure.test.js tests/music-routes.test.js`, and `npm test`.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -102,10 +113,12 @@ Stage 2 test runtime guard slice:
 - Legacy server: `server.js`
 - TS skeleton: `server/index.ts`, `server/router.ts`, `server/test-support/runtime.ts`
 - HTTP utility: `server/http-utils.ts`
+- Static utility: `server/static-utils.ts`
 - Structure guard: `tests/project-structure.test.js`
 - Router guard: `tests/server-router.test.js`
 - HTTP utility guard: `tests/server-http-utils.test.js`
 - Test runtime guard: `tests/server-test-runtime.test.js`
+- Static utility guard: `tests/server-static-utils.test.js`
 - TS config: `tsconfig.json`
 - Build config: `package.json`
 - Test-heavy route suites: `tests/music-routes.test.js`, `tests/update-routes.test.js`, `tests/beatmap-cache-routes.test.js`
@@ -120,7 +133,8 @@ Stage 2 test runtime guard slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 2:
-   - Choose the next small behavior-neutral extraction around server creation or static resource handling.
+   - If QA has passed, commit the static utility slice.
+   - Then choose the next small behavior-neutral extraction around server creation/listener composition.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:
@@ -132,6 +146,7 @@ Stage 2 test runtime guard slice:
 
 - Do not run `npm test` concurrently with coverage or another full test run; update patch tests share temporary public patch files and can race.
 - `dist/` and `server-dist/` are generated and ignored.
+- On a clean checkout, run `npm start`, `npm test`, or a build script so `npm run build:ts` creates `server-dist/` before `server.js` is loaded; direct `electron .` or direct `require('./server.js')` can fail before compilation.
 - Mac DMG path when rebuilt: `dist/Mineradio-1.1.1-arm64.dmg`.
 - App bundle path when rebuilt: `dist/mac-arm64/Mineradio.app`.
 - User prefers Chinese reports and steady small steps.

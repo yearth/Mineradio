@@ -70,6 +70,10 @@ const {
   shouldAutoListen,
   startupBannerLines,
 } = require('./server-dist/server/http-utils');
+const {
+  contentTypeForPath,
+  resolveStaticFilePath,
+} = require('./server-dist/server/static-utils');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -130,17 +134,6 @@ function applySystemCertificateAuthorities() {
 }
 
 applySystemCertificateAuthorities();
-
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript',
-  '.css':  'text/css',
-  '.json': 'application/json',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
-  '.ico':  'image/x-icon',
-  '.svg':  'image/svg+xml',
-};
 
 // ---------- Cookie 持久化 ----------
 const COOKIE_ATTRIBUTE_NAMES = new Set(['path', 'domain', 'expires', 'max-age', 'samesite', 'secure', 'httponly']);
@@ -211,10 +204,9 @@ function saveQQCookie(c) {
 
 // ---------- 工具 ----------
 function serveStatic(res, filePath) {
-  const ext = path.extname(filePath);
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not Found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'text/plain' });
+    res.writeHead(200, { 'Content-Type': contentTypeForPath(filePath) });
     res.end(data);
   });
 }
@@ -3930,14 +3922,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ---------- 静态资源 ----------
-  if (pn === '/favicon.ico') {
-    serveStatic(res, path.join(__dirname, 'build', 'icon.ico'));
-    return;
-  }
-
-  let filePath = pn === '/' ? '/index.html' : pn;
-  filePath = path.join(__dirname, 'public', filePath);
-  serveStatic(res, filePath);
+  serveStatic(res, resolveStaticFilePath(pn, __dirname));
 });
 
 if (shouldAutoListen(process.env)) { /* node:coverage ignore next 7 */
