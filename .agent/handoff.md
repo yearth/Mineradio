@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, and beatmap cache disk/memory-only/key-boundary behavior. `update-utils.js` now has 100% line/function coverage with broader asset/digest/url/filename branch characterization. `dj-analyzer.js` now has first-pass pure beat-map, wrapper-path, empty full-stream, non-empty full-stream decode metadata, quality full-stream fallback, empty intro, empty range-sampling, and range-sampled success aggregation coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work extends `tests/music-routes.test.js` route coverage for Netease song URL legacy fallback/provider-error reporting and structured-login nested SVIP metadata parsing.
+- Current uncommitted work extends `tests/music-routes.test.js` route coverage for QQ search detail fallback, QQ comment id lookup fallback failure, and liked podcast empty fallback behavior.
 
 ## Changes Made
 
@@ -63,6 +63,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/song/url` returning logged-in trial-only playback responses with `trial_only` restriction metadata.
   - Covers `/api/song/url` classifying logged-in Netease VIP, paid, and copyright playback restrictions.
   - Covers `/api/qq/search` smartbox result mapping, blank keyword short-circuiting without upstream requests, and provider error responses.
+  - Covers `/api/qq/search` keeping smartbox results when song detail enrichment fails.
   - Covers `/api/qq/song/url` successful vkey URL selection, missing-mid validation without upstream requests, and provider error responses.
   - Covers `/api/qq/song/url` login-required responses for logged-out users and partial QQ web sessions that lack playback authorization.
   - Covers `/api/qq/song/url` classifying logged-in QQ copyright, paid, generic nonzero-code, and default URL-unavailable playback restrictions.
@@ -75,14 +76,14 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/qq/artist/detail` missing-mid validation, artist/song mapping from QQ musicu responses, and provider error responses.
   - Covers `/api/qq/artist/detail` fallback artist names from mapped songs and generated QQ singer avatars when profile metadata is sparse.
   - Covers `/api/artist/detail` missing-id validation, artist metadata mapping, hot song mapping from `artist_songs`, limit clamping, detail/hot-song warning fallbacks, fallback to `artist_top_song` when hot songs are empty, and 500 behavior when top-song fallback fails.
-  - Covers `/api/qq/song/comments` missing-id behavior, first-page hot comment mapping, and provider error responses.
+  - Covers `/api/qq/song/comments` missing-id behavior, first-page hot comment mapping, detail-id fallback failure behavior, and provider error responses.
   - Covers `/api/podcast/search` blank keyword short-circuiting and podcast radio mapping from `cloudsearch`.
   - Covers `/api/podcast/hot` pagination and hot podcast radio mapping.
   - Covers `/api/podcast/detail` missing-id validation and detail mapping.
   - Covers `/api/podcast/programs` missing-id validation and program/radio mapping from `dj_program`.
   - Covers `/api/podcast/my` logged-out collection summaries and logged-in collect/created/liked summary mapping.
   - Covers `/api/podcast/my/items` logged-out defaults and collected podcast radio item mapping.
-  - Covers `/api/podcast/my/items` paid podcast radio item mapping and liked podcast recent-voice fallback when the liked-resource source fails.
+  - Covers `/api/podcast/my/items` paid podcast radio item mapping, liked podcast recent-voice fallback when the liked-resource source fails, and empty liked-list fallback when both liked sources fail.
   - Covers `/api/podcast/my` preserving available collections when one source fails and liked voices fall back to recent voices.
   - Covers `/api/podcast/my/items` 500 behavior when the selected source fails.
   - Covers `/api/weather/ip-location` successful IP location mapping and provider failure handling.
@@ -154,12 +155,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 14 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 131 tests.
+- `node --test tests/music-routes.test.js`: passed, 134 tests.
 - `node --test tests/update-utils.test.js`: passed, 13 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 188 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 188 tests; all-files line coverage 96.42%, branch coverage 69.53%, function coverage 93.17%; `server.js` line coverage 92.03%, branch coverage 61.78%, function coverage 91.44%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
+- `npm test`: passed, 191 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 191 tests; all-files line coverage 96.54%, branch coverage 69.66%, function coverage 93.26%; `server.js` line coverage 92.32%, branch coverage 61.89%, function coverage 91.44%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
 - Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.

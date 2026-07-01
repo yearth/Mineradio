@@ -680,6 +680,64 @@ test('/api/qq/search maps smartbox results with song detail enrichment', async (
   }
 });
 
+test('/api/qq/search keeps smartbox results when detail enrichment fails', async () => {
+  const calls = [];
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  console.log = () => {};
+  console.warn = () => {};
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, method: opts.method || 'GET', requestBody });
+    if (targetUrl.includes('smartbox_new.fcg')) {
+      return {
+        data: {
+          song: {
+            itemlist: [
+              { id: '12002', mid: 'qqmid002', name: 'QQ Fallback', singer: 'Fallback Artist' },
+            ],
+          },
+        },
+      };
+    }
+    if (targetUrl.includes('musicu.fcg')) {
+      throw new Error('detail unavailable');
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/search?keywords=fallback&limit=1');
+
+    assert.equal(status, 200);
+    assert.equal(body.provider, 'qq');
+    assert.deepEqual(body.songs, [
+      {
+        provider: 'qq',
+        source: 'qq',
+        type: 'qq',
+        id: 'qqmid002',
+        qqId: '12002',
+        mid: 'qqmid002',
+        songmid: 'qqmid002',
+        name: 'QQ Fallback',
+        artist: 'Fallback Artist',
+        artists: [{ name: 'Fallback Artist' }],
+        album: '',
+        cover: '',
+        duration: 0,
+        fee: 0,
+        playable: false,
+      },
+    ]);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].targetUrl, /smartbox_new\.fcg/);
+    assert.match(calls[1].targetUrl, /musicu\.fcg/);
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/qq/search returns an empty list for blank keywords', async () => {
   let requested = false;
   setRequestTextResponder(() => {
@@ -1739,6 +1797,32 @@ test('/api/qq/song/comments requires a QQ song id when detail lookup cannot reso
   assert.equal(status, 200);
   assert.deepEqual(body, { provider: 'qq', error: 'Missing QQ song id', comments: [] });
   assert.equal(requested, false);
+});
+
+test('/api/qq/song/comments returns missing id when detail fallback fails', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  setRequestTextResponder((targetUrl, opts, requestBody) => {
+    calls.push({ targetUrl, requestBody });
+    if (targetUrl.includes('musicu.fcg')) {
+      throw new Error('detail unavailable');
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  try {
+    const { status, body } = await getJson('/api/qq/song/comments?mid=qqmid-missing-id');
+
+    assert.equal(status, 200);
+    assert.equal(body.provider, 'qq');
+    assert.equal(body.error, 'Missing QQ song id');
+    assert.deepEqual(body.comments, []);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].targetUrl, /musicu\.fcg/);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test('/api/qq/song/comments maps first-page hot QQ comments', async () => {
@@ -3779,6 +3863,41 @@ test('/api/podcast/my/items falls back to recent voices for liked podcasts', asy
     assert.equal(body.items[0].sourceType, 'podcast-voice');
     assert.equal(body.items[0].artist, 'Recent Radio');
     assert.equal(body.items[0].duration, 88000);
+    assert.deepEqual(calls.map(call => call[0]), ['sati_resource_sub_list', 'record_recent_voice']);
+    assert.equal(calls[1][1].limit, 8);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('/api/podcast/my/items returns an empty liked list when all liked podcast sources fail', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9906, nickname: 'Empty Liked Podcast User' },
+      api: {
+        sati_resource_sub_list: async opts => {
+          calls.push(['sati_resource_sub_list', opts]);
+          throw new Error('liked voices unavailable');
+        },
+        record_recent_voice: async opts => {
+          calls.push(['record_recent_voice', opts]);
+          throw new Error('recent voices unavailable');
+        },
+      },
+    });
+
+    const { status, body } = await getJson('/api/podcast/my/items?key=liked&limit=3');
+
+    assert.equal(status, 200);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.key, 'liked');
+    assert.equal(body.itemType, 'voice');
+    assert.equal(body.count, 0);
+    assert.equal(body.cover, '');
+    assert.deepEqual(body.items, []);
     assert.deepEqual(calls.map(call => call[0]), ['sati_resource_sub_list', 'record_recent_voice']);
     assert.equal(calls[1][1].limit, 8);
   } finally {
