@@ -1,244 +1,108 @@
-# Mineradio macOS Preview Handoff
+# Mineradio Refactor Handoff
 
 ## Goal
 
-Create a first-pass macOS preview build of Mineradio, then incrementally add tests before any larger architecture refactor.
+Refactor Mineradio toward a typed, modular Electron music player while preserving current app behavior and macOS preview usability.
 
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, beatmap cache disk/memory-only/key-boundary behavior, and server helper parsing behavior for cookies/update config/GitHub repositories. Non-UI source files now report 100% line coverage: `server.js`, `dj-analyzer.js`, and `lib/*.js`. Unreferenced legacy non-UI helpers have been removed after grep verification.
-- User manually opened the generated DMG/App and reported: "app 没有问题".
-- macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work marks remaining defensive/startup/platform-only `server.js` branches with narrow Node coverage ignores after confirming they are startup catch guards, platform-specific cache-root guards, non-test `server.listen()`, or route catch wrappers whose helpers already convert provider failures into business responses.
+- Worktree: has uncommitted Stage 2 route-descriptor slice after `2bbea8b chore: add ts refactor foundation`.
+- Current phase: Stage 2, "server 外壳拆分".
+- Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
+- Stage 2 first slice is ready to commit: `server/router.ts` now describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
+- User explicitly asked to keep handoff current to avoid context-compression drift.
 
-## Changes Made
+## Latest Committed Work
 
-- `package.json`
-  - Added `test`, `build:mac`, and `build:mac:dir` scripts.
-  - Added `build.mac` config for arm64 DMG output.
-  - Uses ad-hoc signing with `identity: "-"` and `hardenedRuntime: false` for local preview builds.
-  - Includes `lib/**/*` in packaged files.
-  - Changed `NeteaseCloudMusicApi` from `^4.32.0` to `^4.31.0` because the configured npm registry does not have `4.32.0`.
-- `package-lock.json`
-  - Updated `NeteaseCloudMusicApi` to `4.31.0` with registry tarball metadata.
-- `build/icon.icns`
-  - Generated from existing `build/icon.png` using Pillow because `iconutil` rejected the generated iconset.
-- `lib/platform-paths.js`
-  - Added `defaultBeatMapCacheDir()`.
-  - Windows keeps existing `D:\MineradioCache\beatmaps` behavior.
-  - macOS uses `~/Library/Application Support/Mineradio/beatmaps`.
-  - Linux-like platforms use `~/.mineradio/beatmaps`.
-- `tests/platform-paths.test.js`
-  - Added Node built-in tests for platform default cache paths.
-- `lib/version-utils.js`
-  - Extracted version normalization and numeric version comparison from `server.js`.
-- `tests/version-utils.test.js`
-  - Covers `v`/`V` prefix removal, prerelease/build metadata stripping, blank/null normalization, numeric segment comparison, missing segment zero-fill behavior, prerelease comparison, and non-numeric segment zero coercion.
-- `lib/update-utils.js`
-  - Extracted release asset, patch asset, release-note, digest, URL basename, and safe update filename helpers from `server.js`.
-- `tests/update-utils.test.js`
-  - Covers installer asset preference, archive fallback, missing-asset null responses, patch matching/fallback/null responses, digest normalization, safe filename fallback/sanitization, URL basename extraction/fallback, and release-note filtering.
-  - Covers patch asset fallback when a current-version patch exists but no exact current-to-latest patch matches.
-  - Covers first-asset release fallback with explicit sha256/sha512 fields, generic patch fallback metadata, long filename truncation, and malformed percent-encoded URL fallback.
-- `tests/update-routes.test.js`
-  - Covers `/api/update/latest`, `/api/update/download`, and `/api/update/patch` behavior on the macOS/non-Windows preview fallback path.
-  - Covers Windows update path reading a local manifest file and normalizing latest-version release data without real network access.
-  - Covers Windows update path reading a remote HTTP manifest with the Mineradio User-Agent and normalizing latest-version release data without real network access.
-  - Covers Windows update path falling back to local update metadata when a remote manifest returns an HTTP error.
-  - Covers Windows update path reading the GitHub latest release API, choosing installer/patch assets, normalizing digests, and extracting release notes without real network access.
-  - Covers Windows update path falling back to `latest.yml` when the GitHub latest release API fails.
-  - Covers Windows manifest `/api/update/download` creating a queued installer job without starting a real background download in tests.
-  - Covers Windows manifest `/api/update/patch` creating a queued patch job without applying a real patch in tests.
-  - Covers `/api/update/download` reusing a verified cached installer and moving an invalid cached installer aside before queuing a fresh job.
-  - Covers `/api/update/download` successful fake download reaching `ready`, sha256 mismatch reaching `error`, and size mismatch reaching `error`.
-  - Covers `/api/update/download` chunked installer progress and speed tracking when the server omits `content-length`.
-  - Covers `/api/update/download` sha512 mismatch reaching `error` with a file verification failure reason.
-  - Covers `/api/update/download` switching to the next candidate after HTTP or DNS failure and reporting `error` after all candidates fail.
-  - Covers `/api/update/download` skipping mirrored candidates when no digest is available, switching after socket failures, and classifying timeout failures with a timeout-specific user-facing reason.
-  - Covers `/api/update/patch` rejecting an unsafe `../package.json` file path, applying an allowed `public/.mineradio-patch-test.txt` file patch, rejecting missing patch content, rejecting file hash mismatches before writes, and backing up existing public files before replacement.
-  - Covers `/api/update/patch` chunked patch download speed tracking while applying a verified patch.
-  - Covers `/api/update/latest` falling back locally when the GitHub releases API fails and every latest.yml candidate fails.
-- `tests/server-helpers.test.js`
-  - Covers `normalizeCookieHeader()` for structured cookie arrays, attribute filtering, duplicate overwrite behavior, and raw string parsing.
-  - Covers `rawCookieFallback()` for all-string arrays and mixed unsupported arrays.
-  - Covers `parseGitHubRepository()` for owner/repo shorthand, SSH-style GitHub URLs, HTTPS GitHub URLs with suffix/query cleanup, invalid input, and blank input.
-  - Covers `readUpdateConfig()` merging package repository/update settings, local mirrors, env owner/repo/manifest overrides, and env mirror de-duplication.
-  - Covers `requestText()` against a local HTTP server for POST method/header/body forwarding, 200 text responses, and HTTP 503 error objects with status/body.
-  - Covers `moveInvalidUpdateFile()` swallowing `fs.renameSync` failures while preserving the stale cached installer file and logging the guard warning.
-- `server.js`
-  - Removed unreferenced legacy helpers after `rg` confirmed no call sites: `downloadUpdateAsset()`, `downloadAndApplyPatch()`, `tagWeatherPoolSongs()`, `fetchWeatherPlaylistSongs()`, and `filterLikelyPlayableWeatherSongs()`.
-- `tests/music-routes.test.js`
-  - Covers `/api/search` mapping Netease `cloudsearch` results, backfilling missing covers via `song_detail`, and returning `{ songs: [] }` on search failure.
-  - Covers `/api/lyric` missing-id validation, `lyric_new` success, fallback to `lyric` when `lyric_new` has no timed lyrics or throws, and 500 behavior when fallback lyric lookup fails.
-  - Covers `/api/song/url` returning the first playable Netease URL and reporting `login_required` restrictions for logged-out users when no playable URL is returned.
-  - Covers `/api/song/url` falling back from `song_url_v1` to legacy `song_url` when v1 fails, and returning the final provider error when both lookups fail.
-  - Covers `/api/song/url` returning logged-in trial-only playback responses with `trial_only` restriction metadata.
-  - Covers `/api/song/url` classifying logged-in Netease VIP, paid, and copyright playback restrictions.
-  - Covers `/api/qq/search` smartbox result mapping, blank keyword short-circuiting without upstream requests, and provider error responses.
-  - Covers `/api/qq/search` keeping smartbox results when song detail enrichment fails.
-  - Covers `/api/qq/song/url` successful vkey URL selection, missing-mid validation without upstream requests, and provider error responses.
-  - Covers `/api/qq/song/url` login-required responses for logged-out users and partial QQ web sessions that lack playback authorization.
-  - Covers `/api/qq/song/url` classifying logged-in QQ copyright, paid, generic nonzero-code, and default URL-unavailable playback restrictions.
-  - Covers `/api/qq/lyric` missing-mid/id validation, musicu lyric decoding for base64/plain lyric fields, and the empty-lyric fallback when QQ lyric lookups fail.
-  - Covers `/api/qq/login/cookie` invalid cookie rejection, valid QQ cookie persistence with profile-fallback behavior, successful QQ profile mapping, and web-session cookies without playback authorization.
-  - Covers `/api/qq/login/cookie` falling back to cookie profile data when QQ profile lookup reports an auth-unavailable response.
-  - Covers `/api/qq/login/status` logged-out defaults and `/api/qq/logout` clearing the saved QQ cookie.
-  - Covers `/api/qq/user/playlists` logged-out behavior plus logged-in created/collected playlist mapping, duplicate filtering, Qzone/background filtering, favorite-list ordering, and partial collected-list results when the created-list source fails.
-  - Covers `/api/qq/playlist/tracks` logged-out behavior plus logged-in playlist detail/track mapping and provider error responses.
-  - Covers `/api/qq/artist/detail` missing-mid validation, artist/song mapping from QQ musicu responses, and provider error responses.
-  - Covers `/api/qq/artist/detail` nonzero QQ singer responses returning a provider error payload without turning into a 500 route error.
-  - Covers `/api/qq/artist/detail` fallback artist names from mapped songs and generated QQ singer avatars when profile metadata is sparse.
-  - Covers `/api/artist/detail` missing-id validation, artist metadata mapping, hot song mapping from `artist_songs`, limit clamping, detail/hot-song warning fallbacks, fallback to `artist_top_song` when hot songs are empty, and 500 behavior when top-song fallback fails.
-  - Covers `/api/qq/song/comments` missing-id behavior, first-page hot comment mapping, paged regular comment mapping, detail-id fallback failure behavior, and provider error responses.
-  - Covers `/api/podcast/search` blank keyword short-circuiting and podcast radio mapping from `cloudsearch`.
-  - Covers `/api/podcast/hot` pagination and hot podcast radio mapping.
-  - Covers `/api/podcast/detail` missing-id validation and detail mapping.
-  - Covers `/api/podcast/programs` missing-id validation and program/radio mapping from `dj_program`.
-  - Covers `/api/podcast/my` logged-out collection summaries and logged-in collect/created/liked summary mapping.
-  - Covers `/api/podcast/my/items` logged-out defaults, collected podcast radio item mapping, empty collected payload fallback behavior, and unknown collection-key fallback behavior.
-  - Covers `/api/podcast/my/items` paid podcast radio item mapping, liked podcast recent-voice fallback when the liked-resource source fails, and empty liked-list fallback when both liked sources fail.
-  - Covers `/api/podcast/my` preserving available collections when one source fails and liked voices fall back to recent voices.
-  - Covers `/api/podcast/my/items` 500 behavior when the selected source fails.
-  - Covers `/api/weather/ip-location` successful IP location mapping, provider failure handling, and invalid upstream JSON error wrapping.
-  - Covers `/api/weather/radio` coordinate-based Open-Meteo forecast mapping, rainy mood/radio construction, city-name geocoding, storm/night/wind mood shaping, snow-night mood shaping, generic labels for unknown weather codes, mood-keyword search expansion, seed query search behavior, and fallback radio behavior when the weather provider fails.
-  - Covers `/api/podcast/dj-beatmap` invalid audio URL validation, backend analysis failure responses, and intro empty-stream map responses.
-  - Covers `/api/audio` missing-url validation, upstream failure responses, and range proxy behavior, including upstream status/header/body forwarding, QQ referer selection, and audio content-type inference from URL extension.
-  - Covers `/api/audio` extension-based content-type inference for `.mp3`, `.m4a`, `.mp4`, `.ogg`, `.wav`, and upstream content-type fallback behavior.
-  - Covers `/api/cover` invalid URL rejection before fetch, upstream failure responses, and image proxy behavior, including upstream status/header/body forwarding plus CORS/CORP/cache headers used by canvas extraction.
-  - Covers static route fallback behavior for `/favicon.ico`, `/`, static JSON assets, and missing public files.
-- `tests/weather-mood.test.js`
-  - Covers `buildWeatherMood()` pure logic for humid weather, cloudy dusk keyword/title shaping, and clear morning keyword/energy shaping with local-time `Date` instances.
-- `tests/beatmap-cache-routes.test.js`
-  - Covers `/api/beatmap/cache/status` reporting an enabled disk cache under a test-only temp directory.
-  - Covers `/api/beatmap/cache` miss, compact write, safe hashed filename, metadata truncation, ignored field exclusion, hit readback, invalid payload rejection, and unsupported method handling.
-  - Covers `/api/beatmap/cache` empty-key GET misses and overlong-key POST rejection before writing cache files.
-  - Covers `/api/beatmap/cache` read/write memory-only fallback responses when the configured cache directory path is blocked by a regular file.
-- `tests/dj-analyzer.test.js`
-  - Covers `buildBeatMapFromLowEnergy()` empty-map behavior for short inputs, long flat inputs without usable onsets, and very large flat inputs that exercise percentile sampling without false beats.
-  - Covers repeated low-energy pulse input producing a visual beat grid, including tempo range, beat/camera counts, kick time mapping, section step metadata, debug metadata, and beat contract ranges.
-  - Covers stronger nearby pulse candidate replacement, adjacent local-peak migration, and sparse-candidate fallback to the default grid step when no valid step histogram can be estimated.
-- `tests/dj-analyzer.test.js`
-  - Covers `analyzePodcastDjStream()` rejecting invalid non-http(s) URLs before fetch and reporting upstream fetch failures with expected request headers.
-  - Covers `analyzePodcastDjStream()` returning an empty full-stream map for empty decoded audio, including request headers and decode metadata.
-  - Covers `analyzePodcastDjStream()` decoding a non-empty inline MP3 full-stream fixture with no network dependency, including request headers, skipped empty chunks, nonzero decoded sample/frame metadata, sample-rate metadata, and effective-duration selection.
-  - Covers `analyzePodcastDjStream()` falling back from the 3300-7200 second quality full-stream path to range sampling when the initial full-stream fetch fails, including warning capture, request ordering, HEAD/range headers, and empty range beatmap output.
-  - Covers `analyzePodcastDjStream()` selecting the long-podcast range sampling path from a `HEAD` content length, issuing eight ranged audio requests with expected headers, and returning an empty range beatmap when all sampled responses decode to no frames.
-  - Covers `analyzePodcastDjStream()` falling back to full-stream analysis when long-podcast range metadata is unavailable from the `HEAD` request.
-  - Covers `analyzePodcastDjStream()` aggregating eight decoded long-podcast range maps into a sampled beat grid with expected HEAD request headers, generated range options, beat contracts, section steps, profiles, and combined decode metadata.
-  - Covers `analyzePodcastDjIntro()` returning partial intro map metadata for an empty decoded audio stream.
-  - Covers `analyzePodcastDjIntro()` decoding a non-empty ranged intro stream with the existing inline MP3 fixture and mapping it into partial intro metadata.
-  - Covers `decodePodcastDjEnergyRange()` swallowing `ReadableStream` reader cancellation failures after a small decode limit is reached, while still returning decoded chunk/sample/duration metadata.
-- `dj-analyzer.js`
-  - Exposes a test-only `__test` decode override when running under `NODE_ENV=test` or `tests/*.test.js`; production exports remain the three public analyzer functions.
-  - Marks the defensive half-step retune branch with `node:coverage ignore next 3`; an instrumented local search across parameter grids plus 5000 random pulse sequences did not find a stable input where half-step scoring exceeded the full-step score by the required 1.04x threshold.
-- `tests/music-routes.test.js`
-  - Covers `/api/login/status`, `/api/login/cookie`, and `/api/logout` for logged-out defaults, invalid cookie rejection, valid Netease cookie persistence/profile mapping, login_status-to-user_account fallback, invalid-auth cookie clearing including message-based invalid auth, unexpected account lookup failure behavior, pending-profile cookie saves, and logout cookie clearing.
-  - Covers `/api/login/cookie` accepting form-encoded cookie submissions through the shared request-body fallback parser.
-  - Covers `/api/login/cookie` structured cookie inputs, including array recursion, `{ name, value }` items, nested `{ value }` fields, cookie attribute filtering, nested VIP/SVIP metadata string collection, and VIP metadata discovered under array-valued object fields.
-  - Covers `/api/login/qr/key`, `/api/login/qr/create`, and `/api/login/qr/check` for key retrieval, QR image/url creation, waiting status, successful auth retry, retry-warning profile fallback, cookie persistence, pending-profile fallback, provider errors, and profile mapping.
-  - Covers `/api/user/playlists` logged-out empty response, logged-in playlist mapping, and logged-in provider failure responses.
-  - Covers `/api/song/like/check` login requirement, direct liked-song checks, and fallback to `likelist`.
-  - Covers `/api/song/like` toggling liked state for logged-in users.
-  - Covers `/api/playlist/create` and `/api/playlist/add-song` logged-in success paths, including fallback from `playlist_tracks` to `playlist_track_add`.
-  - Covers `/api/song/like/check`, `/api/song/like`, and `/api/playlist/create` validation and provider-error branches.
-  - Covers `/api/playlist/add-song` missing playlist/song id validation before provider calls, failed `playlist_tracks` plus failed `playlist_track_add` attempts, fallback exceptions, and primary provider exceptions.
-  - Covers `/api/song/comments` missing-id validation, first-page hot comment mapping, regular comment mapping on later pages, empty-content filtering, and provider failure responses.
-  - Covers `/api/playlist/tracks` missing-id validation, track mapping from `playlist_track_all` `songs` and `tracks` payloads, fallback to `playlist_detail` when `playlist_track_all` fails, and 500 behavior when the fallback detail call fails.
-  - Covers `/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, and `/api/podcast/programs` upstream failure responses.
-  - Covers `/api/discover/home` returning a 500 fallback payload when logged-in discovery setup fails before upstream recommendation requests can be settled.
-- `server.js`
-  - Uses `defaultBeatMapCacheDir()`.
-  - Disables Windows update channel on non-Windows preview builds via local fallback.
-  - Delegates pure version/update helper behavior to `lib/version-utils.js` and `lib/update-utils.js`.
-  - Skips automatic `server.listen()` when `NODE_ENV=test`, so route tests can exercise the HTTP handler without binding a local port.
-  - Exposes `server.__test` only when `NODE_ENV=test`; this test hook can override update platform/manifest/auto-download/auto-patch, override Netease API functions for route tests, and reset update/music route state.
-  - Exposes `buildWeatherMood()` only through `server.__test` for deterministic pure weather mood tests; production exports remain unchanged.
-  - Exposes a test-only `requestText` override so QQ route tests can exercise success/error branches without real network access.
-  - Resets in-memory QQ cookie and the request-text override in `resetMusicRuntime()` to prevent route tests from leaking state.
-  - Classifies `UPDATE_SHA256_MISMATCH` / SHA-like update errors as file verification failures.
-  - `/api/app/version` route metadata is now characterized by package/update config tests.
-  - Uses narrow `node:coverage ignore` markers for startup TLS/package/cookie guard catches, platform-only beatmap cache root guards, an unreachable QQ lyric base64 decode catch, defensive route wrapper catches, and non-test `server.listen()`.
-- `desktop/main.js`
-  - Uses PNG app icon on non-Windows runtime windows.
-  - Skips Chromium `use-angle=d3d11` outside Windows.
-  - Disables Windows WorkerW wallpaper mode on non-Windows.
-  - Keeps desktop lyrics window path available; only the Windows middle-click poller remains Windows-only.
+- Commit: `2bbea8b chore: add ts refactor foundation`
+- Added TypeScript dev dependency and scripts:
+  - `npm run typecheck` -> `tsc --noEmit`
+  - `npm run build:ts` -> `tsc`
+  - `build:mac`, `build:mac:dir`, `build:win`, and `build:win:dir` now run `npm run build:ts` first.
+- Added `tsconfig.json`, compiling only `server/**/*.ts` and `shared/**/*.ts` into ignored `server-dist/`.
+- Added server skeleton:
+  - `server/index.ts`
+  - `server/router.ts`
+  - `server/test-support/runtime.ts`
+- Added structural guard test:
+  - `tests/project-structure.test.js`
+  - Guards TS scripts, TS skeleton files, `package.json main === "desktop/main.js"`, `server.js` packaging, `server-dist/**/*` packaging, and `.gitignore` keeping `server-dist/` untracked.
+- Added roadmap:
+  - `docs/superpowers/plans/2026-07-01-mineradio-refactor-roadmap.md`
+- `package-lock.json` TypeScript tarball was manually corrected to public npm registry metadata after QA flagged the local/internal registry entry.
 
-## Build Artifacts
+## Verification Snapshot
 
-- DMG: `dist/Mineradio-1.1.1-arm64.dmg`
-- App bundle: `dist/mac-arm64/Mineradio.app`
-- These are ignored by `.gitignore` through `dist/`.
+After Stage 1 and QA fixes:
 
-## Verification Run
-
-- `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
-- `node --test tests/dj-analyzer.test.js`: passed, 18 tests.
-- `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 142 tests.
-- `node --test tests/update-utils.test.js`: passed, 13 tests.
-- `node --test tests/version-utils.test.js`: passed, 2 tests.
-- `node --test tests/update-routes.test.js`: passed, 30 tests.
-- `node --test tests/server-helpers.test.js`: passed, 5 tests.
-- `node --test tests/weather-mood.test.js`: passed, 3 tests.
-- `npm test`: passed, 220 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 220 tests; all-files line coverage 99.45%, branch coverage 73.22%, function coverage 94.49%; `server.js` line coverage 100.00%, branch coverage 65.99%, function coverage 94.16%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 100.00%, branch coverage 71.96%, function coverage 96.49%.
-- Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
-- `node --check server.js`: passed.
-- `node --check desktop/main.js`: passed.
-- `git diff --check`: passed.
-- `npm run build:mac:dir`: passed.
+- `node --test tests/project-structure.test.js`: passed, 2 tests.
+- `npm run typecheck`: passed.
+- `npm run build:ts`: passed.
+- `npm test`: passed, 222 tests.
 - `npm run build:mac`: passed.
 - `codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Mineradio.app`: passed.
 - `hdiutil verify dist/Mineradio-1.1.1-arm64.dmg`: passed.
-- Direct launch from the Codex subprocess failed with macOS LaunchServices/AppKit errors, but user manual launch from DMG succeeded.
+- QA subagent first pass: `NEEDS WORK` for lockfile registry plus missing guard assertions.
+- QA subagent second pass: `PASS`.
+
+Stage 2 route-descriptor slice:
+
+- `npm run build:ts && node --test tests/server-router.test.js tests/project-structure.test.js`: passed, 4 tests.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js`: passed, 172 tests.
+- `npm test`: passed, 224 tests.
+- `npm run build:mac`: passed.
+- `codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Mineradio.app`: passed.
+- `hdiutil verify dist/Mineradio-1.1.1-arm64.dmg`: passed.
+- QA subagent review for this slice: `PASS`.
 
 ## Decisions
 
-- Do not refactor the large `public/index.html` yet.
-- Do not introduce React/Vue/RN.
-- Add tests around pure, extractable business logic before touching UI-heavy or Electron-specific paths.
-- Independent QA must be done by a read-only subagent; do not count self-review as acceptance.
-- Do not implement full macOS auto-update, notarization, or real Developer ID signing in this phase.
-- Disable or degrade Windows-only features rather than blocking app startup.
-- Keep Windows behavior unchanged where possible.
+- Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
+- Use TypeScript incrementally. JS and TS may coexist during migration.
+- Preserve legacy runtime entrypoints until explicitly migrated:
+  - `package.json main` remains `desktop/main.js`.
+  - root `server.js` remains packaged and required by current Electron flow.
+- Keep `server-dist/` ignored in git but included in electron-builder files for future TS output.
+- Do not refactor `public/index.html` yet; renderer is the highest-risk area.
+- Do not alter API response shapes, IPC exposed object shapes, localStorage keys, or UI behavior during server shell extraction.
+- Independent QA should be done by a read-only subagent before claiming non-trivial refactor work complete.
 
-## Risks / Follow-Ups
+## Key Files
 
-- Manual smoke testing should cover search, playback, lyrics, login windows, and visual performance.
-- macOS app is ad-hoc signed and not notarized; Gatekeeper prompts are expected outside local/dev contexts.
-- Wallpaper mode is intentionally unsupported on macOS preview.
-- Update UI is intentionally disabled on non-Windows preview builds.
-- `NeteaseCloudMusicApi` downgrade may need a compatibility check against playback/search/login behavior.
-- The app now has a small focused test suite, but broad coverage remains a later phase before architecture refactoring.
-- Update flow behavior is covered at helper level, including installer/archive/first-asset selection, patch matching/fallback, digest/name/url/note normalization, server update config parsing, on the non-Windows preview route fallback path, on the Windows local/remote-manifest latest route paths, GitHub latest release fetching, latest.yml success/failure fallback, installer/patch job creation, installer cache reuse/invalid-cache handling, installer fake-download ready/sha256/sha512/size branches, installer unknown-size progress/speed tracking, installer HTTP fallback/all-fail branches, patch download speed tracking, patch application success/error branches, and patch file backup/hash/content safety branches.
-- Music route behavior now has first-pass coverage for app version metadata, search, lyrics, Netease song URL/artist detail, discover home success/starter/fallback paths, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail including nonzero provider responses/song comments first-page hot and paged regular branches plus selected QQ failure/partial paths, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, podcast DJ beatmap route validation/failure/intro-empty success paths, weather ip-location success/provider-failure/invalid-JSON paths, weather radio rainy/storm-night/snow-night/unknown-code/fallback paths, pure weather mood humid/cloudy-dusk/morning branches, audio/cover proxy success/failure/content-type behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, static favicon/root page/JSON/missing-file behavior, and selected playlist/podcast error branches.
-- `dj-analyzer.js` pure beat-map generation is covered for empty, large-flat, pulse-grid, stronger-nearby-candidate, adjacent-local-peak, and sparse-step-fallback paths; wrapper failure/full-stream-empty/full-stream-non-empty/quality-fallback/empty-intro/non-empty-intro/empty-range/range-metadata-fallback/range-sampled-success/range-decoder-cancel-failure paths are covered. `dj-analyzer.js` now reports 100.00% line coverage; the only remaining analyzer caveat is the intentionally ignored defensive half-step retune branch.
-- Beatmap cache routes are covered on the normal disk-cache path, empty/overlong key boundaries, and a cache-dir-blocked memory-only fallback path; disabled-drive and deeper filesystem error paths remain untested.
-- UI behavior in `public/index.html` remains largely untested.
-- Non-UI source line coverage is now complete under Node's coverage accounting. Branch/function coverage is not 100% yet; treat that as a stricter optional follow-up rather than the current line-coverage milestone.
+- Roadmap: `docs/superpowers/plans/2026-07-01-mineradio-refactor-roadmap.md`
+- Legacy server: `server.js`
+- TS skeleton: `server/index.ts`, `server/router.ts`, `server/test-support/runtime.ts`
+- Structure guard: `tests/project-structure.test.js`
+- Router guard: `tests/server-router.test.js`
+- TS config: `tsconfig.json`
+- Build config: `package.json`
+- Test-heavy route suites: `tests/music-routes.test.js`, `tests/update-routes.test.js`, `tests/beatmap-cache-routes.test.js`
 
 ## Next Session Bootstrap
 
 1. `cd /Users/yearthmain/agent-playground/repos/Mineradio`
 2. `git status --short --branch`
-3. Read this file and inspect:
-   - `package.json`
-   - `desktop/main.js`
-   - `server.js`
-   - `lib/platform-paths.js`
-   - `tests/platform-paths.test.js`
-4. Run:
+3. Read:
+   - `.agent/handoff.md`
+   - `docs/superpowers/plans/2026-07-01-mineradio-refactor-roadmap.md`
+   - `tests/project-structure.test.js`
+   - the bottom of `server.js` around server creation/listen/test exports.
+4. Next implementation step for Stage 2:
+   - Commit the route-descriptor slice if it is still uncommitted.
+   - Then choose the next small behavior-neutral extraction around server runtime/test-support.
+   - Add/adjust a failing guard test first where possible.
+   - Keep `server.js` as the public CommonJS export.
+5. Validate after each slice:
+   - targeted route tests first, especially `node --test tests/music-routes.test.js tests/update-routes.test.js`
+   - `npm run typecheck`
    - `npm test`
-   - `node --check server.js`
-   - `node --check desktop/main.js`
-   - `git diff --check`
-5. If resuming the current test phase, first inspect:
-   - `lib/version-utils.js`
-   - `lib/update-utils.js`
-   - `tests/update-routes.test.js`
-   - `tests/music-routes.test.js`
-   - `tests/version-utils.test.js`
-   - `tests/update-utils.test.js`
-6. Next implementation step: decide whether to pursue stricter branch/function coverage for non-UI source or move to UI coverage/refactor preparation. Defer UI-heavy `public/index.html` unless the next phase explicitly targets UI.
+
+## Guardrails
+
+- Do not run `npm test` concurrently with coverage or another full test run; update patch tests share temporary public patch files and can race.
+- `dist/` and `server-dist/` are generated and ignored.
+- Mac DMG path when rebuilt: `dist/Mineradio-1.1.1-arm64.dmg`.
+- App bundle path when rebuilt: `dist/mac-arm64/Mineradio.app`.
+- User prefers Chinese reports and steady small steps.
