@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   createRequestUrl,
+  listenIfNeeded,
   shouldAutoListen,
   startupBannerLines
 } = require('../server-dist/server/http-utils');
@@ -35,4 +36,49 @@ test('startupBannerLines keeps the legacy startup text stable', () => {
   ]);
 
   assert.equal(startupBannerLines({ port: 5000, hasUserCookie: false })[2], ' 登录态: 未登录');
+});
+
+test('listenIfNeeded skips server listen under node:test', () => {
+  const calls = [];
+  const server = {
+    listen(port, host, callback) {
+      calls.push({ port, host, callback });
+    }
+  };
+
+  const didListen = listenIfNeeded({
+    server,
+    env: { NODE_ENV: 'test' },
+    port: 3000,
+    host: '0.0.0.0',
+    hasUserCookie: false,
+    logger: { log(message) { calls.push({ message }); } }
+  });
+
+  assert.equal(didListen, false);
+  assert.deepEqual(calls, []);
+});
+
+test('listenIfNeeded starts the server and logs the legacy startup banner', () => {
+  const listenCalls = [];
+  const logs = [];
+  const server = {
+    listen(port, host, callback) {
+      listenCalls.push({ port, host });
+      callback();
+    }
+  };
+
+  const didListen = listenIfNeeded({
+    server,
+    env: { NODE_ENV: 'production' },
+    port: '3001',
+    host: '127.0.0.1',
+    hasUserCookie: true,
+    logger: { log(message) { logs.push(message); } }
+  });
+
+  assert.equal(didListen, true);
+  assert.deepEqual(listenCalls, [{ port: '3001', host: '127.0.0.1' }]);
+  assert.deepEqual(logs, startupBannerLines({ port: '3001', hasUserCookie: true }));
 });

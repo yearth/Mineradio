@@ -7,13 +7,14 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 static utility slice after `102952c test: guard server test runtime surface`.
+- Worktree: has uncommitted Stage 2 listener composition slice after `0088988 refactor: extract server static helpers`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
 - Stage 2 third slice is committed: `server/test-support/runtime.ts` describes the legacy `module.exports.__test` surface by owner and legacy export order; `tests/server-test-runtime.test.js` compares it to the actual `server.js` test export block.
-- Stage 2 fourth slice is in progress: `server/static-utils.ts` extracts static content type and static file path resolution; `server.js` uses it from compiled TS.
+- Stage 2 fourth slice is committed: `server/static-utils.ts` extracts static content type and static file path resolution; `server.js` uses it from compiled TS.
+- Stage 2 fifth slice is in progress: `listenIfNeeded` in `server/http-utils.ts` centralizes listener gating and startup banner logging; `server.js` delegates startup listening to it.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -95,6 +96,16 @@ Stage 2 static utility slice:
 - `npm test`: passed, 234 tests.
 - QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck`, `node --check server.js`, `npm run build:ts && node --test tests/server-static-utils.test.js tests/project-structure.test.js tests/music-routes.test.js`, and `npm test`.
 
+Stage 2 listener composition slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `listenIfNeeded` was not exported.
+- `listenIfNeeded` was added to `server/http-utils.ts` and `server.js` now calls it instead of hand-writing the `shouldAutoListen`/`server.listen`/banner block.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js tests/music-routes.test.js tests/update-routes.test.js`: passed, 180 tests.
+- `npm run typecheck`: passed.
+- `node --check server.js`: passed.
+- `npm test`: passed, 236 tests.
+- QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck`, `node --check server.js`, `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js tests/music-routes.test.js tests/update-routes.test.js`, and `npm test`.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -133,8 +144,7 @@ Stage 2 static utility slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 2:
-   - If QA has passed, commit the static utility slice.
-   - Then choose the next small behavior-neutral extraction around server creation/listener composition.
+   - Choose the next small behavior-neutral extraction around server creation or request handler composition.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:

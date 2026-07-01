@@ -67,8 +67,7 @@ const {
 } = require('./lib/update-utils');
 const {
   createRequestUrl,
-  shouldAutoListen,
-  startupBannerLines,
+  listenIfNeeded,
 } = require('./server-dist/server/http-utils');
 const {
   contentTypeForPath,
@@ -3925,11 +3924,13 @@ const server = http.createServer(async (req, res) => {
   serveStatic(res, resolveStaticFilePath(pn, __dirname));
 });
 
-if (shouldAutoListen(process.env)) { /* node:coverage ignore next 7 */
-  server.listen(PORT, HOST, () => {
-    startupBannerLines({ port: PORT, hasUserCookie: !!userCookie }).forEach(line => console.log(line));
-  });
-}
+listenIfNeeded({ /* node:coverage ignore next 7 */
+  server,
+  env: process.env,
+  port: PORT,
+  host: HOST,
+  hasUserCookie: !!userCookie,
+});
 
 module.exports = server;
 if (process.env.NODE_ENV === 'test') {
