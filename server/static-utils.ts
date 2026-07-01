@@ -25,3 +25,29 @@ export function resolveStaticFilePath(pathname: string, appRoot: string): string
   const publicPath = pathname === '/' ? '/index.html' : pathname;
   return path.join(appRoot, 'public', publicPath);
 }
+
+export interface StaticResponse {
+  writeHead(status: number, headers?: Record<string, string>): unknown;
+  end(body: unknown): unknown;
+}
+
+export interface StaticFileReader {
+  readFile(filePath: string, callback: (err: unknown, data?: unknown) => void): unknown;
+}
+
+export function serveStatic(res: StaticResponse, filePath: string, fileReader: StaticFileReader): Promise<void> {
+  return new Promise(resolve => {
+    fileReader.readFile(filePath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end('Not Found');
+        resolve();
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': contentTypeForPath(filePath) });
+      res.end(data);
+      resolve();
+    });
+  });
+}

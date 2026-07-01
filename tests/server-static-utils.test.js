@@ -5,6 +5,7 @@ const path = require('node:path');
 const {
   contentTypeForPath,
   resolveStaticFilePath,
+  serveStatic,
 } = require('../server-dist/server/static-utils');
 
 const appRoot = path.join(__dirname, '..');
@@ -45,4 +46,49 @@ test('resolveStaticFilePath keeps regular assets under public', () => {
     resolveStaticFilePath('/nested/image.png', appRoot),
     path.join(appRoot, 'public', '/nested/image.png')
   );
+});
+
+test('serveStatic writes file content with legacy MIME headers', async () => {
+  const calls = [];
+  const res = {
+    writeHead(status, headers) {
+      calls.push({ status, headers });
+    },
+    end(body) {
+      calls.push({ body });
+    }
+  };
+
+  await serveStatic(res, '/app.js', {
+    readFile(filePath, callback) {
+      assert.equal(filePath, '/app.js');
+      callback(null, Buffer.from('console.log("ok")'));
+    }
+  });
+
+  assert.deepEqual(calls[0], { status: 200, headers: { 'Content-Type': 'application/javascript' } });
+  assert.equal(calls[1].body.toString(), 'console.log("ok")');
+});
+
+test('serveStatic preserves the legacy 404 response for missing files', async () => {
+  const calls = [];
+  const res = {
+    writeHead(status, headers) {
+      calls.push({ status, headers });
+    },
+    end(body) {
+      calls.push({ body });
+    }
+  };
+
+  await serveStatic(res, '/missing.txt', {
+    readFile(_filePath, callback) {
+      callback(new Error('missing'));
+    }
+  });
+
+  assert.deepEqual(calls, [
+    { status: 404, headers: undefined },
+    { body: 'Not Found' }
+  ]);
 });

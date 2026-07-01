@@ -72,8 +72,8 @@ const {
   sendJson: sendJSON,
 } = require('./server-dist/server/http-utils');
 const {
-  contentTypeForPath,
   resolveStaticFilePath,
+  serveStatic: serveStaticFile,
 } = require('./server-dist/server/static-utils');
 
 const PORT = process.env.PORT || 3000;
@@ -205,11 +205,7 @@ function saveQQCookie(c) {
 
 // ---------- 工具 ----------
 function serveStatic(res, filePath) {
-  fs.readFile(filePath, (err, data) => {
-    if (err) { res.writeHead(404); res.end('Not Found'); return; }
-    res.writeHead(200, { 'Content-Type': contentTypeForPath(filePath) });
-    res.end(data);
-  });
+  return serveStaticFile(res, filePath, fs);
 }
 function readPackageInfo() {
   try {

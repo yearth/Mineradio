@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 JSON response helper slice after `72495bb refactor: extract request handler shell`.
+- Worktree: check `git status --short --branch`; latest local slice is Stage 2 static response helper after `f053214 refactor: extract json response helper`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -19,6 +19,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 sixth slice is complete: `createHttpServer` in `server/http-utils.ts` centralizes HTTP server factory composition; `server.js` now creates the server through that helper.
 - Stage 2 seventh slice is complete: `createRequestHandler` in `server/http-utils.ts` centralizes URL parsing and passes `{ req, res, url, pathname }` into the legacy route chain.
 - Stage 2 eighth slice is complete: `sendJson` in `server/http-utils.ts` centralizes legacy JSON response headers/body serialization; `server.js` imports it as `sendJSON`.
+- Stage 2 ninth slice is complete: `serveStatic` in `server/static-utils.ts` centralizes legacy static file reads, MIME headers, and 404 responses; `server.js` delegates through a thin fs-bound wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -162,6 +163,19 @@ Stage 2 JSON response helper slice:
 - `npm run coverage`: passed, 239 tests; production-code line coverage `100.00%`, branch coverage `67.68%`, function coverage `95.05%`.
 - QA subagent review: `PASS`. Read-only verification by QA included targeted helper/structure tests, `node --check server.js`, `npm run typecheck`, route-focused tests, `npm test`, `npm run coverage`, default-status probing, and generated file tracking checks.
 
+Stage 2 static response helper slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-static-utils.test.js` failed because `serveStatic` was not exported.
+- Added `serveStatic` to `server/static-utils.ts`; it preserves legacy `fs.readFile` behavior, MIME header selection via `contentTypeForPath`, 200 response body passthrough, and 404 `Not Found`.
+- `server.js` now imports `serveStatic` as `serveStaticFile` and keeps the legacy local `serveStatic(res, filePath)` call sites as a thin wrapper around `fs`.
+- `npm run build:ts && node --test tests/server-static-utils.test.js tests/project-structure.test.js`: passed, 8 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/server-static-utils.test.js`: passed, 148 tests.
+- `npm test`: passed, 241 tests.
+- `npm run coverage`: passed, 241 tests; production-code line coverage `100.00%`, branch coverage `67.72%`, function coverage `95.08%`.
+- QA subagent review: `PASS`. Read-only verification by QA included `node --test tests/server-static-utils.test.js`, behavior equivalence review for 200/404 static responses, handoff consistency, and generated artifact tracking checks.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -201,7 +215,7 @@ Stage 2 JSON response helper slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 2:
-   - Continue small behavior-neutral extraction around server creation or request handler composition.
+   - Continue small behavior-neutral extraction around request body parsing or move into the first route-domain boundary.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:
