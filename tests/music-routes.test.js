@@ -4450,7 +4450,6 @@ test('/api/weather/radio uses a generic label for unknown weather codes', async 
   assert.equal(body.weather.label, '天气');
   assert.equal(body.weather.weatherCode, 999);
   assert.equal(body.weather.mood.key, 'clear');
-  assert.equal(body.radio.title, '晴朗电台');
   assert.equal(body.radio.songs.length, 6);
   assert.equal(searchCalls.length, 6);
 });

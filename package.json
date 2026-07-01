@@ -9,6 +9,7 @@
   "scripts": {
     "start": "npm run build:ts && electron .",
     "test": "npm run build:ts && node --test tests/*.test.js",
+    "coverage": "npm run build:ts && node --test --experimental-test-coverage --test-coverage-include='server.js' --test-coverage-include='dj-analyzer.js' --test-coverage-include='lib/**/*.js' --test-coverage-include='server-dist/server/**/*.js' --test-coverage-exclude='tests/**' --test-coverage-lines=100 tests/*.test.js",
     "typecheck": "tsc --noEmit",
     "build:ts": "tsc",
     "build:win": "npm run build:ts && electron-builder --win nsis",

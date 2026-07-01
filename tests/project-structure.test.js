@@ -12,6 +12,10 @@ test('TypeScript migration tooling is wired for incremental refactors', () => {
   assert.equal(packageJson.scripts['build:ts'], 'tsc');
   assert.match(packageJson.scripts.start, /^npm run build:ts && /);
   assert.match(packageJson.scripts.test, /^npm run build:ts && /);
+  assert.match(packageJson.scripts.coverage, /^npm run build:ts && /);
+  assert.match(packageJson.scripts.coverage, /--experimental-test-coverage/);
+  assert.match(packageJson.scripts.coverage, /--test-coverage-lines=100/);
+  assert.match(packageJson.scripts.coverage, /--test-coverage-exclude='tests\/\*\*'/);
   assert.ok(packageJson.devDependencies.typescript, 'typescript devDependency is required');
   assert.ok(fs.existsSync(path.join(root, 'tsconfig.json')), 'tsconfig.json is required');
   assert.ok(fs.existsSync(path.join(root, 'server', 'index.ts')), 'server/index.ts is required');

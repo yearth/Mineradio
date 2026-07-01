@@ -7,14 +7,15 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: has uncommitted Stage 2 listener composition slice after `0088988 refactor: extract server static helpers`.
+- Worktree: has uncommitted coverage gate slice after `2bd34d2 refactor: extract server listener startup`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
 - Stage 2 third slice is committed: `server/test-support/runtime.ts` describes the legacy `module.exports.__test` surface by owner and legacy export order; `tests/server-test-runtime.test.js` compares it to the actual `server.js` test export block.
 - Stage 2 fourth slice is committed: `server/static-utils.ts` extracts static content type and static file path resolution; `server.js` uses it from compiled TS.
-- Stage 2 fifth slice is in progress: `listenIfNeeded` in `server/http-utils.ts` centralizes listener gating and startup banner logging; `server.js` delegates startup listening to it.
+- Stage 2 fifth slice is committed: `listenIfNeeded` in `server/http-utils.ts` centralizes listener gating and startup banner logging; `server.js` delegates startup listening to it.
+- Coverage gate slice is complete: `npm run coverage` enforces 100% production-code line coverage with Node's built-in test coverage, excluding `tests/**` from the report.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -106,6 +107,19 @@ Stage 2 listener composition slice:
 - `npm test`: passed, 236 tests.
 - QA subagent review: `PASS`. Read-only verification by QA included `npm run typecheck`, `node --check server.js`, `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js tests/music-routes.test.js tests/update-routes.test.js`, and `npm test`.
 
+Coverage gate slice:
+
+- Initial RED: `npm run build:ts && node --test tests/project-structure.test.js` failed because `packageJson.scripts.coverage` was undefined.
+- Added `coverage` script in `package.json`: builds TS, runs `node --test --experimental-test-coverage`, includes production files (`server.js`, `dj-analyzer.js`, `lib/**/*.js`, `server-dist/server/**/*.js`), excludes `tests/**`, and sets `--test-coverage-lines=100`.
+- `tests/project-structure.test.js` now guards the coverage script shape, `--experimental-test-coverage`, `--test-coverage-lines=100`, and `--test-coverage-exclude='tests/**'`.
+- `npm run build:ts && node --test tests/project-structure.test.js`: passed, 2 tests.
+- First QA subagent review: `NEEDS WORK` because `/api/weather/radio uses a generic label for unknown weather codes` asserted the time-dependent `body.radio.title` while `buildWeatherMood` defaults to `new Date()`.
+- Fixed the flaky route test minimally by removing only the time-dependent `body.radio.title` assertion; direct weather mood title behavior remains covered by `tests/weather-mood.test.js` with fixed dates.
+- `npm run build:ts && node --test tests/music-routes.test.js tests/project-structure.test.js`: passed, 144 tests after the flaky assertion fix.
+- `npm test`: passed, 236 tests after the flaky assertion fix.
+- `npm run coverage`: passed, 236 tests after the flaky assertion fix; production-code line coverage `100.00%`, branch coverage `67.66%`, function coverage `95.01%`.
+- Final QA subagent review: `PASS`. Read-only verification by QA included `npm run coverage` and `npm test`, both passing 236 tests; generated `dist/` and `server-dist/` were not tracked or staged.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -132,6 +146,7 @@ Stage 2 listener composition slice:
 - Static utility guard: `tests/server-static-utils.test.js`
 - TS config: `tsconfig.json`
 - Build config: `package.json`
+- Coverage gate: `npm run coverage`
 - Test-heavy route suites: `tests/music-routes.test.js`, `tests/update-routes.test.js`, `tests/beatmap-cache-routes.test.js`
 
 ## Next Session Bootstrap
@@ -144,7 +159,7 @@ Stage 2 listener composition slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 2:
-   - Choose the next small behavior-neutral extraction around server creation or request handler composition.
+   - Continue small behavior-neutral extraction around server creation or request handler composition.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:
