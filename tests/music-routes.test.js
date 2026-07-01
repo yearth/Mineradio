@@ -1899,6 +1899,66 @@ test('/api/qq/song/comments maps first-page hot QQ comments', async () => {
   assert.equal(calls[0].includes('pagenum=0'), true);
 });
 
+test('/api/qq/song/comments maps paged regular QQ comments', async () => {
+  const calls = [];
+  setRequestTextResponder(targetUrl => {
+    calls.push(targetUrl);
+    if (targetUrl.includes('fcg_global_comment_h5.fcg')) {
+      return {
+        comment: {
+          comment_total: 12,
+          commentlist: [
+            {
+              commentId: 'regular-1',
+              content: 'QQ regular comment',
+              praise_num: 3,
+              createTime: 1710000000123,
+              user: {
+                uin: 'regular-user',
+                name: 'Regular Listener',
+                avatar: 'https://img.example/regular.jpg',
+              },
+            },
+          ],
+        },
+        hot_comment: {
+          commentlist: [
+            {
+              commentid: 'hot-ignored',
+              rootcommentcontent: 'Should not be used on later pages',
+            },
+          ],
+        },
+      };
+    }
+    throw new Error('unexpected request ' + targetUrl);
+  });
+
+  const { status, body } = await getJson('/api/qq/song/comments?id=22001&mid=trackmid001&limit=6&offset=12');
+
+  assert.equal(status, 200);
+  assert.equal(body.provider, 'qq');
+  assert.equal(body.id, '22001');
+  assert.equal(body.total, 12);
+  assert.equal(body.hot, false);
+  assert.deepEqual(body.comments, [
+    {
+      id: 'regular-1',
+      content: 'QQ regular comment',
+      likedCount: 3,
+      time: 1710000000123,
+      user: {
+        id: 'regular-user',
+        nickname: 'Regular Listener',
+        avatar: 'https://img.example/regular.jpg',
+      },
+    },
+  ]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].includes('pagesize=6'), true);
+  assert.equal(calls[0].includes('pagenum=2'), true);
+});
+
 test('/api/qq/song/comments returns a provider error when comments lookup fails', async () => {
   const originalError = console.error;
   console.error = () => {};
