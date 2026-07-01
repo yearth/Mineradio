@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 3 public download URL extraction after `fff4771 refactor: extract update download candidate service`.
+- Worktree: check `git status --short --branch`; latest local slice is Stage 3 manifest normalization service extraction after `0a09d86 refactor: extract public download URL helper`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -24,6 +24,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 first slice is complete: `server/services/update-config.ts` owns GitHub repository parsing, update config merging, and mirror normalization; `server.js` imports the service while preserving `__test` compatibility exports.
 - Stage 3 second slice is complete: `server/services/update-download-candidates.ts` owns mirror URL expansion and unique download candidate ordering; `server.js` keeps a thin `UPDATE_CONFIG`-bound wrapper.
 - Stage 3 third micro-slice is complete: `publicDownloadUrls` moved into `server/services/update-download-candidates.ts`; `server.js` imports it from compiled TS.
+- Stage 3 fourth slice is complete: `server/services/update-manifest.ts` owns manifest update normalization; `server.js` delegates through an `APP_VERSION`/fallback-notes/download-candidate wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -235,6 +236,20 @@ Stage 3 public download URL helper micro-slice:
 - QA subagent first pass: `PASS` with a non-blocking note about callable objects with a `url` property.
 - Follow-up RED added for callable candidate input; the service was adjusted to preserve the exact legacy `item && item.url` behavior.
 - QA subagent final review: `PASS`. Read-only QA verified the callable-object compatibility fix, targeted update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and generated artifact tracking.
+
+Stage 3 manifest normalization service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-manifest-service.test.js` failed because `server-dist/server/services/update-manifest` did not exist.
+- Added `server/services/update-manifest.ts` for `normalizeManifestUpdateInfo`.
+- `server.js` now imports `normalizeManifestUpdateInfoService` and keeps the legacy local `normalizeManifestUpdateInfo(data)` as a thin wrapper injecting `APP_VERSION`, `UPDATE_FALLBACK_NOTES`, and `uniqueDownloadCandidates`.
+- Added `tests/update-manifest-service.test.js` for direct coverage of manifest release/asset/patch mapping, release notes cleanup, explicit `updateAvailable`, fallback notes/body extraction, digest normalization, and generated asset/patch names.
+- Removed the now-unused `cleanReleaseLine` import from `server.js`.
+- `npm run build:ts && node --test tests/update-manifest-service.test.js tests/update-routes.test.js tests/update-utils.test.js tests/update-download-candidates-service.test.js tests/project-structure.test.js`: passed, 51 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `npm test`: passed, 255 tests.
+- `npm run coverage`: passed, 255 tests; production-code line coverage `100.00%`, branch coverage `69.03%`, function coverage `95.37%`; `server-dist/server/services/update-manifest.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior-equivalence coverage, compiled service dependency paths into root `lib`, targeted update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and generated artifact tracking.
 
 ## Decisions
 

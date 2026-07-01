@@ -57,7 +57,6 @@ const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer
 const { defaultBeatMapCacheDir } = require('./lib/platform-paths');
 const { compareVersions, normalizeVersion } = require('./lib/version-utils');
 const {
-  cleanReleaseLine,
   extractReleaseNotes,
   normalizeDigest,
   pickPatchAsset,
@@ -85,6 +84,9 @@ const {
   publicDownloadUrls,
   uniqueDownloadCandidates: buildUniqueDownloadCandidates,
 } = require('./server-dist/server/services/update-download-candidates');
+const {
+  normalizeManifestUpdateInfo: normalizeManifestUpdateInfoService,
+} = require('./server-dist/server/services/update-manifest');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -240,66 +242,11 @@ function uniqueDownloadCandidates(urls, opts) {
   });
 }
 function normalizeManifestUpdateInfo(data) {
-  data = data || {};
-  const release = data.release || {};
-  const asset = release.asset || data.asset || {};
-  const latestVersion = normalizeVersion(
-    data.latestVersion
-    || data.version
-    || release.version
-    || release.tagName
-    || release.tag_name
-    || release.name
-    || APP_VERSION
-  ) || APP_VERSION;
-  const downloadUrl = release.downloadUrl || data.downloadUrl || asset.downloadUrl || asset.browser_download_url || '';
-  const patch = release.patch || data.patch || null;
-  const assetUrls = [downloadUrl].concat(Array.isArray(asset.downloadUrls) ? asset.downloadUrls : []);
-  const patchUrls = patch ? [patch.downloadUrl].concat(Array.isArray(patch.downloadUrls) ? patch.downloadUrls : []) : [];
-  const patchInfo = patch && patch.downloadUrl ? {
-    name: patch.name || updateAssetNameFromUrl(patch.downloadUrl) || `Mineradio-${APP_VERSION}→${latestVersion}.patch.json`,
-    size: Number(patch.size || 0) || 0,
-    contentType: patch.contentType || patch.content_type || 'application/json',
-    downloadUrl: patch.downloadUrl,
-    downloadUrls: publicDownloadUrls(uniqueDownloadCandidates(patchUrls)),
-    from: normalizeVersion(patch.from || APP_VERSION),
-    to: normalizeVersion(patch.to || latestVersion),
-    sha256: normalizeDigest(patch.sha256 || '', 'sha256').toLowerCase(),
-    sha512: normalizeDigest(patch.sha512 || '', 'sha512'),
-  } : null;
-  const notes = Array.isArray(release.notes) && release.notes.length
-    ? release.notes.slice(0, 4).map(cleanReleaseLine).filter(Boolean)
-    : (extractReleaseNotes(release.body || data.body).length ? extractReleaseNotes(release.body || data.body) : UPDATE_FALLBACK_NOTES);
-  const assetInfo = downloadUrl ? {
-    name: asset.name || updateAssetNameFromUrl(downloadUrl) || `Mineradio-${latestVersion}-Setup.exe`,
-    size: Number(asset.size || 0) || 0,
-    contentType: asset.contentType || asset.content_type || '',
-    downloadUrl,
-    downloadUrls: publicDownloadUrls(uniqueDownloadCandidates(assetUrls)),
-    sha256: normalizeDigest(asset.sha256 || '', 'sha256').toLowerCase(),
-    sha512: normalizeDigest(asset.sha512 || release.sha512 || data.sha512 || '', 'sha512'),
-  } : null;
-  return {
-    configured: true,
-    preview: false,
-    updateAvailable: data.updateAvailable != null ? !!data.updateAvailable : compareVersions(latestVersion, APP_VERSION) > 0,
+  return normalizeManifestUpdateInfoService(data, {
     currentVersion: APP_VERSION,
-    latestVersion,
-    release: {
-      tagName: release.tagName || release.tag_name || data.tagName || ('v' + latestVersion),
-      name: release.name || data.name || ('Mineradio v' + latestVersion),
-      version: latestVersion,
-      publishedAt: release.publishedAt || release.published_at || data.publishedAt || '',
-      htmlUrl: release.htmlUrl || release.html_url || data.htmlUrl || '',
-      downloadUrl,
-      asset: assetInfo,
-      patch: patchInfo,
-      patchAvailable: !!(patchInfo && patchInfo.downloadUrl && compareVersions(latestVersion, APP_VERSION) > 0),
-      summary: release.summary || data.summary || notes[0] || '发现新版本，建议更新。',
-      notes,
-    },
-    source: 'manifest',
-  };
+    fallbackNotes: UPDATE_FALLBACK_NOTES,
+    uniqueDownloadCandidates,
+  });
 }
 async function readUpdateManifest(ref) {
   const value = String(ref || '').trim();
