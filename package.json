@@ -9,10 +9,12 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.js",
-    "build:win": "electron-builder --win nsis",
-    "build:win:dir": "electron-builder --win dir",
-    "build:mac": "electron-builder --mac dmg",
-    "build:mac:dir": "electron-builder --mac dir"
+    "typecheck": "tsc --noEmit",
+    "build:ts": "tsc",
+    "build:win": "npm run build:ts && electron-builder --win nsis",
+    "build:win:dir": "npm run build:ts && electron-builder --win dir",
+    "build:mac": "npm run build:ts && electron-builder --mac dmg",
+    "build:mac:dir": "npm run build:ts && electron-builder --mac dir"
   },
   "build": {
     "appId": "com.mineradio.desktop",
@@ -30,6 +32,7 @@
       "public/**/*",
       "build/**/*",
       "lib/**/*",
+      "server-dist/**/*",
       "server.js",
       "dj-analyzer.js",
       "package.json",
@@ -109,6 +112,7 @@
   "devDependencies": {
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
-    "rcedit": "^5.0.2"
+    "rcedit": "^5.0.2",
+    "typescript": "^6.0.3"
   }
 }
