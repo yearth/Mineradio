@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 3 manifest normalization service extraction after `0a09d86 refactor: extract public download URL helper`.
+- Worktree: check `git status --short --branch`; latest local slice is Stage 3 update error service extraction after `37165ab refactor: extract update manifest normalization`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -25,6 +25,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 second slice is complete: `server/services/update-download-candidates.ts` owns mirror URL expansion and unique download candidate ordering; `server.js` keeps a thin `UPDATE_CONFIG`-bound wrapper.
 - Stage 3 third micro-slice is complete: `publicDownloadUrls` moved into `server/services/update-download-candidates.ts`; `server.js` imports it from compiled TS.
 - Stage 3 fourth slice is complete: `server/services/update-manifest.ts` owns manifest update normalization; `server.js` delegates through an `APP_VERSION`/fallback-notes/download-candidate wrapper.
+- Stage 3 fifth slice is complete: `server/services/update-errors.ts` owns update error creation and classification; `server.js` imports the compiled helpers directly.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -250,6 +251,21 @@ Stage 3 manifest normalization service slice:
 - `npm test`: passed, 255 tests.
 - `npm run coverage`: passed, 255 tests; production-code line coverage `100.00%`, branch coverage `69.03%`, function coverage `95.37%`; `server-dist/server/services/update-manifest.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified behavior-equivalence coverage, compiled service dependency paths into root `lib`, targeted update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and generated artifact tracking.
+
+Stage 3 update error service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-errors-service.test.js` failed because `server-dist/server/services/update-errors` did not exist.
+- Added `server/services/update-errors.ts` for `updateError` and `classifyUpdateError`.
+- `server.js` now imports `updateError` and `classifyUpdateError` from the compiled TS service; all legacy call sites keep the same names.
+- Added `tests/update-errors-service.test.js` for direct coverage of error code/message/cause creation, checksum/size/timeout/DNS/network classification, HTTP 403/404/5xx/generic status handling, generic string errors, null fallback, and object `message || err` fallback semantics.
+- QA first pass was `NEEDS WORK` because plain objects with `code` and an empty `message` did not exactly preserve legacy `String(err && err.message || err || '')` behavior.
+- Added a RED test for `{ code: 'HTTP_403', message: '' }`, then changed `server/services/update-errors.ts` to preserve the legacy `||` fallback behavior.
+- `npm run build:ts && node --test tests/update-errors-service.test.js tests/update-routes.test.js tests/update-manifest-service.test.js tests/project-structure.test.js`: passed, 38 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `npm test`: passed, 259 tests.
+- `npm run coverage`: passed, 259 tests; production-code line coverage `100.00%`, branch coverage `69.46%`, function coverage `95.37%`; `server-dist/server/services/update-errors.js` line coverage `100.00%`.
+- QA subagent final review: `PASS`. Read-only QA verified the object fallback compatibility fix, targeted update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and generated artifact tracking.
 
 ## Decisions
 
