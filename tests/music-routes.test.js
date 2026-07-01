@@ -3617,6 +3617,97 @@ test('/api/podcast/my/items maps collected podcast radios for logged-in users', 
   assert.equal(calls[0].offset, 3);
 });
 
+test('/api/podcast/my/items maps paid podcast radios for logged-in users', async () => {
+  const calls = [];
+  await loginAs({
+    profile: { userId: 9904, nickname: 'Paid Podcast User' },
+    api: {
+      dj_paygift: async opts => {
+        calls.push(opts);
+        return {
+          body: {
+            data: [
+              {
+                id: 917,
+                name: 'Paid Radio',
+                picUrl: 'https://img.example/paid-radio.jpg',
+                category: '知识',
+                dj: { nickname: 'Paid DJ' },
+              },
+            ],
+          },
+        };
+      },
+    },
+  });
+
+  const { status, body } = await getJson('/api/podcast/my/items?key=paid&limit=12&offset=4');
+
+  assert.equal(status, 200);
+  assert.equal(body.loggedIn, true);
+  assert.equal(body.key, 'paid');
+  assert.equal(body.itemType, 'radio');
+  assert.equal(body.count, 1);
+  assert.equal(body.cover, 'https://img.example/paid-radio.jpg');
+  assert.equal(body.items[0].id, 917);
+  assert.equal(body.items[0].type, 'podcast-radio');
+  assert.equal(body.items[0].collectionKey, 'paid');
+  assert.equal(body.items[0].artist, 'Paid DJ');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].limit, 12);
+  assert.equal(calls[0].offset, 4);
+});
+
+test('/api/podcast/my/items falls back to recent voices for liked podcasts', async () => {
+  const calls = [];
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    await loginAs({
+      profile: { userId: 9905, nickname: 'Liked Podcast User' },
+      api: {
+        sati_resource_sub_list: async opts => {
+          calls.push(['sati_resource_sub_list', opts]);
+          throw new Error('liked voices unavailable');
+        },
+        record_recent_voice: async opts => {
+          calls.push(['record_recent_voice', opts]);
+          return {
+            body: {
+              list: [
+                {
+                  id: 9918,
+                  title: 'Recent Liked Voice',
+                  cover: 'https://img.example/recent-liked.jpg',
+                  durationMs: 88000,
+                  radio: { id: 918, radioName: 'Recent Radio' },
+                },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    const { status, body } = await getJson('/api/podcast/my/items?key=liked&limit=7');
+
+    assert.equal(status, 200);
+    assert.equal(body.loggedIn, true);
+    assert.equal(body.key, 'liked');
+    assert.equal(body.itemType, 'voice');
+    assert.equal(body.count, 1);
+    assert.equal(body.cover, 'https://img.example/recent-liked.jpg');
+    assert.equal(body.items[0].id, 9918);
+    assert.equal(body.items[0].sourceType, 'podcast-voice');
+    assert.equal(body.items[0].artist, 'Recent Radio');
+    assert.equal(body.items[0].duration, 88000);
+    assert.deepEqual(calls.map(call => call[0]), ['sati_resource_sub_list', 'record_recent_voice']);
+    assert.equal(calls[1][1].limit, 8);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test('/api/podcast/my/items returns an error when the selected source fails', async () => {
   const originalError = console.error;
   console.error = () => {};

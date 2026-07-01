@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, and beatmap cache disk/memory-only/key-boundary behavior. `update-utils.js` now has 100% line/function coverage with broader asset/digest/url/filename branch characterization. `dj-analyzer.js` now has first-pass pure beat-map, wrapper-path, empty full-stream, non-empty full-stream decode metadata, quality full-stream fallback, empty intro, empty range-sampling, and range-sampled success aggregation coverage.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work extends `tests/music-routes.test.js` route coverage for `/api/app/version` metadata, QQ profile auth-unavailable fallback, QQ artist detail generated-avatar/name fallback, and `/api/audio` extension-based content-type inference. The music route test bootstrap now clears `MINERADIO_VERSION`, `MINERADIO_UPDATE_*`, and `GITHUB_REPOSITORY` before requiring `server.js` so version/update metadata assertions are not affected by the caller's shell environment.
+- Current uncommitted work extends `tests/music-routes.test.js` route coverage for `/api/podcast/my/items` paid radio mapping and liked-voice recent-history fallback behavior.
 
 ## Changes Made
 
@@ -81,6 +81,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `/api/podcast/programs` missing-id validation and program/radio mapping from `dj_program`.
   - Covers `/api/podcast/my` logged-out collection summaries and logged-in collect/created/liked summary mapping.
   - Covers `/api/podcast/my/items` logged-out defaults and collected podcast radio item mapping.
+  - Covers `/api/podcast/my/items` paid podcast radio item mapping and liked podcast recent-voice fallback when the liked-resource source fails.
   - Covers `/api/podcast/my` preserving available collections when one source fails and liked voices fall back to recent voices.
   - Covers `/api/podcast/my/items` 500 behavior when the selected source fails.
   - Covers `/api/weather/ip-location` successful IP location mapping and provider failure handling.
@@ -152,12 +153,12 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `npm install`: passed after downgrading `NeteaseCloudMusicApi` to `4.31.0`.
 - `node --test tests/dj-analyzer.test.js`: passed, 14 tests.
 - `node --test tests/beatmap-cache-routes.test.js`: passed, 4 tests.
-- `node --test tests/music-routes.test.js`: passed, 127 tests.
+- `node --test tests/music-routes.test.js`: passed, 129 tests.
 - `node --test tests/update-utils.test.js`: passed, 13 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 21 tests.
-- `npm test`: passed, 184 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 184 tests; all-files line coverage 96.24%, branch coverage 68.71%, function coverage 92.62%; `server.js` line coverage 91.70%, branch coverage 60.65%, function coverage 90.07%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
+- `npm test`: passed, 186 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 186 tests; all-files line coverage 96.32%, branch coverage 69.11%, function coverage 92.89%; `server.js` line coverage 91.84%, branch coverage 61.20%, function coverage 90.75%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
 - Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
@@ -214,4 +215,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue `server.js` long-tail non-UI branches reachable through existing test hooks. Prioritize deterministic route branches such as podcast collection item variants (`paid`, `liked` fallbacks), Netease song URL fallback/error paths, and selected route catch blocks. Treat remaining weather mood variants (`humid`, `cloudy`, `dusk`) carefully because `buildWeatherMood()` currently depends on `new Date()` unless a small production seam is introduced. Defer UI-heavy `public/index.html`.
+6. Next implementation step: continue `server.js` long-tail non-UI branches reachable through existing test hooks. Prioritize deterministic route branches such as Netease song URL fallback/error paths, QQ/Netease login edge cases, and selected route catch blocks. Treat remaining weather mood variants (`humid`, `cloudy`, `dusk`) carefully because `buildWeatherMood()` currently depends on `new Date()` unless a small production seam is introduced. Defer UI-heavy `public/index.html`.
