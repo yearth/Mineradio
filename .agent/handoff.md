@@ -7,8 +7,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 2 request body helper after `3784c1a refactor: extract static response helper`.
-- Current phase: Stage 2, "server 外壳拆分".
+- Worktree: check `git status --short --branch`; latest local slice is Stage 3 update config service after `b75c591 refactor: extract request body helper`.
+- Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
@@ -21,6 +21,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 eighth slice is complete: `sendJson` in `server/http-utils.ts` centralizes legacy JSON response headers/body serialization; `server.js` imports it as `sendJSON`.
 - Stage 2 ninth slice is complete: `serveStatic` in `server/static-utils.ts` centralizes legacy static file reads, MIME headers, and 404 responses; `server.js` delegates through a thin fs-bound wrapper.
 - Stage 2 tenth slice is complete: `readRequestBody` in `server/http-utils.ts` centralizes legacy JSON/form/empty/error/oversize body parsing; `server.js` imports it from compiled TS.
+- Stage 3 first slice is complete: `server/services/update-config.ts` owns GitHub repository parsing, update config merging, and mirror normalization; `server.js` imports the service while preserving `__test` compatibility exports.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -189,6 +190,21 @@ Stage 2 request body helper slice:
 - `npm test`: passed, 245 tests.
 - `npm run coverage`: passed, 245 tests; production-code line coverage `100.00%`, branch coverage `67.81%`, function coverage `95.34%`.
 - QA subagent review: `PASS`. Read-only verification by QA included direct helper tests, `node --check server.js`, `git diff --check`, behavior equivalence review, handoff consistency, and generated artifact tracking checks.
+
+Stage 3 update config service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-config-service.test.js` failed because `server-dist/server/services/update-config` did not exist.
+- Added `server/services/update-config.ts` for `parseGitHubRepository`, `parseUpdateMirrorList`, `readUpdateMirrors`, and `readUpdateConfig`.
+- `server.js` now imports `parseGitHubRepository` and `readUpdateConfig` from the compiled TS service; route behavior and `server.__test` export names are unchanged.
+- Added `tests/update-config-service.test.js` for direct service coverage of repo parsing, mirror normalization/dedupe/limit, config/env merging, and the legacy `readUpdateConfig(null)` fallback.
+- QA first pass was `PASS` but noted a residual non-blocking compatibility drift for `readUpdateConfig(null)`; a RED test was added and fixed by normalizing null package data to `{}`.
+- `npm run build:ts && node --test tests/update-config-service.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 10 tests before the null fallback fix.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/update-routes.test.js tests/update-config-service.test.js tests/server-helpers.test.js`: passed, 39 tests after the null fallback fix.
+- `npm test`: passed, 249 tests.
+- `npm run coverage`: passed, 249 tests; production-code line coverage `100.00%`, branch coverage `68.06%`, function coverage `95.34%`; `server-dist/server/services/update-config.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Final read-only QA verification included `npm run typecheck`, `node --check server.js`, `node --test tests/update-config-service.test.js tests/server-helpers.test.js tests/update-routes.test.js`, `git diff --check`, behavior equivalence review, handoff consistency, and generated artifact tracking checks.
 
 ## Decisions
 
