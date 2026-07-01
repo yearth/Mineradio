@@ -3997,6 +3997,7 @@ if (process.env.NODE_ENV === 'test') {
     rawCookieFallback,
     parseGitHubRepository,
     readUpdateConfig,
+    requestText,
     buildWeatherMood,
     resetMusicRuntime() {
       applyNeteaseApi();

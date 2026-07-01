@@ -10,7 +10,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, beatmap cache disk/memory-only/key-boundary behavior, and server helper parsing behavior for cookies/update config/GitHub repositories. `update-utils.js` now has 100% line/function coverage with broader asset/digest/url/filename branch characterization. `dj-analyzer.js` now has first-pass pure beat-map, wrapper-path, empty full-stream, non-empty full-stream decode metadata, quality full-stream fallback, empty intro, empty range-sampling, and range-sampled success aggregation coverage. Unreferenced legacy non-UI helpers have been removed after grep verification.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work removes unreferenced legacy helpers: old installer downloader, old patch applier, and old weather playlist filtering helpers.
+- Current uncommitted work exposes `requestText()` to tests and covers its real local HTTP success/error path.
 
 ## Changes Made
 
@@ -64,6 +64,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Covers `rawCookieFallback()` for all-string arrays and mixed unsupported arrays.
   - Covers `parseGitHubRepository()` for owner/repo shorthand, SSH-style GitHub URLs, HTTPS GitHub URLs with suffix/query cleanup, invalid input, and blank input.
   - Covers `readUpdateConfig()` merging package repository/update settings, local mirrors, env owner/repo/manifest overrides, and env mirror de-duplication.
+  - Covers `requestText()` against a local HTTP server for POST method/header/body forwarding, 200 text responses, and HTTP 503 error objects with status/body.
 - `server.js`
   - Removed unreferenced legacy helpers after `rg` confirmed no call sites: `downloadUpdateAsset()`, `downloadAndApplyPatch()`, `tagWeatherPoolSongs()`, `fetchWeatherPlaylistSongs()`, and `filterLikelyPlayableWeatherSongs()`.
 - `tests/music-routes.test.js`
@@ -174,10 +175,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/update-utils.test.js`: passed, 13 tests.
 - `node --test tests/version-utils.test.js`: passed, 2 tests.
 - `node --test tests/update-routes.test.js`: passed, 30 tests.
-- `node --test tests/server-helpers.test.js`: passed, 3 tests.
+- `node --test tests/server-helpers.test.js`: passed, 4 tests.
 - `node --test tests/weather-mood.test.js`: passed, 3 tests.
-- `npm test`: passed, 214 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 214 tests; all-files line coverage 98.72%, branch coverage 72.35%, function coverage 94.25%; `server.js` line coverage 98.09%, branch coverage 65.40%, function coverage 93.73%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
+- `npm test`: passed, 215 tests.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 215 tests; all-files line coverage 98.93%, branch coverage 72.48%, function coverage 94.31%; `server.js` line coverage 98.68%, branch coverage 65.54%, function coverage 93.81%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 98.76%.
 - Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
