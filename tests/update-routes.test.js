@@ -100,6 +100,23 @@ function fakeDownloadResponse(content) {
   };
 }
 
+function fakeChunkedDownloadResponse(chunks, contentLength) {
+  return {
+    ok: true,
+    headers: {
+      get(name) {
+        return String(name || '').toLowerCase() === 'content-length' && contentLength != null ? String(contentLength) : '';
+      },
+    },
+    body: new ReadableStream({
+      start(controller) {
+        chunks.forEach(chunk => controller.enqueue(new Uint8Array(chunk)));
+        controller.close();
+      },
+    }),
+  };
+}
+
 function fakeDownloadFetch(content) {
   global.fetch = async () => fakeDownloadResponse(content);
 }
@@ -606,6 +623,55 @@ test('/api/update/download switches to the next candidate after an HTTP failure'
   assert.match(lookup.body.failedAttempts[0].reason, /更新文件不存在/);
   assert.equal(calls.length, 2);
   assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download tracks chunk speed when the server omits total size', async () => {
+  const chunks = [
+    Buffer.from('chunked '),
+    Buffer.from('installer '),
+    Buffer.from('without size'),
+  ];
+  const content = Buffer.concat(chunks);
+  const manifestPath = writeUpdateManifest('manifest-download-unknown-size.json', manifestWithInstaller('1.2.16', {
+    size: 0,
+    sha256: '',
+    sha512: '',
+  }));
+  const calls = fakeFetchSequence([
+    fakeChunkedDownloadResponse(chunks),
+  ]);
+  const originalNow = Date.now;
+  let now = 1800000000000;
+  Date.now = () => {
+    now += 1000;
+    return now;
+  };
+
+  try {
+    server.__test.setUpdatePlatform('win32');
+    server.__test.setUpdateManifest(manifestPath);
+
+    const started = await getJson('/api/update/download');
+    assert.equal(started.status, 200);
+    assert.equal(started.body.ok, true);
+
+    const lookup = await waitForUpdateStatus(
+      '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+      body => body.status === 'ready'
+    );
+
+    assert.equal(lookup.status, 200);
+    assert.equal(lookup.body.status, 'ready');
+    assert.equal(lookup.body.received, content.length);
+    assert.equal(lookup.body.total, 0);
+    assert.equal(lookup.body.speedBps > 0, true);
+    assert.ok(lookup.body.failedAttempts.length > 0);
+    assert.ok(lookup.body.failedAttempts.every(attempt => /Mirror download skipped/.test(attempt.detail)));
+    assert.equal(calls.length, 1);
+    assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test('/api/update/download switches to the next candidate after a DNS failure', async () => {
