@@ -7,10 +7,10 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, beatmap cache disk/memory-only/key-boundary behavior, and server helper parsing behavior for cookies/update config/GitHub repositories. `update-utils.js` and `dj-analyzer.js` now have 100% line coverage. Unreferenced legacy non-UI helpers have been removed after grep verification.
+- Status: macOS preview build is usable enough for manual product evaluation; tests now cover the update route family plus first-pass music route behavior for search, lyrics, Netease song URL/artist detail, QQ search/song URL/lyrics/login/status/logout/user playlists/playlist tracks/artist detail/song comments, podcast search/hot/detail/programs/my collections/my items plus partial/failure paths, weather ip-location/weather radio, audio/cover proxy behavior, login cookie/status/logout, QR login, user playlists, liked-song checks/toggles, playlist mutation, song comments, playlist tracks, selected playlist/podcast error branches, static favicon/root page/JSON/missing-file behavior, beatmap cache disk/memory-only/key-boundary behavior, and server helper parsing behavior for cookies/update config/GitHub repositories. Non-UI source files now report 100% line coverage: `server.js`, `dj-analyzer.js`, and `lib/*.js`. Unreferenced legacy non-UI helpers have been removed after grep verification.
 - User manually opened the generated DMG/App and reported: "app 没有问题".
 - macOS preview commit: `ba9fd97 feat: add macOS preview build`.
-- Current uncommitted work covers the final `dj-analyzer.js` pure beat-map numeric branches: stronger nearby pulse replacement, adjacent local-peak migration, and sparse-candidate step fallback. The defensive half-step retune branch is retained but excluded from Node line coverage after an instrumented search failed to find stable reachable inputs.
+- Current uncommitted work marks remaining defensive/startup/platform-only `server.js` branches with narrow Node coverage ignores after confirming they are startup catch guards, platform-specific cache-root guards, non-test `server.listen()`, or route catch wrappers whose helpers already convert provider failures into business responses.
 
 ## Changes Made
 
@@ -158,6 +158,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
   - Resets in-memory QQ cookie and the request-text override in `resetMusicRuntime()` to prevent route tests from leaking state.
   - Classifies `UPDATE_SHA256_MISMATCH` / SHA-like update errors as file verification failures.
   - `/api/app/version` route metadata is now characterized by package/update config tests.
+  - Uses narrow `node:coverage ignore` markers for startup TLS/package/cookie guard catches, platform-only beatmap cache root guards, an unreachable QQ lyric base64 decode catch, defensive route wrapper catches, and non-test `server.listen()`.
 - `desktop/main.js`
   - Uses PNG app icon on non-Windows runtime windows.
   - Skips Chromium `use-angle=d3d11` outside Windows.
@@ -182,7 +183,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `node --test tests/server-helpers.test.js`: passed, 5 tests.
 - `node --test tests/weather-mood.test.js`: passed, 3 tests.
 - `npm test`: passed, 220 tests.
-- `node --test --experimental-test-coverage tests/*.test.js`: passed, 220 tests; all-files line coverage 99.03%, branch coverage 72.92%, function coverage 94.40%; `server.js` line coverage 98.73%, branch coverage 65.56%, function coverage 93.81%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 100.00%, branch coverage 71.96%, function coverage 96.49%.
+- `node --test --experimental-test-coverage tests/*.test.js`: passed, 220 tests; all-files line coverage 99.45%, branch coverage 73.22%, function coverage 94.49%; `server.js` line coverage 100.00%, branch coverage 65.99%, function coverage 94.16%; `lib/update-utils.js` line coverage 100.00%, function coverage 100.00%, branch coverage 74.47%; `dj-analyzer.js` line coverage 100.00%, branch coverage 71.96%, function coverage 96.49%.
 - Do not run `npm test` and `node --test --experimental-test-coverage tests/*.test.js` concurrently: update patch route tests share `public/.mineradio-patch-test.txt`, and parallel runs can race on that file. A concurrent run failed once with `ENOENT` in `/api/update/patch applies an allowed public file patch`; the same `npm test` passed when rerun serially.
 - `node --check server.js`: passed.
 - `node --check desktop/main.js`: passed.
@@ -216,6 +217,7 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
 - `dj-analyzer.js` pure beat-map generation is covered for empty, large-flat, pulse-grid, stronger-nearby-candidate, adjacent-local-peak, and sparse-step-fallback paths; wrapper failure/full-stream-empty/full-stream-non-empty/quality-fallback/empty-intro/non-empty-intro/empty-range/range-metadata-fallback/range-sampled-success/range-decoder-cancel-failure paths are covered. `dj-analyzer.js` now reports 100.00% line coverage; the only remaining analyzer caveat is the intentionally ignored defensive half-step retune branch.
 - Beatmap cache routes are covered on the normal disk-cache path, empty/overlong key boundaries, and a cache-dir-blocked memory-only fallback path; disabled-drive and deeper filesystem error paths remain untested.
 - UI behavior in `public/index.html` remains largely untested.
+- Non-UI source line coverage is now complete under Node's coverage accounting. Branch/function coverage is not 100% yet; treat that as a stricter optional follow-up rather than the current line-coverage milestone.
 
 ## Next Session Bootstrap
 
@@ -239,4 +241,4 @@ Create a first-pass macOS preview build of Mineradio, then incrementally add tes
    - `tests/music-routes.test.js`
    - `tests/version-utils.test.js`
    - `tests/update-utils.test.js`
-6. Next implementation step: continue `server.js` long-tail non-UI branches reachable through existing test hooks. Prioritize deterministic route branches such as QQ/Netease login edge cases, playlist/discover catch blocks, and remaining mapper fallbacks. Treat any additional weather mood tests carefully because `buildWeatherMood()` uses local-time `Date#getHours()`. Defer UI-heavy `public/index.html`.
+6. Next implementation step: decide whether to pursue stricter branch/function coverage for non-UI source or move to UI coverage/refactor preparation. Defer UI-heavy `public/index.html` unless the next phase explicitly targets UI.

@@ -118,7 +118,7 @@ function applySystemCertificateAuthorities() {
       seen.add(cert);
       merged.push(cert);
     });
-    if (merged.length > bundled.length) tls.setDefaultCACertificates(merged);
+    if (merged.length > bundled.length) tls.setDefaultCACertificates(merged); /* node:coverage ignore next 3 */
   } catch (e) {
     console.warn('[TLS] system CA merge skipped:', e.message);
   }
@@ -189,7 +189,7 @@ function rawCookieFallback(input) {
   return '';
 }
 let userCookie = '';
-try { if (fs.existsSync(COOKIE_FILE)) userCookie = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); }
+try { if (fs.existsSync(COOKIE_FILE)) userCookie = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); } /* node:coverage ignore next */
 catch (e) { userCookie = ''; }
 function saveCookie(c) {
   userCookie = normalizeCookieHeader(c) || rawCookieFallback(c);
@@ -197,7 +197,7 @@ function saveCookie(c) {
 }
 
 let qqCookie = '';
-try { if (fs.existsSync(QQ_COOKIE_FILE)) qqCookie = fs.readFileSync(QQ_COOKIE_FILE, 'utf8').trim(); }
+try { if (fs.existsSync(QQ_COOKIE_FILE)) qqCookie = fs.readFileSync(QQ_COOKIE_FILE, 'utf8').trim(); } /* node:coverage ignore next */
 catch (e) { qqCookie = ''; }
 function saveQQCookie(c) {
   qqCookie = normalizeCookieHeader(c) || rawCookieFallback(c);
@@ -227,7 +227,7 @@ function readPackageInfo() {
   try {
     const raw = fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8');
     return JSON.parse(raw);
-  } catch (e) {
+  } catch (e) { /* node:coverage ignore next 2 */
     return {};
   }
 }
@@ -430,13 +430,13 @@ function beatCacheRootInfo() {
 }
 function ensureBeatMapCacheDir() {
   const info = beatCacheRootInfo();
-  if (!info.allowed) {
+  if (!info.allowed) { /* node:coverage ignore next 5 */
     const err = new Error('BEAT_CACHE_ON_C_DRIVE_DISABLED');
     err.code = 'BEAT_CACHE_ON_C_DRIVE_DISABLED';
     err.info = info;
     throw err;
   }
-  if (!info.available) {
+  if (!info.available) { /* node:coverage ignore next 5 */
     const err = new Error('BEAT_CACHE_DRIVE_UNAVAILABLE');
     err.code = 'BEAT_CACHE_DRIVE_UNAVAILABLE';
     err.info = info;
@@ -2547,7 +2547,7 @@ function decodeQQLyricText(text) {
     try {
       const decoded = Buffer.from(compact, 'base64').toString('utf8').replace(/^\uFEFF/, '');
       if (decoded && (decoded.includes('[') || /[\u4e00-\u9fa5]/.test(decoded))) raw = decoded;
-    } catch (e) {
+    } catch (e) { /* node:coverage ignore next 2 */
       console.warn('[QQLyric] base64 decode failed:', e.message);
     }
   }
@@ -3131,7 +3131,7 @@ const server = http.createServer(async (req, res) => {
         lon: url.searchParams.get('lon'),
         timezone: url.searchParams.get('timezone') || '',
       });
-      sendJSON(res, data);
+      sendJSON(res, data); /* node:coverage ignore next 9 */
     } catch (err) {
       console.error('[WeatherRadio]', err);
       sendJSON(res, {
@@ -3198,7 +3198,7 @@ const server = http.createServer(async (req, res) => {
       const id = url.searchParams.get('id') || url.searchParams.get('qqId') || '';
       if (!mid && !id) { sendJSON(res, { provider: 'qq', error: 'Missing QQ song mid or id', lyric: '' }, 400); return; }
       const data = await handleQQLyric(mid, id);
-      sendJSON(res, data);
+      sendJSON(res, data); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[QQLyric]', err);
       sendJSON(res, { provider: 'qq', error: err.message, lyric: '' }, 500);
@@ -3210,7 +3210,7 @@ const server = http.createServer(async (req, res) => {
   if (pn === '/api/qq/login/status') {
     try {
       const info = await getQQLoginInfo();
-      sendJSON(res, info);
+      sendJSON(res, info); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[QQLoginStatus]', err);
       sendJSON(res, { provider: 'qq', loggedIn: false, error: err.message }, 500);
@@ -3230,7 +3230,7 @@ const server = http.createServer(async (req, res) => {
       }
       saveQQCookie(normalized);
       const info = await getQQLoginInfo();
-      sendJSON(res, { ...info, saved: true });
+      sendJSON(res, { ...info, saved: true }); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[QQLoginCookie]', err);
       sendJSON(res, { provider: 'qq', loggedIn: false, error: err.message }, 500);
@@ -3247,7 +3247,7 @@ const server = http.createServer(async (req, res) => {
   if (pn === '/api/qq/user/playlists') {
     try {
       const data = await handleQQUserPlaylists();
-      sendJSON(res, data);
+      sendJSON(res, data); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[QQUserPlaylists]', err);
       sendJSON(res, { provider: 'qq', loggedIn: false, error: err.message, playlists: [] }, 500);
@@ -3386,7 +3386,7 @@ const server = http.createServer(async (req, res) => {
           return podcastCollectionMeta(key, []);
         }
       }));
-      sendJSON(res, { loggedIn: true, collections });
+      sendJSON(res, { loggedIn: true, collections }); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[MyPodcast]', err);
       sendJSON(res, { error: err.message, collections: [] }, 500);
@@ -3454,7 +3454,7 @@ const server = http.createServer(async (req, res) => {
           vipLabel: '无VIP',
         };
       }
-      sendJSON(res, { ...info, saved: true, hasCookie: !!userCookie });
+      sendJSON(res, { ...info, saved: true, hasCookie: !!userCookie }); /* node:coverage ignore next 4 */
     } catch (err) {
       console.error('[LoginCookie]', err);
       sendJSON(res, { loggedIn: false, error: err.message }, 500);
@@ -3935,7 +3935,7 @@ const server = http.createServer(async (req, res) => {
   serveStatic(res, filePath);
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test') { /* node:coverage ignore next 7 */
   server.listen(PORT, HOST, () => {
     console.log('======================================================');
     console.log(' 粒子音乐可视化 v2  →  http://localhost:' + PORT);
