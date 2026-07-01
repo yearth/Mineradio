@@ -1,15 +1,32 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 
 const {
   createHttpServer,
   createRequestHandler,
   createRequestUrl,
   listenIfNeeded,
+  readRequestBody,
   sendJson,
   shouldAutoListen,
   startupBannerLines
 } = require('../server-dist/server/http-utils');
+
+function createBodyRequest(chunks = []) {
+  const req = new EventEmitter();
+  req.destroyed = false;
+  req.destroy = () => {
+    req.destroyed = true;
+  };
+
+  queueMicrotask(() => {
+    chunks.forEach(chunk => req.emit('data', chunk));
+    req.emit('end');
+  });
+
+  return req;
+}
 
 test('createRequestUrl resolves request URLs against the local server port', () => {
   const url = createRequestUrl('/api/search?keywords=rain', 5000);
@@ -82,6 +99,37 @@ test('sendJson writes legacy JSON headers and body', () => {
   assert.equal(calls[0].headers.Pragma, 'no-cache');
   assert.equal(calls[0].headers.Expires, '0');
   assert.equal(calls[1].body, '{"ok":true}');
+});
+
+test('readRequestBody parses JSON request bodies', async () => {
+  const body = await readRequestBody(createBodyRequest(['{"cookie":"MUSIC_U=abc"}']));
+
+  assert.deepEqual(body, { cookie: 'MUSIC_U=abc' });
+});
+
+test('readRequestBody falls back to form fields for non-JSON bodies', async () => {
+  const body = await readRequestBody(createBodyRequest(['cookie=MUSIC_U%3Dabc&token=qq']));
+
+  assert.deepEqual(body, { cookie: 'MUSIC_U=abc', token: 'qq' });
+});
+
+test('readRequestBody preserves empty and errored body fallbacks', async () => {
+  const emptyBody = await readRequestBody(createBodyRequest());
+  const errorReq = new EventEmitter();
+  const errorBodyPromise = readRequestBody(errorReq);
+
+  errorReq.emit('error', new Error('socket closed'));
+
+  assert.deepEqual(emptyBody, {});
+  assert.deepEqual(await errorBodyPromise, {});
+});
+
+test('readRequestBody destroys oversized request bodies', async () => {
+  const req = createBodyRequest([Buffer.alloc(8 * 1024 * 1024 + 1, 'x')]);
+
+  await readRequestBody(req);
+
+  assert.equal(req.destroyed, true);
 });
 
 test('shouldAutoListen disables the server listener under node:test', () => {

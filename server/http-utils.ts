@@ -45,6 +45,13 @@ export interface JsonResponse {
   end(body: string): unknown;
 }
 
+export interface BodyReadableRequest {
+  on(event: 'data', callback: (chunk: unknown) => void): unknown;
+  on(event: 'end', callback: () => void): unknown;
+  on(event: 'error', callback: () => void): unknown;
+  destroy(): unknown;
+}
+
 export interface ListenIfNeededOptions extends StartupBannerOptions {
   readonly server: ListenableServer;
   readonly host: string;
@@ -81,6 +88,33 @@ export function sendJson(res: JsonResponse, data: unknown, status = 200): void {
     'Expires': '0',
   });
   res.end(JSON.stringify(data));
+}
+
+export function readRequestBody(req: BodyReadableRequest): Promise<Record<string, unknown>> {
+  return new Promise(resolve => {
+    let raw = '';
+    req.on('data', chunk => {
+      raw += String(chunk);
+      if (raw.length > 8 * 1024 * 1024) req.destroy();
+    });
+    req.on('end', () => {
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (e) {
+        const params = new URLSearchParams(raw);
+        const out: Record<string, string> = {};
+        params.forEach((value, key) => {
+          out[key] = value;
+        });
+        resolve(out);
+      }
+    });
+    req.on('error', () => resolve({}));
+  });
 }
 
 export function listenIfNeeded(options: ListenIfNeededOptions): boolean {

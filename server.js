@@ -69,6 +69,7 @@ const {
   createHttpServer,
   createRequestHandler,
   listenIfNeeded,
+  readRequestBody,
   sendJson: sendJSON,
 } = require('./server-dist/server/http-utils');
 const {
@@ -1143,26 +1144,6 @@ function startUpdatePatchJob(info) {
   trimUpdateJobs();
   if (updateRuntimeOverrides.autoPatch !== false) downloadAndApplyPatchWithMirrors(job);
   return publicUpdateJob(job);
-}
-function readRequestBody(req) {
-  return new Promise(resolve => {
-    let raw = '';
-    req.on('data', chunk => {
-      raw += chunk;
-      if (raw.length > 8 * 1024 * 1024) req.destroy();
-    });
-    req.on('end', () => {
-      if (!raw) { resolve({}); return; }
-      try { resolve(JSON.parse(raw)); }
-      catch (e) {
-        const params = new URLSearchParams(raw);
-        const out = {};
-        params.forEach((v, k) => { out[k] = v; });
-        resolve(out);
-      }
-    });
-    req.on('error', () => resolve({}));
-  });
 }
 function normalizeApiCode(payload) {
   const body = payload && (payload.body || payload);

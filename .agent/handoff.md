@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 2 static response helper after `f053214 refactor: extract json response helper`.
+- Worktree: check `git status --short --branch`; latest local slice is Stage 2 request body helper after `3784c1a refactor: extract static response helper`.
 - Current phase: Stage 2, "server 外壳拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -20,6 +20,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 seventh slice is complete: `createRequestHandler` in `server/http-utils.ts` centralizes URL parsing and passes `{ req, res, url, pathname }` into the legacy route chain.
 - Stage 2 eighth slice is complete: `sendJson` in `server/http-utils.ts` centralizes legacy JSON response headers/body serialization; `server.js` imports it as `sendJSON`.
 - Stage 2 ninth slice is complete: `serveStatic` in `server/static-utils.ts` centralizes legacy static file reads, MIME headers, and 404 responses; `server.js` delegates through a thin fs-bound wrapper.
+- Stage 2 tenth slice is complete: `readRequestBody` in `server/http-utils.ts` centralizes legacy JSON/form/empty/error/oversize body parsing; `server.js` imports it from compiled TS.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -175,6 +176,19 @@ Stage 2 static response helper slice:
 - `npm test`: passed, 241 tests.
 - `npm run coverage`: passed, 241 tests; production-code line coverage `100.00%`, branch coverage `67.72%`, function coverage `95.08%`.
 - QA subagent review: `PASS`. Read-only verification by QA included `node --test tests/server-static-utils.test.js`, behavior equivalence review for 200/404 static responses, handoff consistency, and generated artifact tracking checks.
+
+Stage 2 request body helper slice:
+
+- Initial RED: `npm run build:ts && node --test tests/server-http-utils.test.js` failed because `readRequestBody` was not exported.
+- Added `readRequestBody` to `server/http-utils.ts`; it preserves legacy JSON parsing, URLSearchParams form fallback, empty-body `{}`, error `{}`, and oversized body `req.destroy()` behavior.
+- `server.js` now imports `readRequestBody` from `server-dist/server/http-utils`, removing the local implementation without changing route call sites.
+- `npm run build:ts && node --test tests/server-http-utils.test.js tests/project-structure.test.js`: passed, 15 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `node --test tests/music-routes.test.js tests/update-routes.test.js tests/server-http-utils.test.js`: passed, 185 tests.
+- `npm test`: passed, 245 tests.
+- `npm run coverage`: passed, 245 tests; production-code line coverage `100.00%`, branch coverage `67.81%`, function coverage `95.34%`.
+- QA subagent review: `PASS`. Read-only verification by QA included direct helper tests, `node --check server.js`, `git diff --check`, behavior equivalence review, handoff consistency, and generated artifact tracking checks.
 
 ## Decisions
 
