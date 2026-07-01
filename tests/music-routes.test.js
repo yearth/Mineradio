@@ -3772,6 +3772,69 @@ test('/api/weather/radio resolves city weather into a storm night radio', async 
   assert.deepEqual(searchCalls.slice(4).map(call => call.keywords), ['公路 摇滚', 'windy day playlist']);
 });
 
+test('/api/weather/radio builds a snowy night radio from cold weather', async () => {
+  const searchCalls = [];
+  setRequestTextResponder(targetUrl => {
+    assert.match(targetUrl, /api\.open-meteo\.com/);
+    return {
+      timezone: 'Asia/Shanghai',
+      current: {
+        time: '2026-12-21T23:00',
+        temperature_2m: -2,
+        apparent_temperature: -6,
+        relative_humidity_2m: 64,
+        is_day: 0,
+        precipitation: 0,
+        rain: 0,
+        showers: 0,
+        snowfall: 0,
+        weather_code: 71,
+        cloud_cover: 90,
+        wind_speed_10m: 8,
+        wind_gusts_10m: 16,
+      },
+    };
+  });
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      searchCalls.push(opts);
+      return {
+        body: {
+          result: {
+            songs: [
+              {
+                id: 7200 + searchCalls.length,
+                name: opts.keywords,
+                ar: [{ id: 120 + searchCalls.length, name: searchCalls.length === 1 ? '李健' : 'Snow Artist' }],
+                al: { name: 'Snow Album', picUrl: 'https://img.example/snow.jpg' },
+                dt: 205000,
+                fee: 0,
+              },
+            ],
+          },
+        },
+      };
+    },
+    song_detail: async () => ({ body: { songs: [] } }),
+  });
+
+  const { status, body } = await getJson('/api/weather/radio?lat=45.75&lon=126.63&city=哈尔滨&timezone=Asia/Shanghai');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.weather.label, '雪');
+  assert.equal(body.weather.weatherCode, 71);
+  assert.equal(body.weather.mood.key, 'snow-night');
+  assert.equal(body.weather.mood.title, '冷空气夜听');
+  assert.equal(body.weather.mood.energy, 0.34);
+  assert.equal(body.weather.mood.focus, 0.72);
+  assert.equal(body.weather.mood.keywords[0], '夜晚 R&B');
+  assert.deepEqual(body.radio.seedQueries, ['陈奕迅 好久不见', '莫文蔚 阴天', '李健 贝加尔湖畔', '朴树 平凡之路']);
+  assert.equal(body.radio.songs.length, 6);
+  assert.equal(searchCalls.length, 6);
+  assert.deepEqual(searchCalls.slice(4).map(call => call.keywords), ['夜晚 R&B', 'late night jazz']);
+});
+
 test('/api/weather/radio uses fallback weather when the provider fails', async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
