@@ -59,6 +59,21 @@ test('buildBeatMapFromLowEnergy returns an empty map when long input has no usab
   assert.equal(result.tempoSource, 'podcast-dj-server-empty');
 });
 
+test('buildBeatMapFromLowEnergy samples very large flat inputs without false beats', () => {
+  const lowEnergy = new Float32Array(17001).fill(0.01);
+  const hitEnergy = new Float32Array(17001).fill(0.006);
+
+  const result = buildBeatMapFromLowEnergy(lowEnergy, hitEnergy, 0.01, 0);
+
+  assert.deepEqual(result.kicks, []);
+  assert.deepEqual(result.beats, []);
+  assert.deepEqual(result.pulseBeats, []);
+  assert.deepEqual(result.cameraBeats, []);
+  assert.equal(result.duration, 170.01);
+  assert.equal(result.visualBeatCount, 0);
+  assert.equal(result.tempoSource, 'podcast-dj-server-empty');
+});
+
 test('buildBeatMapFromLowEnergy builds a visual beat grid from repeated low-energy pulses', () => {
   const hopSec = 0.01;
   const { lowEnergy, hitEnergy } = makePulseEnergy(1200, 50, 30);
@@ -252,6 +267,46 @@ test('analyzePodcastDjIntro marks empty decoded audio as a partial intro map', a
   }
 });
 
+test('analyzePodcastDjIntro decodes a non-empty ranged intro stream', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  const bytes = makeFixtureMp3Bytes();
+  global.fetch = async (targetUrl, opts = {}) => {
+    calls.push({ targetUrl, opts });
+    return {
+      ok: true,
+      status: 206,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes.slice(0, 128));
+          controller.enqueue(bytes.slice(128));
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const result = await analyzePodcastDjIntro('https://audio.example/intro.mp3', {
+      durationSec: 120,
+      introSec: 90,
+      userAgent: 'Intro UA',
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].targetUrl, 'https://audio.example/intro.mp3');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'Intro UA');
+    assert.equal(calls[0].opts.headers.Referer, 'https://music.163.com/');
+    assert.equal(result.tempoSource, 'podcast-dj-server-intro-offline');
+    assert.equal(result.partial, true);
+    assert.equal(result.fullDuration, 120);
+    assert.ok(result.partialUntilSec > 0);
+    assert.equal(typeof result.analyzedAt, 'number');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('analyzePodcastDjStream samples long podcasts with ranged empty audio', async () => {
   const originalFetch = global.fetch;
   const calls = [];
@@ -301,6 +356,51 @@ test('analyzePodcastDjStream samples long podcasts with ranged empty audio', asy
     assert.deepEqual(result.beats, []);
     assert.deepEqual(result.pulseBeats, []);
     assert.deepEqual(result.cameraBeats, []);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('analyzePodcastDjStream falls back to full-stream analysis when range metadata is unavailable', async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (targetUrl, opts = {}) => {
+    calls.push({ targetUrl, opts });
+    if (opts.method === 'HEAD') {
+      throw new Error('head unavailable');
+    }
+    return {
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller) {
+          controller.close();
+        },
+      }),
+    };
+  };
+
+  try {
+    const result = await analyzePodcastDjStream('https://audio.example/no-head.mp3', {
+      durationSec: 8000,
+      userAgent: 'No Head UA',
+    });
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].opts.method, 'HEAD');
+    assert.equal(calls[0].opts.headers['User-Agent'], 'No Head UA');
+    assert.equal(calls[1].opts.method, undefined);
+    assert.equal(calls[1].opts.headers['User-Agent'], 'No Head UA');
+    assert.equal(calls[1].opts.headers.Range, undefined);
+    assert.equal(result.tempoSource, 'podcast-dj-server-empty');
+    assert.equal(result.duration, 8000);
+    assert.equal(result.visualBeatCount, 0);
+    assert.equal(result.decode.chunks, 0);
+    assert.equal(result.decode.decodedSamples, 0);
+    assert.equal(result.decode.sampleRate, 0);
+    assert.equal(result.decode.effectiveSampleRate, 0);
+    assert.equal(result.decode.frames, 0);
+    assert.equal(result.decode.requestedDurationSec, 8000);
   } finally {
     global.fetch = originalFetch;
   }
