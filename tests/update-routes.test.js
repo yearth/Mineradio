@@ -54,6 +54,7 @@ function writeUpdateManifest(name, data) {
 
 function manifestWithInstaller(version, assetOverrides) {
   assetOverrides = assetOverrides || {};
+  const has = key => Object.prototype.hasOwnProperty.call(assetOverrides, key);
   return {
     version,
     release: {
@@ -61,9 +62,9 @@ function manifestWithInstaller(version, assetOverrides) {
       downloadUrl: `https://example.com/Mineradio-${version}-Setup.exe`,
       asset: {
         name: `Mineradio-${version}-Setup.exe`,
-        size: assetOverrides.size || 12345,
-        sha256: assetOverrides.sha256 || 'sha256:ABCDEF',
-        sha512: assetOverrides.sha512 || '',
+        size: has('size') ? assetOverrides.size : 12345,
+        sha256: has('sha256') ? assetOverrides.sha256 : 'sha256:ABCDEF',
+        sha512: has('sha512') ? assetOverrides.sha512 : '',
       },
       notes: ['修复播放状态同步'],
     },
@@ -605,6 +606,107 @@ test('/api/update/download switches to the next candidate after a DNS failure', 
   assert.match(lookup.body.failedAttempts[0].reason, /域名解析失败/);
   assert.equal(calls.length, 2);
   assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download switches to direct download when mirrors lack a digest', async () => {
+  const content = Buffer.from('mirrorless digest fallback installer');
+  const manifestPath = writeUpdateManifest('manifest-download-mirror-no-digest.json', manifestWithInstaller('1.2.11', {
+    size: content.length,
+    sha256: '',
+    sha512: '',
+  }));
+  const calls = fakeFetchSequence([
+    fakeDownloadResponse(content),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.status, 'ready');
+  assert.ok(lookup.body.failedAttempts.length > 0);
+  assert.ok(lookup.body.failedAttempts.length <= 6);
+  assert.ok(lookup.body.failedAttempts.every(attempt => /Mirror download skipped/.test(attempt.detail)));
+  assert.equal(calls.length, 1);
+  assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download switches to the next candidate after a socket failure', async () => {
+  const content = Buffer.from('socket fallback installer package');
+  const manifestPath = writeUpdateManifest('manifest-download-socket-fallback.json', manifestWithInstaller('1.2.12', {
+    size: content.length,
+    sha256: 'sha256:' + sha256Hex(content),
+  }));
+  const calls = fakeFetchSequence([
+    () => {
+      const err = new Error('socket hang up');
+      err.code = 'ECONNRESET';
+      throw err;
+    },
+    fakeDownloadResponse(content),
+  ]);
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'ready'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.status, 'ready');
+  assert.equal(lookup.body.failedAttempts.length, 1);
+  assert.match(lookup.body.failedAttempts[0].reason, /网络连接被中断/);
+  assert.equal(calls.length, 2);
+  assert.equal(fs.readFileSync(lookup.body.filePath).toString(), content.toString());
+});
+
+test('/api/update/download reports timeout when all candidates abort', async () => {
+  const manifestPath = writeUpdateManifest('manifest-download-timeout-error.json', manifestWithInstaller('1.2.13', {
+    size: 321,
+    sha256: 'sha256:' + sha256Hex(Buffer.from('never downloaded timeout')),
+  }));
+  const calls = [];
+  global.fetch = async targetUrl => {
+    calls.push(String(targetUrl || ''));
+    const err = new Error('connect timeout');
+    err.code = 'ETIMEDOUT';
+    throw err;
+  };
+
+  server.__test.setUpdatePlatform('win32');
+  server.__test.setUpdateManifest(manifestPath);
+
+  const started = await getJson('/api/update/download');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.ok, true);
+
+  const lookup = await waitForUpdateStatus(
+    '/api/update/download/status?id=' + encodeURIComponent(started.body.id),
+    body => body.status === 'error'
+  );
+
+  assert.equal(lookup.status, 200);
+  assert.equal(lookup.body.ok, false);
+  assert.equal(lookup.body.status, 'error');
+  assert.equal(lookup.body.error, 'ETIMEDOUT');
+  assert.match(lookup.body.errorReason, /连接超时/);
+  assert.equal(calls.length > 0, true);
+  assert.equal(lookup.body.filePath, '');
 });
 
 test('/api/update/download reports an error after all candidates fail', async () => {
