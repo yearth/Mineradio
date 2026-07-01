@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 3 update config service after `b75c591 refactor: extract request body helper`.
+- Worktree: check `git status --short --branch`; latest local slice is Stage 3 update download candidate service after `6f1eae3 refactor: extract update config service`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -22,6 +22,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 2 ninth slice is complete: `serveStatic` in `server/static-utils.ts` centralizes legacy static file reads, MIME headers, and 404 responses; `server.js` delegates through a thin fs-bound wrapper.
 - Stage 2 tenth slice is complete: `readRequestBody` in `server/http-utils.ts` centralizes legacy JSON/form/empty/error/oversize body parsing; `server.js` imports it from compiled TS.
 - Stage 3 first slice is complete: `server/services/update-config.ts` owns GitHub repository parsing, update config merging, and mirror normalization; `server.js` imports the service while preserving `__test` compatibility exports.
+- Stage 3 second slice is complete: `server/services/update-download-candidates.ts` owns mirror URL expansion and unique download candidate ordering; `server.js` keeps a thin `UPDATE_CONFIG`-bound wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -206,6 +207,19 @@ Stage 3 update config service slice:
 - `npm run coverage`: passed, 249 tests; production-code line coverage `100.00%`, branch coverage `68.06%`, function coverage `95.34%`; `server-dist/server/services/update-config.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Final read-only QA verification included `npm run typecheck`, `node --check server.js`, `node --test tests/update-config-service.test.js tests/server-helpers.test.js tests/update-routes.test.js`, `git diff --check`, behavior equivalence review, handoff consistency, and generated artifact tracking checks.
 
+Stage 3 update download candidate service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-download-candidates-service.test.js` failed because `server-dist/server/services/update-download-candidates` did not exist.
+- Added `server/services/update-download-candidates.ts` for `buildMirrorUrl` and `uniqueDownloadCandidates`.
+- `server.js` imports `buildMirrorUrl` and `uniqueDownloadCandidates` from the compiled TS service; existing call sites still use a local wrapper that injects `UPDATE_CONFIG.mirrors` and `UPDATE_CONFIG.preferMirrors`.
+- Added `tests/update-download-candidates-service.test.js` for direct service coverage of mirror template expansion, invalid URL filtering, mirror-first/default ordering, direct-first mode, no-mirror mode, and final URL dedupe.
+- `npm run build:ts && node --test tests/update-download-candidates-service.test.js tests/update-routes.test.js tests/update-utils.test.js tests/project-structure.test.js`: passed, 48 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `npm test`: passed, 252 tests.
+- `npm run coverage`: passed, 252 tests; production-code line coverage `100.00%`, branch coverage `68.28%`, function coverage `95.35%`; `server-dist/server/services/update-download-candidates.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA independently ran targeted service/update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and verified generated artifact tracking.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -244,8 +258,8 @@ Stage 3 update config service slice:
    - `docs/superpowers/plans/2026-07-01-mineradio-refactor-roadmap.md`
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
-4. Next implementation step for Stage 2:
-   - Continue small behavior-neutral extraction around request body parsing or move into the first route-domain boundary.
+4. Next implementation step for Stage 3:
+   - Continue small behavior-neutral extraction inside the update domain before moving to broader route handler splits.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:
