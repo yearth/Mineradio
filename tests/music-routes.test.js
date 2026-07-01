@@ -4047,12 +4047,24 @@ test('/api/cover streams upstream images with canvas-safe headers', async () => 
   }
 });
 
-test('static routes serve the app favicon and report missing files', async () => {
+test('static routes serve app assets, the root page, and missing files', async () => {
   const favicon = await requestRaw('GET', '/favicon.ico');
 
   assert.equal(favicon.status, 200);
   assert.equal(favicon.headers['Content-Type'], 'image/x-icon');
   assert.ok(favicon.body.length > 0);
+
+  const index = await requestRaw('GET', '/');
+
+  assert.equal(index.status, 200);
+  assert.equal(index.headers['Content-Type'], 'text/html; charset=utf-8');
+  assert.match(index.body.toString('utf8'), /<html/i);
+
+  const archive = await requestRaw('GET', '/default-user-fx-archive.json');
+
+  assert.equal(archive.status, 200);
+  assert.equal(archive.headers['Content-Type'], 'application/json');
+  assert.doesNotThrow(() => JSON.parse(archive.body.toString('utf8')));
 
   const missing = await requestRaw('GET', '/missing-static-test.txt');
 
