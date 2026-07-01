@@ -4164,6 +4164,10 @@ if (process.env.NODE_ENV === 'test') {
     setRequestText(fn) {
       requestTextOverride = fn;
     },
+    normalizeCookieHeader,
+    rawCookieFallback,
+    parseGitHubRepository,
+    readUpdateConfig,
     buildWeatherMood,
     resetMusicRuntime() {
       applyNeteaseApi();
