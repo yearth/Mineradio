@@ -4380,6 +4380,64 @@ test('/api/weather/radio builds a snowy night radio from cold weather', async ()
   assert.deepEqual(searchCalls.slice(4).map(call => call.keywords), ['夜晚 R&B', 'late night jazz']);
 });
 
+test('/api/weather/radio uses a generic label for unknown weather codes', async () => {
+  const searchCalls = [];
+  setRequestTextResponder(targetUrl => {
+    assert.match(targetUrl, /api\.open-meteo\.com/);
+    return {
+      timezone: 'Asia/Shanghai',
+      current: {
+        time: '2026-07-01T12:00',
+        temperature_2m: 22,
+        apparent_temperature: 22,
+        relative_humidity_2m: 55,
+        is_day: 1,
+        precipitation: 0,
+        rain: 0,
+        showers: 0,
+        snowfall: 0,
+        weather_code: 999,
+        cloud_cover: 10,
+        wind_speed_10m: 4,
+        wind_gusts_10m: 8,
+      },
+    };
+  });
+  server.__test.setNeteaseApi({
+    cloudsearch: async opts => {
+      searchCalls.push(opts);
+      return {
+        body: {
+          result: {
+            songs: [
+              {
+                id: 7300 + searchCalls.length,
+                name: opts.keywords,
+                ar: [{ id: 130 + searchCalls.length, name: 'Clear Artist' }],
+                al: { name: 'Clear Album', picUrl: 'https://img.example/clear.jpg' },
+                dt: 202000,
+                fee: 0,
+              },
+            ],
+          },
+        },
+      };
+    },
+    song_detail: async () => ({ body: { songs: [] } }),
+  });
+
+  const { status, body } = await getJson('/api/weather/radio?lat=22.54&lon=114.06&city=深圳&timezone=Asia/Shanghai');
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.weather.label, '天气');
+  assert.equal(body.weather.weatherCode, 999);
+  assert.equal(body.weather.mood.key, 'clear');
+  assert.equal(body.radio.title, '晴朗电台');
+  assert.equal(body.radio.songs.length, 6);
+  assert.equal(searchCalls.length, 6);
+});
+
 test('/api/weather/radio uses fallback weather when the provider fails', async () => {
   const originalWarn = console.warn;
   console.warn = () => {};
