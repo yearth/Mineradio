@@ -31,6 +31,13 @@ function baseContext(overrides = {}) {
       djProgram: async () => ({ body: {} }),
       mapPodcastRadio: item => item,
       mapPodcastProgram: (item, radio) => ({ ...item, radio }),
+      getLoginInfo: async () => ({ loggedIn: false }),
+      fetchMyPodcastItems: async () => ({ itemType: 'radio', items: [] }),
+      podcastCollectionMeta: (key, items) => ({
+        key,
+        count: items.length,
+        cover: items[0] && items[0].cover || '',
+      }),
       userCookie: 'cookie',
       timestamp: () => 1234,
       ...overrides,
@@ -39,6 +46,149 @@ function baseContext(overrides = {}) {
     logs,
   };
 }
+
+test('handlePodcastRoutes handles logged-out podcast collections', async () => {
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my',
+    url: new URL('http://127.0.0.1/api/podcast/my'),
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls[0], {
+    res: 'res',
+    data: {
+      loggedIn: false,
+      collections: [
+        { key: 'collect', count: 0, cover: '' },
+        { key: 'created', count: 0, cover: '' },
+        { key: 'liked', count: 0, cover: '' },
+      ],
+    },
+    status: undefined,
+  });
+});
+
+test('handlePodcastRoutes summarizes logged-in podcast collections with per-source fallback', async () => {
+  const itemCalls = [];
+  const warnings = [];
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my',
+    url: new URL('http://127.0.0.1/api/podcast/my'),
+    getLoginInfo: async () => ({ loggedIn: true, userId: 42 }),
+    fetchMyPodcastItems: async (key, info, limit, offset) => {
+      itemCalls.push({ key, info, limit, offset });
+      if (key === 'created') throw new Error('created failed');
+      return { itemType: 'radio', items: [{ cover: `cover-${key}` }] };
+    },
+    logger: {
+      log: () => {},
+      error: () => {},
+      warn: (...args) => warnings.push(args),
+    },
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(itemCalls.map(call => ({ key: call.key, limit: call.limit, offset: call.offset })), [
+    { key: 'collect', limit: 12, offset: 0 },
+    { key: 'created', limit: 12, offset: 0 },
+    { key: 'liked', limit: 12, offset: 0 },
+  ]);
+  assert.equal(itemCalls[0].info.userId, 42);
+  assert.deepEqual(calls[0].data, {
+    loggedIn: true,
+    collections: [
+      { key: 'collect', count: 1, cover: 'cover-collect' },
+      { key: 'created', count: 0, cover: '' },
+      { key: 'liked', count: 1, cover: 'cover-liked' },
+    ],
+  });
+  assert.deepEqual(warnings[0].slice(0, 2), ['[MyPodcast]', 'created']);
+});
+
+test('handlePodcastRoutes handles podcast collection summary failures', async () => {
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my',
+    url: new URL('http://127.0.0.1/api/podcast/my'),
+    getLoginInfo: async () => {
+      throw new Error('login failed');
+    },
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls[0], {
+    res: 'res',
+    data: { error: 'login failed', collections: [] },
+    status: 500,
+  });
+});
+
+test('handlePodcastRoutes handles logged-out podcast collection items', async () => {
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my/items',
+    url: new URL('http://127.0.0.1/api/podcast/my/items?key=collect'),
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls[0], {
+    res: 'res',
+    data: { loggedIn: false, items: [] },
+    status: undefined,
+  });
+});
+
+test('handlePodcastRoutes maps podcast collection item params and payload', async () => {
+  const itemCalls = [];
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my/items',
+    url: new URL('http://127.0.0.1/api/podcast/my/items?key=paid&limit=12&offset=4'),
+    getLoginInfo: async () => ({ loggedIn: true, userId: 42 }),
+    fetchMyPodcastItems: async (key, info, limit, offset) => {
+      itemCalls.push({ key, info, limit, offset });
+      return { itemType: 'radio', items: [{ id: 7, cover: 'paid-cover' }] };
+    },
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(itemCalls, [{ key: 'paid', info: { loggedIn: true, userId: 42 }, limit: 12, offset: 4 }]);
+  assert.deepEqual(calls[0].data, {
+    loggedIn: true,
+    key: 'paid',
+    count: 1,
+    cover: 'paid-cover',
+    itemType: 'radio',
+    items: [{ id: 7, cover: 'paid-cover' }],
+  });
+});
+
+test('handlePodcastRoutes reports podcast collection item failures', async () => {
+  const { ctx, calls } = baseContext({
+    pathname: '/api/podcast/my/items',
+    url: new URL('http://127.0.0.1/api/podcast/my/items?key=collect'),
+    getLoginInfo: async () => ({ loggedIn: true, userId: 42 }),
+    fetchMyPodcastItems: async () => {
+      throw new Error('items failed');
+    },
+  });
+
+  const handled = await handlePodcastRoutes(ctx);
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls[0], {
+    res: 'res',
+    data: { error: 'items failed', items: [] },
+    status: 500,
+  });
+});
 
 test('handlePodcastRoutes handles blank podcast search without upstream calls', async () => {
   let called = false;

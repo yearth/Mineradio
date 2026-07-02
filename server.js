@@ -241,6 +241,7 @@ const {
   handleWeatherRoutes,
 } = require('./server-dist/server/controllers/weather-controller');
 const {
+  handlePodcastAuthenticatedRoutes,
   handlePodcastBeatmapRoutes,
   handlePodcastPublicRoutes,
 } = require('./server-dist/server/controllers/podcast-controller');
@@ -1504,47 +1505,28 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (pn === '/api/podcast/my') {
-    try {
-      const info = await getLoginInfo();
-      if (!info.loggedIn || !info.userId) {
-        const empty = ['collect', 'created', 'liked'].map(k => podcastCollectionMeta(k, []));
-        sendJSON(res, { loggedIn: false, collections: empty });
-        return;
-      }
-      const keys = ['collect', 'created', 'liked'];
-      const collections = await Promise.all(keys.map(async key => {
-        try {
-          const data = await fetchMyPodcastItems(key, info, 12, 0);
-          return podcastCollectionMeta(key, data.items || []);
-        } catch (e) {
-          console.warn('[MyPodcast]', key, e.message);
-          return podcastCollectionMeta(key, []);
-        }
-      }));
-      sendJSON(res, { loggedIn: true, collections }); /* node:coverage ignore next 4 */
-    } catch (err) {
-      console.error('[MyPodcast]', err);
-      sendJSON(res, { error: err.message, collections: [] }, 500);
-    }
-    return;
-  }
-
-  if (pn === '/api/podcast/my/items') {
-    try {
-      const info = await getLoginInfo();
-      if (!info.loggedIn || !info.userId) { sendJSON(res, { loggedIn: false, items: [] }); return; }
-      const key = String(url.searchParams.get('key') || 'collect');
-      const limit = parseInt(url.searchParams.get('limit') || '36', 10) || 36;
-      const offset = parseInt(url.searchParams.get('offset') || '0', 10) || 0;
-      const data = await fetchMyPodcastItems(key, info, limit, offset);
-      sendJSON(res, { loggedIn: true, key, ...podcastCollectionMeta(key, data.items || []), itemType: data.itemType, items: data.items || [] });
-    } catch (err) {
-      console.error('[MyPodcastItems]', err);
-      sendJSON(res, { error: err.message, items: [] }, 500);
-    }
-    return;
-  }
+  if (await handlePodcastAuthenticatedRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    cloudsearch,
+    djHot: dj_hot,
+    djDetail: dj_detail,
+    djProgram: dj_program,
+    mapPodcastRadio,
+    mapPodcastProgram,
+    getLoginInfo,
+    fetchMyPodcastItems,
+    podcastCollectionMeta,
+    analyzePodcastDjStream,
+    analyzePodcastDjIntro,
+    userAgent: UA,
+    userCookie,
+    timestamp: Date.now,
+    now: Date.now,
+    logger: console,
+  })) return;
 
   if (pn === '/api/song/url') {
     try {
@@ -1599,6 +1581,9 @@ const server = createHttpServer({
     djProgram: dj_program,
     mapPodcastRadio,
     mapPodcastProgram,
+    getLoginInfo,
+    fetchMyPodcastItems,
+    podcastCollectionMeta,
     analyzePodcastDjStream,
     analyzePodcastDjIntro,
     userAgent: UA,

@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is public podcast route extraction into `server/controllers/podcast-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is authenticated podcast route extraction into `server/controllers/podcast-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -79,9 +79,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split second slice is complete: `server/controllers/weather-controller.ts` now owns `/api/weather/radio` and `/api/weather/ip-location` route handling through `handleWeatherRoutes`; `server.js` keeps weather business helpers and injects them into the controller.
 - Controller/router TS split third slice is complete: `server/controllers/podcast-controller.ts` now owns `/api/podcast/dj-beatmap` route handling through `handlePodcastRoutes`; the other podcast API routes remain in `server.js` for the next, larger podcast slice.
 - Controller/router TS split fourth slice is complete: `server/controllers/podcast-controller.ts` now also owns public podcast routes (`/api/podcast/search`, `/api/podcast/hot`, `/api/podcast/detail`, `/api/podcast/programs`) through `handlePodcastPublicRoutes`; `/api/podcast/my` and `/api/podcast/my/items` remain in `server.js` for the authenticated podcast slice.
+- Controller/router TS split fifth slice is complete: `server/controllers/podcast-controller.ts` now owns authenticated podcast routes (`/api/podcast/my`, `/api/podcast/my/items`) through `handlePodcastAuthenticatedRoutes`; all podcast routes now delegate through the TS podcast controller.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Authenticated podcast controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/podcast-controller.test.js` failed on the authenticated route tests with `false !== true`.
+- `npm run build:ts && node --test tests/podcast-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 162 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 413 tests.
+- `npm run coverage`: passed, 413 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/podcast-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route order, public and DJ beatmap delegates staying intact, `/api/podcast/my` and `/api/podcast/my/items` legacy login/default/summary/item/error semantics, all-wrapper order, controller tests, route descriptor coverage, full tests, and coverage evidence.
 
 Public podcast controller route extraction:
 

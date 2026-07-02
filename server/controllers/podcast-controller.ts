@@ -11,6 +11,9 @@ export type PodcastRouteContext = {
   djProgram: (opts: Record<string, unknown>) => Promise<any>;
   mapPodcastRadio: (item: any) => any;
   mapPodcastProgram: (item: any, radio: any) => any;
+  getLoginInfo: () => Promise<any>;
+  fetchMyPodcastItems: (key: string, info: any, limit: number, offset: number) => Promise<any>;
+  podcastCollectionMeta: (key: string, items: any[]) => any;
   analyzePodcastDjStream: (audioUrl: string, opts: {
     durationSec: number;
     userAgent: string;
@@ -24,7 +27,7 @@ export type PodcastRouteContext = {
   userCookie: string;
   timestamp: () => number;
   now: () => number;
-  logger: Pick<Console, 'log' | 'error'>;
+  logger: Pick<Console, 'log' | 'warn' | 'error'>;
 };
 
 export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promise<boolean> {
@@ -109,6 +112,61 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
   return false;
 }
 
+export async function handlePodcastAuthenticatedRoutes(ctx: PodcastRouteContext): Promise<boolean> {
+  if (ctx.pathname === '/api/podcast/my') {
+    try {
+      const info = await ctx.getLoginInfo();
+      if (!info.loggedIn || !info.userId) {
+        const empty = ['collect', 'created', 'liked'].map(key => ctx.podcastCollectionMeta(key, []));
+        ctx.sendJSON(ctx.res, { loggedIn: false, collections: empty });
+        return true;
+      }
+      const keys = ['collect', 'created', 'liked'];
+      const collections = await Promise.all(keys.map(async key => {
+        try {
+          const data = await ctx.fetchMyPodcastItems(key, info, 12, 0);
+          return ctx.podcastCollectionMeta(key, data.items || []);
+        } catch (err: any) {
+          ctx.logger.warn('[MyPodcast]', key, err.message);
+          return ctx.podcastCollectionMeta(key, []);
+        }
+      }));
+      ctx.sendJSON(ctx.res, { loggedIn: true, collections });
+    } catch (err: any) {
+      ctx.logger.error('[MyPodcast]', err);
+      ctx.sendJSON(ctx.res, { error: err.message, collections: [] }, 500);
+    }
+    return true;
+  }
+
+  if (ctx.pathname === '/api/podcast/my/items') {
+    try {
+      const info = await ctx.getLoginInfo();
+      if (!info.loggedIn || !info.userId) {
+        ctx.sendJSON(ctx.res, { loggedIn: false, items: [] });
+        return true;
+      }
+      const key = String(ctx.url.searchParams.get('key') || 'collect');
+      const limit = parseInt(ctx.url.searchParams.get('limit') || '36', 10) || 36;
+      const offset = parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0;
+      const data = await ctx.fetchMyPodcastItems(key, info, limit, offset);
+      ctx.sendJSON(ctx.res, {
+        loggedIn: true,
+        key,
+        ...ctx.podcastCollectionMeta(key, data.items || []),
+        itemType: data.itemType,
+        items: data.items || [],
+      });
+    } catch (err: any) {
+      ctx.logger.error('[MyPodcastItems]', err);
+      ctx.sendJSON(ctx.res, { error: err.message, items: [] }, 500);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 export async function handlePodcastBeatmapRoutes(ctx: PodcastRouteContext): Promise<boolean> {
   if (ctx.pathname !== '/api/podcast/dj-beatmap') return false;
 
@@ -135,5 +193,7 @@ export async function handlePodcastBeatmapRoutes(ctx: PodcastRouteContext): Prom
 }
 
 export async function handlePodcastRoutes(ctx: PodcastRouteContext): Promise<boolean> {
-  return (await handlePodcastPublicRoutes(ctx)) || handlePodcastBeatmapRoutes(ctx);
+  return (await handlePodcastPublicRoutes(ctx))
+    || (await handlePodcastAuthenticatedRoutes(ctx))
+    || handlePodcastBeatmapRoutes(ctx);
 }
