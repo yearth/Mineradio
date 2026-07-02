@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `f481cb8 refactor: extract update error helpers`.
+- Worktree: check `git status --short --branch`; latest committed slice is `3521aee refactor: extract latest yml update parser`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -27,6 +27,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fourth slice is complete: `server/services/update-manifest.ts` owns manifest update normalization; `server.js` delegates through an `APP_VERSION`/fallback-notes/download-candidate wrapper.
 - Stage 3 fifth slice is complete: `server/services/update-errors.ts` owns update error creation and classification; `server.js` imports the compiled helpers directly.
 - Stage 3 sixth slice is complete: `server/services/update-latest-yml.ts` owns latest.yml fallback parsing and GitHub release download URL construction; `server.js` delegates through an `APP_VERSION`/repository/download-candidate wrapper.
+- Stage 3 seventh slice is complete: `server/services/update-patch-payload.ts` owns patch payload validation, patch file content decoding, and patch path safety checks; `server.js` delegates through `APP_VERSION`/root-dir wrappers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -282,6 +283,20 @@ Stage 3 latest.yml update service slice:
 - `npm test`: passed, 263 tests.
 - `npm run coverage`: passed, 263 tests; production-code line coverage `100.00%`, branch coverage `69.77%`, function coverage `95.38%`; `server-dist/server/services/update-latest-yml.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified service extraction, latest.yml fallback route behavior, targeted tests, `npm test`, `npm run coverage`, `git diff --check`, generated artifact tracking, and handoff consistency.
+
+Stage 3 patch payload service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-patch-payload-service.test.js` failed because `server-dist/server/services/update-patch-payload` did not exist.
+- Added `server/services/update-patch-payload.ts` for `safePatchRelativePath`, `patchTargetPath`, `decodePatchFile`, and `normalizePatchPayload`.
+- `server.js` now imports patch payload helpers from compiled TS, removes local patch allowed-root/file constants, and injects `APP_VERSION` / `__dirname` through thin wrappers where needed.
+- Added `tests/update-patch-payload-service.test.js` for allowed path normalization, traversal/NUL/disallowed-root/executable rejection, root-scoped target resolution, base64/utf8 content decoding, patch payload aliases, restart fallback, and legacy validation errors.
+- `npm run build:ts && node --test tests/update-patch-payload-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 38 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 269 tests.
+- `npm run coverage`: passed, 269 tests; production-code line coverage `100.00%`, branch coverage `70.66%`, function coverage `95.41%`; `server-dist/server/services/update-patch-payload.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified service extraction, `server.js` injection wrappers, service tests, `/api/update/patch` route coverage, `node --check server.js`, `npm run typecheck`, `git diff --check`, `npm test`, `npm run coverage`, generated artifact tracking, and handoff consistency.
 
 ## Decisions
 
