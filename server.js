@@ -140,6 +140,18 @@ const {
 const {
   downloadAndApplyPatchWithMirrors: downloadAndApplyPatchWithMirrorsService,
 } = require('./server-dist/server/services/update-patch-runner');
+const {
+  normalizeCookieHeader,
+  normalizeQQCookieInput,
+  normalizeQQUin,
+  parseCookieString,
+  qqCookieAvatar: qqCookieAvatarService,
+  qqCookieMusicKey: qqCookieMusicKeyService,
+  qqCookieNickname: qqCookieNicknameService,
+  qqCookiePlaybackKey: qqCookiePlaybackKeyService,
+  qqCookieUin: qqCookieUinService,
+  rawCookieFallback,
+} = require('./server-dist/server/services/cookie-session');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -200,56 +212,6 @@ function applySystemCertificateAuthorities() {
 applySystemCertificateAuthorities();
 
 // ---------- Cookie 持久化 ----------
-const COOKIE_ATTRIBUTE_NAMES = new Set(['path', 'domain', 'expires', 'max-age', 'samesite', 'secure', 'httponly']);
-function collectCookiePair(picked, key, value) {
-  key = String(key || '').trim();
-  if (!key || COOKIE_ATTRIBUTE_NAMES.has(key.toLowerCase())) return;
-  if (value === null || value === undefined) return;
-  picked.set(key, String(value).trim());
-}
-function collectCookieInput(input, picked) {
-  if (input === null || input === undefined) return;
-  if (Array.isArray(input)) {
-    input.forEach(item => collectCookieInput(item, picked));
-    return;
-  }
-  if (typeof input === 'object') {
-    if (input.name && Object.prototype.hasOwnProperty.call(input, 'value')) {
-      collectCookiePair(picked, input.name, input.value);
-      return;
-    }
-    Object.keys(input).forEach(key => {
-      const value = input[key];
-      if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')) {
-        collectCookiePair(picked, key, value.value);
-      } else if (typeof value !== 'object') {
-        collectCookiePair(picked, key, value);
-      }
-    });
-    return;
-  }
-  String(input).split(/\r?\n/).forEach(line => {
-    line.split(';').forEach(part => {
-      const raw = String(part || '').trim();
-      const idx = raw.indexOf('=');
-      if (idx <= 0) return;
-      collectCookiePair(picked, raw.slice(0, idx), raw.slice(idx + 1));
-    });
-  });
-}
-function normalizeCookieHeader(input) {
-  const picked = new Map();
-  collectCookieInput(input, picked);
-  return Array.from(picked.entries())
-    .filter(([key, value]) => key && value != null && String(value) !== '')
-    .map(([key, value]) => `${key}=${value}`)
-    .join('; ');
-}
-function rawCookieFallback(input) {
-  if (typeof input === 'string') return input.trim();
-  if (Array.isArray(input) && input.every(item => typeof item === 'string')) return input.join('; ').trim();
-  return '';
-}
 let userCookie = '';
 try { if (fs.existsSync(COOKIE_FILE)) userCookie = fs.readFileSync(COOKIE_FILE, 'utf8').trim(); } /* node:coverage ignore next */
 catch (e) { userCookie = ''; }
@@ -554,84 +516,23 @@ function normalizeApiMessage(payload) {
   const body = payload && (payload.body || payload);
   return (body && (body.message || body.msg || body.error)) || (body && body.body && (body.body.message || body.body.msg || body.body.error)) || '';
 }
-function parseCookieString(cookieText) {
-  const out = {};
-  String(cookieText || '').split(';').forEach(part => {
-    const raw = String(part || '').trim();
-    if (!raw) return;
-    const idx = raw.indexOf('=');
-    if (idx <= 0) return;
-    const key = raw.slice(0, idx).trim();
-    const value = raw.slice(idx + 1).trim();
-    if (key) out[key] = value;
-  });
-  return out;
-}
-function serializeCookieObject(obj) {
-  return Object.keys(obj || {})
-    .filter(k => obj[k] != null && String(obj[k]) !== '')
-    .map(k => k + '=' + String(obj[k]))
-    .join('; ');
-}
 function qqCookieObject() {
   return parseCookieString(qqCookie);
 }
-function normalizeQQUin(raw) {
-  const digits = String(raw || '').replace(/\D/g, '');
-  return digits.replace(/^0+/, '') || digits;
-}
 function qqCookieUin(obj) {
-  obj = obj || qqCookieObject();
-  const raw = Number(obj.login_type) === 2 ? (obj.wxuin || obj.uin || obj.p_uin) : (obj.uin || obj.qqmusic_uin || obj.wxuin || obj.p_uin);
-  return normalizeQQUin(raw);
+  return qqCookieUinService(obj || qqCookieObject());
 }
 function qqCookieMusicKey(obj) {
-  obj = obj || qqCookieObject();
-  return obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.p_skey || obj.skey ||
-    obj.psrf_qqaccess_token || obj.psrf_qqrefresh_token || obj.wxrefresh_token || obj.wxskey || '';
+  return qqCookieMusicKeyService(obj || qqCookieObject());
 }
 function qqCookiePlaybackKey(obj) {
-  obj = obj || qqCookieObject();
-  return obj.qm_keyst || obj.qqmusic_key || obj.music_key || obj.wxskey || '';
-}
-function decodeQQCookieValue(value) {
-  try { return decodeURIComponent(String(value || '').replace(/\+/g, '%20')).trim(); }
-  catch (e) { return String(value || '').trim(); }
+  return qqCookiePlaybackKeyService(obj || qqCookieObject());
 }
 function qqCookieNickname(obj, uin) {
-  obj = obj || qqCookieObject();
-  uin = normalizeQQUin(uin || qqCookieUin(obj));
-  const padded = uin ? '0' + uin : '';
-  const keys = [
-    uin && ('ptnick_' + uin),
-    padded && ('ptnick_' + padded),
-    'ptnick',
-    'nick',
-    'nickname',
-    'qq_nickname'
-  ].filter(Boolean);
-  for (const key of keys) {
-    if (obj[key]) {
-      const nick = decodeQQCookieValue(obj[key]);
-      if (nick) return nick;
-    }
-  }
-  const ptnickKey = Object.keys(obj).find(key => /^ptnick_/i.test(key) && obj[key]);
-  return ptnickKey ? decodeQQCookieValue(obj[ptnickKey]) : '';
+  return qqCookieNicknameService(obj || qqCookieObject(), uin);
 }
 function qqCookieAvatar(obj, uin) {
-  obj = obj || qqCookieObject();
-  const direct = obj.qqmusic_avatar || obj.avatar || obj.avatarUrl || obj.headpic || '';
-  if (direct) return decodeQQCookieValue(direct);
-  uin = normalizeQQUin(uin || qqCookieUin(obj));
-  return uin ? `https://q1.qlogo.cn/g?b=qq&nk=${encodeURIComponent(uin)}&s=100` : '';
-}
-function normalizeQQCookieInput(cookieText) {
-  const obj = parseCookieString(cookieText);
-  if (Number(obj.login_type) === 2 && obj.wxuin && !obj.uin) obj.uin = obj.wxuin;
-  if (!obj.uin && (obj.qqmusic_uin || obj.p_uin)) obj.uin = obj.qqmusic_uin || obj.p_uin;
-  if (obj.uin) obj.uin = normalizeQQUin(obj.uin);
-  return serializeCookieObject(obj);
+  return qqCookieAvatarService(obj || qqCookieObject(), uin);
 }
 function playbackRestriction(provider, category, message, action, extra) {
   return {
