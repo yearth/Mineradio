@@ -224,6 +224,9 @@ const {
   requestJson: requestJsonService,
   requestText: requestTextService,
 } = require('./server-dist/server/services/request-client');
+const {
+  readPackageInfo: readPackageInfoService,
+} = require('./server-dist/server/services/app-info');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -305,12 +308,7 @@ function serveStatic(res, filePath) {
   return serveStaticFile(res, filePath, fs);
 }
 function readPackageInfo() {
-  try {
-    const raw = fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8');
-    return JSON.parse(raw);
-  } catch (e) { /* node:coverage ignore next 2 */
-    return {};
-  }
+  return readPackageInfoService(path.join(__dirname, 'package.json'), { fs });
 }
 function updateRuntimePlatform() {
   return updateRuntimeOverrides.platform || process.platform;
