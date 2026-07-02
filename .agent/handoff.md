@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is in progress; latest safe slice is `__test` compatibility builder extraction into `server/test-support/runtime.ts`.
+- Worktree: server composition/runtime cleanup is in progress; latest safe slice is Netease media route dependency composition extraction into `server/composition/netease-media-context.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -94,9 +94,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup second slice is complete: `server/runtime/cookie-runtime.ts` now owns Netease/QQ cookie initial file reads, save normalization/raw fallback, silent IO failure handling, and in-memory reset; `server.js` keeps compatibility `saveCookie`/`saveQQCookie` wrappers and reads current cookies through runtime getters.
 - Server composition/runtime cleanup third slice is complete: `server/runtime/request-runtime.ts` now owns the test-only requestText override; `server.js` keeps `requestText` as the compatibility wrapper around the runtime and preserves `setRequestText`/`resetMusicRuntime` behavior.
 - Server composition/runtime cleanup fourth slice is complete: `server/test-support/runtime.ts` now owns `buildServerTestRuntime(...)` for the legacy `module.exports.__test` compatibility object; `server.js` injects callbacks/helpers under the existing `NODE_ENV=test` guard and preserves the 15-key test surface/order.
+- Server composition/runtime cleanup fifth slice is complete: `server/composition/netease-media-context.ts` now owns Netease media route context assembly; `server.js` keeps a single `createNeteaseMediaRouteDependencies()` factory so test-rebound Netease API functions are read lazily and both media controller call sites share the same dependency shape.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease media route dependency composition extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-media-composition.test.js` failed with `Cannot find module '../server-dist/server/composition/netease-media-context'`.
+- First focused run caught a real regression: a module-level dependency object froze `lyric_new`/`artist_detail`/playlist function references before `__test.setNeteaseApi` could rebind them. Fixed by changing the root assembly to `createNeteaseMediaRouteDependencies()` and invoking it at each media controller dispatch.
+- `npm run build:ts && node --test tests/netease-media-composition.test.js tests/netease-media-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 153 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 476 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/composition/netease-media-context.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified `/api/song/url` early branch and later media/read branch kept their route positions, lazy API rebinding through `createNeteaseMediaRouteDependencies()`, composition-only behavior in `createNeteaseMediaRouteContext()`, focused/static validation, and no generated-file staging risk.
 
 `__test` compatibility builder extraction:
 

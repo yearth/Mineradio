@@ -247,6 +247,9 @@ const {
   buildServerTestRuntime,
 } = require('./server-dist/server/test-support/runtime');
 const {
+  createNeteaseMediaRouteContext,
+} = require('./server-dist/server/composition/netease-media-context');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1232,6 +1235,27 @@ async function getLoginInfo() {
   });
 }
 
+function createNeteaseMediaRouteDependencies() {
+  return {
+    sendJSON,
+    getUserCookie: () => currentUserCookie(),
+    getLoginInfo,
+    handleSongUrl,
+    lyricNew: lyric_new,
+    lyric,
+    commentMusic: comment_music,
+    buildNeteaseSongCommentsPayload,
+    artistDetail: artist_detail,
+    artistSongs: artist_songs,
+    artistTopSong: artist_top_song,
+    playlistTrackAll: playlist_track_all,
+    playlistDetail: playlist_detail,
+    mapSongRecord,
+    now: Date.now,
+    logger: console,
+  };
+}
+
 // ====================================================================
 //  HTTP Server
 // ====================================================================
@@ -1371,27 +1395,10 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (pn === NETEASE_SONG_URL_ROUTE && await handleNeteaseMediaRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    getUserCookie: () => currentUserCookie(),
-    getLoginInfo,
-    handleSongUrl,
-    lyricNew: lyric_new,
-    lyric,
-    commentMusic: comment_music,
-    buildNeteaseSongCommentsPayload,
-    artistDetail: artist_detail,
-    artistSongs: artist_songs,
-    artistTopSong: artist_top_song,
-    playlistTrackAll: playlist_track_all,
-    playlistDetail: playlist_detail,
-    mapSongRecord,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (pn === NETEASE_SONG_URL_ROUTE && await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
+    createNeteaseMediaRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
   if (await handleNeteaseAuthRoutes({
     pathname: pn,
@@ -1462,27 +1469,10 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (await handleNeteaseMediaRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    getUserCookie: () => currentUserCookie(),
-    getLoginInfo,
-    handleSongUrl,
-    lyricNew: lyric_new,
-    lyric,
-    commentMusic: comment_music,
-    buildNeteaseSongCommentsPayload,
-    artistDetail: artist_detail,
-    artistSongs: artist_songs,
-    artistTopSong: artist_top_song,
-    playlistTrackAll: playlist_track_all,
-    playlistDetail: playlist_detail,
-    mapSongRecord,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
+    createNeteaseMediaRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
   if (await handleMediaRoutes({
     pathname: pn,
