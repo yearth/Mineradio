@@ -141,6 +141,10 @@ const {
   downloadAndApplyPatchWithMirrors: downloadAndApplyPatchWithMirrorsService,
 } = require('./server-dist/server/services/update-patch-runner');
 const {
+  normalizeApiCode,
+  normalizeApiMessage,
+} = require('./server-dist/server/services/provider-response');
+const {
   normalizeCookieHeader,
   normalizeQQCookieInput,
   normalizeQQUin,
@@ -533,14 +537,6 @@ function startUpdatePatchJob(info) {
     runPatch: downloadAndApplyPatchWithMirrors,
     autoPatch: updateRuntimeOverrides.autoPatch,
   });
-}
-function normalizeApiCode(payload) {
-  const body = payload && (payload.body || payload);
-  return Number((body && body.code) || (body && body.body && body.body.code) || (payload && payload.status) || 0);
-}
-function normalizeApiMessage(payload) {
-  const body = payload && (payload.body || payload);
-  return (body && (body.message || body.msg || body.error)) || (body && body.body && (body.body.message || body.body.msg || body.body.error)) || '';
 }
 function qqCookieObject() {
   return parseCookieString(qqCookie);

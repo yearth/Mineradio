@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract playback quality helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract provider response helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -45,9 +45,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-first slice is complete: `server/services/music-mapper.ts` owns pure Netease/QQ song mapping helpers (`mapArtists`, `mapSongRecord`, `qqAlbumCover`, `mapQQArtists`, `mapQQSmartSong`, `mapQQTrack`, `mapQQPlaylistTrack`); `server.js` keeps request flow, route handlers, and `qqSingerAvatar`.
 - Stage 3 twenty-second slice is complete: `server/services/music-mapper.ts` also owns discover playlist, podcast radio, low-signal podcast filtering, and QQ playlist predicate helpers; `server.js` keeps request flow and route handlers.
 - Stage 3 twenty-third slice is complete: `server/services/playback-quality.ts` owns Netease/QQ quality candidate tables, quality preference alias normalization, fallback candidate ordering, and Netease SVIP detection; `server.js` keeps playback URL orchestration.
+- Stage 3 twenty-fourth slice is complete: `server/services/provider-response.ts` owns provider API code/message normalization helpers; `server.js` keeps login invalidation and playlist add-song orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Provider response helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/provider-response-service.test.js` failed because `server-dist/server/services/provider-response` did not exist.
+- `npm run build:ts && node --test tests/provider-response-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 146 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 344 tests.
+- `npm run coverage`: passed, 344 tests; production-code line coverage `100.00%`, including `server-dist/server/services/provider-response.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified code/message precedence parity, unchanged login and playlist add-song call sites, direct service tests, route coverage, and generated artifact tracking.
 
 Playback quality helper extraction:
 
