@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `cc07e38 refactor: extract update patch download helpers`; current uncommitted slice extracts update installer download helpers.
+- Worktree: clean as of the latest check; latest committed slice is `refactor: extract update patch runner helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -37,7 +37,9 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fourteenth slice is complete: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
 - Stage 3 fifteenth slice is complete: `server/services/update-check.ts` owns latest update check orchestration across mac preview fallback, manifest override, GitHub API release metadata, latest.yml fallback, and local fallback.
 - Stage 3 sixteenth slice is complete: `server/services/update-patch-download.ts` owns single-candidate patch package download, patch progress, max-size guard, and buffer verification.
-- Stage 3 seventeenth slice is QA-passed and ready to commit: `server/services/update-installer-download.ts` owns complete installer download runner behavior across candidates, stream writes, verification, final ready state, and failure aggregation.
+- Stage 3 seventeenth slice is complete: `server/services/update-installer-download.ts` owns complete installer download runner behavior across candidates, stream writes, verification, final ready state, and failure aggregation.
+- Stage 3 eighteenth slice is complete: `server/services/update-patch-runner.ts` owns patch candidate loop, BOM-safe JSON parsing, payload normalization, file writes, success state, and failure aggregation.
+- Update domain extraction is complete at the service layer: `server.js` keeps thin update wrappers and route handlers, while update config/check/fetch/manifest/download/cache/job/patch/progress behavior lives under `server/services/update-*.ts`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -454,6 +456,21 @@ Stage 3 update installer download service slice:
 - `npm run coverage`: passed, 320 tests; production-code line coverage `100.00%`, branch coverage `72.46%`, function coverage `95.74%`; `server-dist/server/services/update-installer-download.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified old runner behavior parity, wrapper injection completeness, service tests, generated artifact tracking, and validation commands. Non-blocking note: fake writer exercises drain/finish but does not strongly assert wait ordering.
 
+Stage 3 update patch runner service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-patch-runner-service.test.js` failed because `server-dist/server/services/update-patch-runner` did not exist.
+- Added `server/services/update-patch-runner.ts` for `downloadAndApplyPatchWithMirrors`.
+- `server.js` now imports the compiled patch runner and injects `fs`, update download dir, candidate builder, single-candidate patch downloader, payload normalizer, patch file writer, error classifier, and job error setter.
+- Added `tests/update-patch-runner-service.test.js` for candidate fallback, download dir creation, UTF-8 BOM removal before `JSON.parse`, payload normalization, file write aggregation, restart/non-restart success messages, candidate switching, final failure, and avoiding brittle V8 `JSON.parse` wording.
+- First target run exposed an overly specific JSON parse message assertion; fixed the test to assert the legacy failure prefix and a JSON parse style reason without binding exact runtime text.
+- `npm run build:ts && node --test tests/update-patch-runner-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 35 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 323 tests.
+- `npm run coverage`: passed, 323 tests; production-code line coverage `100.00%`, branch coverage `72.57%`, function coverage `95.75%`; `server-dist/server/services/update-patch-runner.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior parity, wrapper injection completeness, tests, generated artifact tracking, target validation, and full coverage.
+
 ## Decisions
 
 - Do not introduce Nest now. The project needs typed module boundaries, not a heavy backend framework.
@@ -493,7 +510,7 @@ Stage 3 update installer download service slice:
    - `tests/project-structure.test.js`
    - the bottom of `server.js` around server creation/listen/test exports.
 4. Next implementation step for Stage 3:
-   - Continue small behavior-neutral extraction inside the update domain before moving to broader route handler splits.
+   - Update domain service extraction is complete; move to the next non-update server domain or broader route handler splits.
    - Add/adjust a failing guard test first where possible.
    - Keep `server.js` as the public CommonJS export.
 5. Validate after each slice:

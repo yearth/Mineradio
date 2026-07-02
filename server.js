@@ -137,6 +137,9 @@ const {
 const {
   downloadUpdateAssetWithMirrors: downloadUpdateAssetWithMirrorsService,
 } = require('./server-dist/server/services/update-installer-download');
+const {
+  downloadAndApplyPatchWithMirrors: downloadAndApplyPatchWithMirrorsService,
+} = require('./server-dist/server/services/update-patch-runner');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -519,39 +522,16 @@ async function downloadPatchBufferFromCandidate(job, candidate, index, total) {
   });
 }
 async function downloadAndApplyPatchWithMirrors(job) {
-  const candidates = Array.isArray(job.downloadCandidates) && job.downloadCandidates.length
-    ? job.downloadCandidates
-    : uniqueDownloadCandidates(job.downloadUrl || '');
-  const failures = [];
-  fs.mkdirSync(UPDATE_DOWNLOAD_DIR, { recursive: true });
-  for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
-    try {
-      const raw = await downloadPatchBufferFromCandidate(job, candidate, i, candidates.length);
-      const patch = normalizePatchPayload(JSON.parse(raw.toString('utf8').replace(/^\uFEFF/, '')));
-      job.version = patch.to;
-      job.message = '正在应用快速补丁';
-      job.progress = 88;
-      job.etaSeconds = 0;
-      job.updatedAt = Date.now();
-      const changed = [];
-      patch.files.forEach(file => changed.push(writePatchFile(job, file)));
-      job.changedFiles = changed;
-      job.status = 'ready';
-      job.progress = 100;
-      job.restartRequired = patch.restartRequired;
-      job.message = patch.restartRequired ? '快速补丁已应用，重启后生效' : '快速补丁已应用';
-      job.updatedAt = Date.now();
-      return;
-    } catch (err) {
-      const info = classifyUpdateError(err);
-      failures.push({ source: candidate.label || '下载线路', reason: info.reason, detail: info.detail });
-      job.failedAttempts = failures.slice(-6);
-      job.message = i < candidates.length - 1 ? ((candidate.label || '当前线路') + '失败，正在切换线路') : info.reason;
-      job.updatedAt = Date.now();
-      if (i >= candidates.length - 1) setUpdateJobError(job, err, '快速补丁失败：' + info.reason);
-    }
-  }
+  return downloadAndApplyPatchWithMirrorsService(job, {
+    fs,
+    downloadDir: UPDATE_DOWNLOAD_DIR,
+    uniqueDownloadCandidates,
+    downloadPatchBufferFromCandidate,
+    normalizePatchPayload,
+    writePatchFile,
+    classifyUpdateError,
+    setUpdateJobError,
+  });
 }
 function startUpdatePatchJob(info) {
   return startUpdatePatchJobService(info, {
