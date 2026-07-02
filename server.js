@@ -241,6 +241,9 @@ const {
   handleWeatherRoutes,
 } = require('./server-dist/server/controllers/weather-controller');
 const {
+  handleDiscoverRoutes,
+} = require('./server-dist/server/controllers/discover-controller');
+const {
   handlePodcastAuthenticatedRoutes,
   handlePodcastBeatmapRoutes,
   handlePodcastPublicRoutes,
@@ -1323,15 +1326,13 @@ const server = createHttpServer({
     return;
   }
 
-  if (pn === '/api/discover/home') {
-    try {
-      sendJSON(res, await handleDiscoverHome());
-    } catch (err) {
-      console.error('[DiscoverHome]', err);
-      sendJSON(res, { error: err.message, loggedIn: false, dailySongs: [], playlists: [], podcasts: [] }, 500);
-    }
-    return;
-  }
+  if (await handleDiscoverRoutes({
+    pathname: pn,
+    res,
+    sendJSON,
+    handleDiscoverHome,
+    logger: console,
+  })) return;
 
   if (await handleWeatherRoutes({
     pathname: pn,
