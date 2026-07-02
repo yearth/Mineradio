@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract app version payload helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq musicu request helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -62,9 +62,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-eighth slice is complete: `server/services/qq-utils.ts` now owns QQ singer avatar URL construction; `server.js` imports it for `/api/qq/artist/detail` fallback avatars.
 - Stage 3 thirty-ninth slice is complete: `server/services/app-info.ts` owns package.json reading and empty fallback behavior; `server.js` keeps a thin path/fs wrapper for startup app metadata.
 - Stage 3 fortieth slice is complete: `server/services/app-info.ts` now also owns `/api/app/version` response payload construction; `server.js` delegates the route response shape to `buildAppVersionPayload`.
+- Stage 3 forty-first slice is complete: `server/services/qq-utils.ts` now owns QQ Musicu POST request construction and JSON parsing through `requestQQMusicJson`; `server.js` keeps a thin runtime-state wrapper that injects URL, headers, cookie, and `requestText`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ Musicu request helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `requestQQMusicJson is not a function`.
+- First GREEN verification found a TypeScript compile error: `Cannot find name 'Buffer'` in `server/services/qq-utils.ts`. Root cause: repo TS config intentionally avoids Node types; fixed using the existing service pattern `declare const Buffer: any`.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 150 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 379 tests.
+- `npm run coverage`: passed, 379 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified `requestQQMusicJson` preserves body serialization, header merging, byte-length content length, cookie gating, POST `requestText` delegation, callback JSON parsing, compiled export availability, targeted test pass (`150/150`), full `npm test` pass (`379/379`), and `git diff --check` pass. Residual note: QA observed `declare const Buffer: any`; this matches the repo's existing TS-without-Node-types pattern.
 
 App version payload helper extraction:
 

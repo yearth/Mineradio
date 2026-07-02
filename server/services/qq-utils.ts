@@ -1,7 +1,31 @@
+declare const Buffer: any;
+
 export function parseJSONText(text: unknown): any {
   const raw = String(text || '').trim();
   const json = raw.replace(/^callback\(([\s\S]*)\);?$/, '$1');
   return JSON.parse(json);
+}
+
+export async function requestQQMusicJson(opts: {
+  payload: unknown;
+  url: string;
+  baseHeaders?: Record<string, string>;
+  cookie?: string;
+  includeCookie?: boolean;
+  requestText: (targetUrl: string, requestOpts: Record<string, unknown>, body: string) => Promise<string>;
+}): Promise<any> {
+  const body = JSON.stringify(opts.payload);
+  const headers: Record<string, string | number> = {
+    ...(opts.baseHeaders || {}),
+    'Content-Type': 'application/json;charset=UTF-8',
+    'Content-Length': Buffer.byteLength(body),
+  };
+  if (opts.includeCookie && opts.cookie) headers.Cookie = opts.cookie;
+  const text = await opts.requestText(opts.url, {
+    method: 'POST',
+    headers,
+  }, body);
+  return parseJSONText(text);
 }
 
 export function audioProxyHeadersFor(audioUrl: unknown, range: unknown, userAgent: string): Record<string, string> {

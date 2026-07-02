@@ -7,6 +7,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  requestQQMusicJson,
   qqSingerAvatar,
 } = require('../server-dist/server/services/qq-utils');
 
@@ -82,4 +83,44 @@ test('qqSingerAvatar preserves legacy QQ singer avatar URL construction', () => 
     qqSingerAvatar('singer001', 500),
     'https://y.qq.com/music/photo_new/T001R500x500M000singer001.jpg?max_age=2592000',
   );
+});
+
+test('requestQQMusicJson preserves musicu POST body, headers, cookie, and JSON parsing', async () => {
+  const calls = [];
+  const result = await requestQQMusicJson({
+    payload: { comm: { uin: '123' }, req_0: { module: 'm' } },
+    url: 'https://u.y.qq.com/cgi-bin/musicu.fcg',
+    baseHeaders: { Referer: 'https://y.qq.com/', Origin: 'https://y.qq.com' },
+    cookie: 'uin=o123; qm_keyst=key',
+    includeCookie: true,
+    requestText: async (url, opts, body) => {
+      calls.push({ url, opts, body });
+      return 'callback({"code":0,"data":{"ok":true}});';
+    },
+  });
+
+  assert.deepEqual(result, { code: 0, data: { ok: true } });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://u.y.qq.com/cgi-bin/musicu.fcg');
+  assert.equal(calls[0].opts.method, 'POST');
+  assert.deepEqual(calls[0].opts.headers, {
+    Referer: 'https://y.qq.com/',
+    Origin: 'https://y.qq.com',
+    'Content-Type': 'application/json;charset=UTF-8',
+    'Content-Length': Buffer.byteLength(calls[0].body),
+    Cookie: 'uin=o123; qm_keyst=key',
+  });
+  assert.equal(calls[0].body, JSON.stringify({ comm: { uin: '123' }, req_0: { module: 'm' } }));
+
+  await requestQQMusicJson({
+    payload: { code: 0 },
+    url: 'https://u.y.qq.com/cgi-bin/musicu.fcg',
+    baseHeaders: {},
+    cookie: 'uin=o123',
+    includeCookie: false,
+    requestText: async (url, opts) => {
+      assert.equal(opts.headers.Cookie, undefined);
+      return '{"code":0}';
+    },
+  });
 });

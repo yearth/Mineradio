@@ -213,6 +213,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  requestQQMusicJson,
   qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
 const {
@@ -712,18 +713,14 @@ async function buildWeatherRadio(params) {
 
 async function qqMusicRequest(payload, opts) {
   opts = opts || {};
-  const body = JSON.stringify(payload);
-  const headers = {
-    ...QQ_HEADERS,
-    'Content-Type': 'application/json;charset=UTF-8',
-    'Content-Length': Buffer.byteLength(body),
-  };
-  if (opts.cookie && qqCookie) headers.Cookie = qqCookie;
-  const text = await requestText(QQ_MUSICU_URL, {
-    method: 'POST',
-    headers,
-  }, body);
-  return parseJSONText(text);
+  return requestQQMusicJson({
+    payload,
+    url: QQ_MUSICU_URL,
+    baseHeaders: QQ_HEADERS,
+    cookie: qqCookie,
+    includeCookie: !!opts.cookie,
+    requestText,
+  });
 }
 
 function normalizeQQProfile(body, cookieObj) {
