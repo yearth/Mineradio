@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract lyric utils` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract weather utils` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -49,9 +49,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-fifth slice is complete: `server/services/netease-session.ts` owns Netease VIP detection, login profile normalization, and auth-invalid payload detection; `server.js` keeps session fetch/orchestration.
 - Stage 3 twenty-sixth slice is complete: `server/services/music-mapper.ts` now also owns pure podcast program, voice, collection-radio, collection-metadata, and response-array extraction helpers; `server.js` keeps API-backed podcast fetch orchestration.
 - Stage 3 twenty-seventh slice is complete: `server/services/lyric-utils.ts` owns pure lyric text helpers (`decodeHtmlEntities`, `decodeQQLyricText`, `normalizeQQSongId`); `server.js` keeps QQ lyric API request/fallback orchestration.
+- Stage 3 twenty-eighth slice is complete: `server/services/weather-utils.ts` owns pure weather helper logic (`clampNumber`, `openMeteoWeatherLabel`, `buildWeatherMood`); `server.js` keeps Open-Meteo/IP/weather-radio request and playlist orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Weather utility extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/weather-utils-service.test.js` failed because `server-dist/server/services/weather-utils` did not exist.
+- `npm run build:ts && node --test tests/weather-utils-service.test.js tests/weather-mood.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 150 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 355 tests.
+- `npm run coverage`: passed, 355 tests; production-code line coverage `100.00%`, including `server-dist/server/services/weather-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified helper parity for `isNight` operator precedence, weather-code buckets, rain/snow/cloud/storm classification, feels fallback, morning/dusk/night/wind keyword adjustments, Set dedupe and `slice(0, 7)`, unchanged `server.js` weather API/radio orchestration, direct service tests, existing mood tests, and generated artifact tracking. Residual note: QA stayed read-only and did not rerun build/coverage; main agent ran those serially.
 
 Lyric utility extraction:
 
