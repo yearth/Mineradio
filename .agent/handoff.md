@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `3521aee refactor: extract latest yml update parser`.
+- Worktree: check `git status --short --branch`; latest committed slice is `b230108 refactor: extract update patch payload helpers`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -28,6 +28,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fifth slice is complete: `server/services/update-errors.ts` owns update error creation and classification; `server.js` imports the compiled helpers directly.
 - Stage 3 sixth slice is complete: `server/services/update-latest-yml.ts` owns latest.yml fallback parsing and GitHub release download URL construction; `server.js` delegates through an `APP_VERSION`/repository/download-candidate wrapper.
 - Stage 3 seventh slice is complete: `server/services/update-patch-payload.ts` owns patch payload validation, patch file content decoding, and patch path safety checks; `server.js` delegates through `APP_VERSION`/root-dir wrappers.
+- Stage 3 eighth slice is complete: `server/services/update-job-runtime.ts` owns update job public projection, active job lookup, job trimming, attempt reset, error state assignment, and mirror digest guard logic; `server.js` delegates through current job-map wrappers where needed.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -297,6 +298,21 @@ Stage 3 patch payload service slice:
 - `npm test`: passed, 269 tests.
 - `npm run coverage`: passed, 269 tests; production-code line coverage `100.00%`, branch coverage `70.66%`, function coverage `95.41%`; `server-dist/server/services/update-patch-payload.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified service extraction, `server.js` injection wrappers, service tests, `/api/update/patch` route coverage, `node --check server.js`, `npm run typecheck`, `git diff --check`, `npm test`, `npm run coverage`, generated artifact tracking, and handoff consistency.
+
+Stage 3 update job runtime service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-job-runtime-service.test.js` failed because `server-dist/server/services/update-job-runtime` did not exist.
+- Added `server/services/update-job-runtime.ts` for `publicUpdateJob`, `activeUpdateJobFor`, `trimUpdateJobs`, `prepareUpdateJobAttempt`, `setUpdateJobError`, and `ensureMirrorCanBeVerified`.
+- `server.js` now imports update job runtime helpers from compiled TS and keeps thin wrappers only where the module-level `updateDownloadJobs` map must be injected.
+- Added `tests/update-job-runtime-service.test.js` for public job response projection, hidden in-progress file paths, failed-attempt truncation, newest active job selection, trim-to-eight behavior, attempt reset state, classified error assignment, and mirrored digest guard errors.
+- First GREEN run exposed a wrong test expectation for `HTTP_404`; the legacy classifier reason is `更新文件不存在，可能 release 资源还没有同步完成。`, and the test was corrected to that current behavior.
+- `npm run build:ts && node --test tests/update-job-runtime-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 39 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 276 tests.
+- `npm run coverage`: passed, 276 tests; production-code line coverage `100.00%`, branch coverage `70.91%`, function coverage `96.46%`; `server-dist/server/services/update-job-runtime.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified service extraction, map-injection wrappers, service tests, update download/patch route coverage, `node --check server.js`, `npm run typecheck`, `git diff --check`, `npm test`, `npm run coverage`, generated artifact tracking, and handoff consistency.
 
 ## Decisions
 
