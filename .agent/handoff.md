@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `fd4e5f4 refactor: extract update file cache helpers`; current uncommitted slice extracts update job factory helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `1a19a9b refactor: extract update job factory helpers`; current uncommitted slice extracts update patch apply helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -30,7 +30,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 seventh slice is complete: `server/services/update-patch-payload.ts` owns patch payload validation, patch file content decoding, and patch path safety checks; `server.js` delegates through `APP_VERSION`/root-dir wrappers.
 - Stage 3 eighth slice is complete: `server/services/update-job-runtime.ts` owns update job public projection, active job lookup, job trimming, attempt reset, error state assignment, and mirror digest guard logic; `server.js` delegates through current job-map wrappers where needed.
 - Stage 3 ninth slice is complete: `server/services/update-file-cache.ts` owns update hash helpers, downloaded buffer/file verification, invalid cache renaming, and verified cached installer job construction; `server.js` injects fs/path/job-map wrappers.
-- Stage 3 tenth slice is QA-passed and ready to commit: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
+- Stage 3 tenth slice is complete: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
+- Stage 3 eleventh slice is QA-passed and ready to commit: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -344,6 +345,21 @@ Stage 3 update job factory service slice:
 - `npm test`: passed, 290 tests.
 - `npm run coverage`: passed, 290 tests; production-code line coverage `100.00%`, branch coverage `71.84%`, function coverage `95.84%`; `server-dist/server/services/update-job-factory.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified legacy behavior parity, `server.js` dependency injection completeness, service test coverage, full validation evidence, and generated artifact tracking.
+
+Stage 3 update patch apply service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-patch-apply-service.test.js` failed because `server-dist/server/services/update-patch-apply` did not exist.
+- Added `server/services/update-patch-apply.ts` for `backupPatchTarget` and `writePatchFile`: existing-file backups under `UPDATE_PATCH_BACKUP_DIR/job.id/rel`, missing-target skip, safe relative path and target resolution, patch file decoding, max-size guard, sha256 guard, temp-file write/rename, and post-write sha256 verify.
+- `server.js` now imports `writePatchFile` from the compiled service and injects `fs`, `path`, backup dir, `patchTargetPath`, `safePatchRelativePath`, `decodePatchFile`, `sha256Hex`, and `PATCH_MAX_BYTES`; the unused local `backupPatchTarget` wrapper was removed after coverage exposed it as dead code.
+- Added `tests/update-patch-apply-service.test.js` for backup path construction, missing target skip, temp write/rename/verify, validation errors, too-large patch files, pre-write hash mismatch, and post-rename verify failure.
+- `npm run build:ts && node --test tests/update-patch-apply-service.test.js tests/update-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 42 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 295 tests.
+- First `npm run coverage` failed because the now-unused local `backupPatchTarget` wrapper in `server.js` lowered server line coverage to `99.75%`; removed that dead wrapper.
+- Final `npm run coverage`: passed, 295 tests; production-code line coverage `100.00%`, branch coverage `71.82%`, function coverage `95.86%`; `server-dist/server/services/update-patch-apply.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified legacy backup/write behavior parity, dependency injection completeness, safe deletion of the unused wrapper, service tests, `node --check server.js`, targeted service tests, `git diff --check`, and generated artifact tracking.
 
 ## Decisions
 

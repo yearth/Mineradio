@@ -118,6 +118,9 @@ const {
   startUpdateDownloadJob: startUpdateDownloadJobService,
   startUpdatePatchJob: startUpdatePatchJobService,
 } = require('./server-dist/server/services/update-job-factory');
+const {
+  writePatchFile: writePatchFileService,
+} = require('./server-dist/server/services/update-patch-apply');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -598,28 +601,17 @@ function startUpdateDownloadJob(info) {
 function patchTargetPath(rel) {
   return patchTargetPathService(rel, __dirname);
 }
-function backupPatchTarget(job, rel, target) {
-  if (!fs.existsSync(target)) return;
-  const backup = path.join(UPDATE_PATCH_BACKUP_DIR, job.id, rel);
-  fs.mkdirSync(path.dirname(backup), { recursive: true });
-  fs.copyFileSync(target, backup);
-}
 function writePatchFile(job, file) {
-  const rel = safePatchRelativePath(file.path || file.name);
-  const target = rel ? patchTargetPath(rel) : null;
-  const content = decodePatchFile(file);
-  if (!rel || !target || !content) throw new Error('INVALID_PATCH_FILE');
-  if (content.length > PATCH_MAX_BYTES) throw new Error('PATCH_FILE_TOO_LARGE');
-  const expected = String(file.sha256 || '').trim().toLowerCase();
-  const actual = sha256Hex(content);
-  if (expected && expected !== actual) throw new Error('PATCH_HASH_MISMATCH:' + rel);
-  backupPatchTarget(job, rel, target);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  const tmp = target + '.mineradio-patch';
-  fs.writeFileSync(tmp, content);
-  fs.renameSync(tmp, target);
-  if (expected && sha256Hex(fs.readFileSync(target)) !== expected) throw new Error('PATCH_WRITE_VERIFY_FAILED:' + rel);
-  return rel;
+  return writePatchFileService(job, file, {
+    fs,
+    path,
+    backupDir: UPDATE_PATCH_BACKUP_DIR,
+    patchTargetPath,
+    safePatchRelativePath,
+    decodePatchFile,
+    sha256Hex,
+    maxBytes: PATCH_MAX_BYTES,
+  });
 }
 function normalizePatchPayload(payload) {
   return normalizePatchPayloadService(payload, { currentVersion: APP_VERSION });
