@@ -114,6 +114,10 @@ const {
   verifyUpdateBuffer,
   verifyUpdateFile: verifyUpdateFileService,
 } = require('./server-dist/server/services/update-file-cache');
+const {
+  startUpdateDownloadJob: startUpdateDownloadJobService,
+  startUpdatePatchJob: startUpdatePatchJobService,
+} = require('./server-dist/server/services/update-job-factory');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -577,66 +581,19 @@ async function downloadUpdateAssetWithMirrors(job) {
   }
 }
 function startUpdateDownloadJob(info) {
-  const release = info && info.release ? info.release : {};
-  const asset = release.asset || {};
-  const downloadUrl = release.downloadUrl || asset.downloadUrl || '';
-  if (!info || !info.configured) return { ok: false, error: 'UPDATE_REPOSITORY_NOT_CONFIGURED' };
-  if (!info.updateAvailable) return { ok: false, error: 'NO_UPDATE_AVAILABLE' };
-  if (!/^https?:\/\//i.test(downloadUrl)) return { ok: false, error: 'UPDATE_ASSET_MISSING' };
-
-  const version = info.latestVersion || release.version || '';
-  const existing = activeUpdateJobFor(version);
-  if (existing) return publicUpdateJob(existing);
-
-  const fileName = safeUpdateFileName(asset.name || '', version);
-  const filePath = path.join(UPDATE_DOWNLOAD_DIR, fileName);
-  const downloadCandidates = uniqueDownloadCandidates([downloadUrl].concat(Array.isArray(asset.downloadUrls) ? asset.downloadUrls : []));
-  const expectedSize = asset.size || 0;
-  const sha256 = normalizeDigest(asset.sha256 || '', 'sha256').toLowerCase();
-  const sha512 = normalizeDigest(asset.sha512 || '', 'sha512');
-  const cached = reuseVerifiedInstallerJob({
-    fileName,
-    filePath,
-    version,
-    downloadUrl,
-    downloadCandidates,
-    expectedSize,
-    sha256,
-    sha512,
-    releaseUrl: release.htmlUrl || '',
-    attempts: downloadCandidates.length,
+  return startUpdateDownloadJobService(info, {
+    path,
+    jobs: updateDownloadJobs,
+    downloadDir: UPDATE_DOWNLOAD_DIR,
+    safeUpdateFileName,
+    uniqueDownloadCandidates,
+    activeUpdateJobFor,
+    publicUpdateJob,
+    trimUpdateJobs,
+    reuseVerifiedInstallerJob,
+    runDownload: downloadUpdateAssetWithMirrors,
+    autoDownload: updateRuntimeOverrides.autoDownload,
   });
-  if (cached) return publicUpdateJob(cached);
-
-  const now = Date.now();
-  const job = {
-    id: now.toString(36) + '-' + Math.random().toString(36).slice(2, 8),
-    status: 'queued',
-    progress: 0,
-    received: 0,
-    total: expectedSize,
-    mode: 'installer',
-    fileName,
-    filePath,
-    version,
-    downloadUrl,
-    downloadCandidates,
-    expectedSize,
-    sha256,
-    sha512,
-    releaseUrl: release.htmlUrl || '',
-    sourceLabel: '',
-    attempt: 0,
-    attempts: downloadCandidates.length,
-    failedAttempts: [],
-    createdAt: now,
-    updatedAt: now,
-    error: '',
-  };
-  updateDownloadJobs.set(job.id, job);
-  trimUpdateJobs();
-  if (updateRuntimeOverrides.autoDownload !== false) downloadUpdateAssetWithMirrors(job);
-  return publicUpdateJob(job);
 }
 function patchTargetPath(rel) {
   return patchTargetPathService(rel, __dirname);
@@ -746,51 +703,17 @@ async function downloadAndApplyPatchWithMirrors(job) {
   }
 }
 function startUpdatePatchJob(info) {
-  const release = info && info.release ? info.release : {};
-  const patch = release.patch || {};
-  const downloadUrl = patch.downloadUrl || '';
-  if (!info || !info.configured) return { ok: false, error: 'UPDATE_REPOSITORY_NOT_CONFIGURED' };
-  if (!info.updateAvailable) return { ok: false, error: 'NO_UPDATE_AVAILABLE' };
-  if (!release.patchAvailable || !/^https?:\/\//i.test(downloadUrl)) return { ok: false, error: 'PATCH_ASSET_MISSING' };
-
-  const version = info.latestVersion || release.version || patch.to || '';
-  const existing = Array.from(updateDownloadJobs.values())
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-    .find(job => job.mode === 'patch' && job.version === version && (job.status === 'queued' || job.status === 'downloading' || job.status === 'ready'));
-  if (existing) return publicUpdateJob(existing);
-
-  const now = Date.now();
-  const downloadCandidates = uniqueDownloadCandidates([downloadUrl].concat(Array.isArray(patch.downloadUrls) ? patch.downloadUrls : []));
-  const job = {
-    id: 'patch-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 8),
-    status: 'queued',
-    progress: 0,
-    received: 0,
-    total: patch.size || 0,
-    mode: 'patch',
-    fileName: patch.name || safeUpdateFileName('', version).replace(/\.exe$/i, '.patch.json'),
-    filePath: '',
-    version,
-    downloadUrl,
-    downloadCandidates,
-    releaseUrl: release.htmlUrl || '',
-    expectedSize: patch.size || 0,
-    sha256: normalizeDigest(patch.sha256 || '', 'sha256').toLowerCase(),
-    sha512: normalizeDigest(patch.sha512 || '', 'sha512'),
-    restartRequired: true,
-    sourceLabel: '',
-    attempt: 0,
-    attempts: downloadCandidates.length,
-    failedAttempts: [],
-    message: '等待下载快速补丁',
-    createdAt: now,
-    updatedAt: now,
-    error: '',
-  };
-  updateDownloadJobs.set(job.id, job);
-  trimUpdateJobs();
-  if (updateRuntimeOverrides.autoPatch !== false) downloadAndApplyPatchWithMirrors(job);
-  return publicUpdateJob(job);
+  return startUpdatePatchJobService(info, {
+    path,
+    jobs: updateDownloadJobs,
+    downloadDir: UPDATE_DOWNLOAD_DIR,
+    safeUpdateFileName,
+    uniqueDownloadCandidates,
+    publicUpdateJob,
+    trimUpdateJobs,
+    runPatch: downloadAndApplyPatchWithMirrors,
+    autoPatch: updateRuntimeOverrides.autoPatch,
+  });
 }
 function normalizeApiCode(payload) {
   const body = payload && (payload.body || payload);

@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `3c3ed0a refactor: extract update job runtime helpers`.
+- Worktree: check `git status --short --branch`; latest committed slice is `fd4e5f4 refactor: extract update file cache helpers`; current uncommitted slice extracts update job factory helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -30,6 +30,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 seventh slice is complete: `server/services/update-patch-payload.ts` owns patch payload validation, patch file content decoding, and patch path safety checks; `server.js` delegates through `APP_VERSION`/root-dir wrappers.
 - Stage 3 eighth slice is complete: `server/services/update-job-runtime.ts` owns update job public projection, active job lookup, job trimming, attempt reset, error state assignment, and mirror digest guard logic; `server.js` delegates through current job-map wrappers where needed.
 - Stage 3 ninth slice is complete: `server/services/update-file-cache.ts` owns update hash helpers, downloaded buffer/file verification, invalid cache renaming, and verified cached installer job construction; `server.js` injects fs/path/job-map wrappers.
+- Stage 3 tenth slice is QA-passed and ready to commit: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -329,6 +330,20 @@ Stage 3 update file cache service slice:
 - `npm test`: passed, 283 tests.
 - `npm run coverage`: passed, 283 tests; production-code line coverage `100.00%`, branch coverage `71.40%`, function coverage `96.01%`; `server-dist/server/services/update-file-cache.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified service extraction, injected wrappers, legacy `__test.moveInvalidUpdateFile` compatibility export, service tests, old implementation parity, `node --check server.js`, `npm run typecheck`, `git diff --check`, `npm test`, `npm run coverage`, and generated artifact tracking.
+
+Stage 3 update job factory service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-job-factory-service.test.js` failed because `server-dist/server/services/update-job-factory` did not exist.
+- Added `server/services/update-job-factory.ts` for `startUpdateDownloadJob` and `startUpdatePatchJob` orchestration: legacy rejection responses, active job reuse, verified installer cache reuse, installer/patch job object construction, digest normalization, job registration/trim, and `autoDownload`/`autoPatch` runner triggers.
+- `server.js` now imports the compiled job factory helpers and passes path/job map/download dir/name/candidate/public/trim/cache/runner dependencies through thin wrappers.
+- Added `tests/update-job-factory-service.test.js` for installer rejection responses, active job reuse, cache reuse before queueing, queued installer fields and autoDownload false, patch rejection responses, active patch job reuse, queued patch fields and autoPatch runner invocation.
+- `npm run build:ts && node --test tests/update-job-factory-service.test.js tests/update-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 44 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 290 tests.
+- `npm run coverage`: passed, 290 tests; production-code line coverage `100.00%`, branch coverage `71.84%`, function coverage `95.84%`; `server-dist/server/services/update-job-factory.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified legacy behavior parity, `server.js` dependency injection completeness, service test coverage, full validation evidence, and generated artifact tracking.
 
 ## Decisions
 
