@@ -5,6 +5,7 @@ const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
   buildQQProfileUrl,
+  buildQQSongCommentsPayload,
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
@@ -81,6 +82,66 @@ test('mapQQComment preserves content, user, likes, and timestamp mapping', () =>
       avatar: 'nested.jpg',
     },
   });
+});
+
+test('buildQQSongCommentsPayload preserves QQ comments paging and hot-comment selection', () => {
+  const body = {
+    hot_comment: {
+      commentlist: [
+        { commentid: 'hot1', rootcommentcontent: 'Pinned', praisenum: 9, time: 1700000000 },
+        { commentid: 'hot-empty', rootcommentcontent: '' },
+      ],
+    },
+    comment: {
+      commenttotal: '18',
+      commentlist: [
+        { commentid: 'normal1', rootcommentcontent: 'Regular', praisenum: 3, time: 1700000100 },
+      ],
+    },
+  };
+
+  assert.equal(buildQQSongCommentsPayload(body, 'top123', 20, 0).page, 0);
+  assert.deepEqual(buildQQSongCommentsPayload(body, 'top123', 20, 0).response, {
+    provider: 'qq',
+    id: 'top123',
+    total: 18,
+    comments: [{
+      id: 'hot1',
+      content: 'Pinned',
+      likedCount: 9,
+      time: 1700000000000,
+      user: {
+        id: '',
+        nickname: 'QQ 音乐用户',
+        avatar: '',
+      },
+    }],
+    hot: true,
+  });
+
+  assert.deepEqual(buildQQSongCommentsPayload(body, 'top123', 20, 40), {
+    page: 2,
+    response: {
+      provider: 'qq',
+      id: 'top123',
+      total: 18,
+      comments: [{
+        id: 'normal1',
+        content: 'Regular',
+        likedCount: 3,
+        time: 1700000100000,
+        user: {
+          id: '',
+          nickname: 'QQ 音乐用户',
+          avatar: '',
+        },
+      }],
+      hot: false,
+    },
+  });
+
+  assert.equal(buildQQSongCommentsPayload({ comment: { commentlist: [] } }, 'top123', 0, -1).page, 0);
+  assert.equal(buildQQSongCommentsPayload({}, 'top123', 20, 0).response.total, 0);
 });
 
 test('qqSingerAvatar preserves legacy QQ singer avatar URL construction', () => {

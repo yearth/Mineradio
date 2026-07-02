@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ playlist merge helper extraction; commit after QA/pass verification should be `refactor: extract qq playlist merge helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is QQ song comments payload helper extraction; commit after QA/pass verification should be `refactor: extract qq comments payload helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -71,9 +71,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-seventh slice is complete: `server/services/playback-restriction.ts` now owns QQ playback-unavailable response payload construction through `qqPlaybackUnavailablePayload`; `server.js` keeps QQ vkey request/session/success orchestration.
 - Stage 3 forty-eighth slice is complete: `server/services/music-mapper.ts` now owns QQ search result dedupe/name filtering through `uniqueNamedQQSongs`; `server.js` keeps QQ smartbox/detail orchestration.
 - Stage 3 forty-ninth slice is complete: `server/services/music-mapper.ts` now owns QQ user playlist merge/filter/dedupe/favorite ordering through `uniqueQQPlaylists`; `server.js` keeps QQ login and created/collected playlist request orchestration.
+- Stage 3 fiftieth slice is complete: `server/services/qq-utils.ts` now owns QQ song comments page calculation, hot/normal comment selection, comment filtering, total fallback, and response payload construction through `buildQQSongCommentsPayload`; `server.js` keeps topid resolution and QQ comment request orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ song comments payload helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `buildQQSongCommentsPayload is not a function`.
+- First GREEN attempt hit TypeScript `noImplicitAny` on the new helper's `filter` callback; root cause was the new callback parameter lacked an explicit type. Fixed by annotating the mapped comment record and removing the now-unused `mapQQComment` direct import from `server.js`.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 154 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 388 tests.
+- `npm run coverage`: passed, 388 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified topid resolution, detail fallback, missing-id response, QQ comment request params/Referer, page calculation, hot-comment selection, normal fallback, `mapQQComment` filtering, total fallback, and response shape remained behavior-preserving.
 
 QQ playlist merge helper extraction:
 

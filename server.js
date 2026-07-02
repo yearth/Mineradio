@@ -212,7 +212,7 @@ const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
   buildQQProfileUrl,
-  mapQQComment,
+  buildQQSongCommentsPayload,
   mapQQPlaylist,
   parseJSONText,
   requestQQGetJson,
@@ -980,7 +980,7 @@ async function handleQQSongComments(id, mid, limit, offset) {
     }
   }
   if (!topid) return { provider: 'qq', error: 'Missing QQ song id', comments: [] };
-  const page = Math.max(0, Math.floor((offset || 0) / Math.max(1, limit || 20)));
+  const commentsPayload = buildQQSongCommentsPayload({}, topid, limit, offset);
   const uin = qqCookieUin() || '0';
   const body = await qqGetJSON('https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
     g_tk: '5381',
@@ -998,15 +998,10 @@ async function handleQQSongComments(id, mid, limit, offset) {
     topid,
     cmd: '8',
     needmusiccrit: '0',
-    pagenum: String(page),
+    pagenum: String(commentsPayload.page),
     pagesize: String(limit || 20),
   }, { headers: { Referer: 'https://y.qq.com/n/ryqq/songDetail/' + encodeURIComponent(mid || topid) } });
-  const hotList = body && body.hot_comment && body.hot_comment.commentlist;
-  const normalList = body && body.comment && body.comment.commentlist;
-  const raw = (offset === 0 && Array.isArray(hotList) && hotList.length) ? hotList : (normalList || []);
-  const comments = (raw || []).map(mapQQComment).filter(c => c.content);
-  const total = Number(body && body.comment && (body.comment.commenttotal || body.comment.comment_total)) || comments.length;
-  return { provider: 'qq', id: topid, total, comments, hot: !!(offset === 0 && Array.isArray(hotList) && hotList.length) };
+  return buildQQSongCommentsPayload(body, topid, limit, offset).response;
 }
 
 async function handleQQLyric(mid, id) {

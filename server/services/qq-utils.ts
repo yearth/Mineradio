@@ -155,3 +155,20 @@ export function mapQQComment(raw: any): Record<string, unknown> {
     },
   };
 }
+
+export function buildQQSongCommentsPayload(body: any, topid: unknown, limit: unknown, offset: unknown): {
+  page: number;
+  response: Record<string, unknown>;
+} {
+  const page = Math.max(0, Math.floor((Number(offset) || 0) / Math.max(1, Number(limit) || 20)));
+  const hotList = body && body.hot_comment && body.hot_comment.commentlist;
+  const normalList = body && body.comment && body.comment.commentlist;
+  const useHot = offset === 0 && Array.isArray(hotList) && hotList.length;
+  const raw = useHot ? hotList : (normalList || []);
+  const comments = (raw || []).map(mapQQComment).filter((c: Record<string, unknown>) => c.content);
+  const total = Number(body && body.comment && (body.comment.commenttotal || body.comment.comment_total)) || comments.length;
+  return {
+    page,
+    response: { provider: 'qq', id: topid, total, comments, hot: !!useHot },
+  };
+}
