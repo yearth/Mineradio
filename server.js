@@ -237,6 +237,9 @@ const {
 const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
+const {
+  handleWeatherRoutes,
+} = require('./server-dist/server/controllers/weather-controller');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1322,36 +1325,15 @@ const server = createHttpServer({
     return;
   }
 
-  if (pn === '/api/weather/radio') {
-    try {
-      const data = await buildWeatherRadio({
-        city: url.searchParams.get('city') || url.searchParams.get('q') || '',
-        lat: url.searchParams.get('lat'),
-        lon: url.searchParams.get('lon'),
-        timezone: url.searchParams.get('timezone') || '',
-      });
-      sendJSON(res, data); /* node:coverage ignore next 9 */
-    } catch (err) {
-      console.error('[WeatherRadio]', err);
-      sendJSON(res, {
-        ok: false,
-        error: err.message,
-        weather: null,
-        radio: { title: '天气电台', subtitle: '天气暂时没有回来，可以先听今日推荐。', seedQueries: [], songs: [] },
-      }, 500);
-    }
-    return;
-  }
-
-  if (pn === '/api/weather/ip-location') {
-    try {
-      sendJSON(res, { ok: true, location: await fetchIpWeatherLocation() });
-    } catch (err) {
-      console.error('[WeatherIpLocation]', err);
-      sendJSON(res, { ok: false, error: err.message, location: null }, 500);
-    }
-    return;
-  }
+  if (await handleWeatherRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    buildWeatherRadio,
+    fetchIpWeatherLocation,
+    logger: console,
+  })) return;
 
   // ---------- 搜索 ----------
   if (pn === '/api/search') {
