@@ -1,6 +1,23 @@
 import { normalizeApiCode, normalizeApiMessage } from './provider-response';
 import { normalizeCookieHeader } from './cookie-session';
 
+const loggedOutDefaults = {
+  loggedIn: false,
+  vipType: 0,
+  vipLevel: 'none',
+  isVip: false,
+  isSvip: false,
+  vipLabel: '无VIP',
+};
+
+export interface NeteaseLoginInfoDeps {
+  readonly loginStatus: (opts: any) => Promise<any>;
+  readonly now?: () => number;
+  readonly saveCookie?: (cookie: string) => void;
+  readonly userAccount: (opts: any) => Promise<any>;
+  readonly warn?: (...args: any[]) => void;
+}
+
 function firstPositiveNumberFrom(objects: any[], keys: string[]): number {
   for (const obj of objects) {
     if (!obj || typeof obj !== 'object') continue;
@@ -113,4 +130,33 @@ export function readCookieFromResponse(resp: any): string {
     if (cookie) return cookie;
   }
   return '';
+}
+
+export async function getNeteaseLoginInfo(userCookie: string, deps: NeteaseLoginInfoDeps): Promise<Record<string, unknown>> {
+  if (!userCookie) return { ...loggedOutDefaults };
+  const now = deps.now || Date.now;
+  const warn = deps.warn || (() => {});
+
+  // login_status 对二维码 cookie 的资料刷新通常更及时；失败时再降级到 user_account。
+  try {
+    const st = await deps.loginStatus({ cookie: userCookie, timestamp: now() });
+    const body = st.body || {};
+    const data = body.data || body;
+    const info = normalizeLoginInfo(data.profile || body.profile, data.account || body.account, data);
+    if (info.loggedIn) return info;
+  } catch (e: any) {
+    warn('[Login] login_status failed:', e.message);
+  }
+
+  try {
+    const acc = await deps.userAccount({ cookie: userCookie, timestamp: now() });
+    const body = acc.body || {};
+    const info = normalizeLoginInfo(body.profile, body.account, body);
+    if (info.loggedIn) return info;
+    if (isNeteaseAuthInvalidPayload(acc) && deps.saveCookie) deps.saveCookie('');
+    return { ...loggedOutDefaults, hasCookie: !!userCookie };
+  } catch (e: any) {
+    warn('[Login] account check failed:', e.message);
+    return { ...loggedOutDefaults, hasCookie: !!userCookie };
+  }
 }

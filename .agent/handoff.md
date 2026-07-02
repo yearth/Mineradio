@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease cookie response helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease login info flow` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -57,9 +57,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-third slice is complete: `server/services/request-client.ts` owns `requestText`/`requestJson` HTTP text/JSON helpers; `server.js` keeps the `requestTextOverride` hook and injects its wrapper into `requestJson` for unchanged test/runtime orchestration.
 - Stage 3 thirty-fourth slice is complete: `server/services/weather-provider.ts` owns Open-Meteo geocoding/forecast and IP location provider mapping; `server.js` keeps thin URL/UA/default-location/requestJson wrappers while weather-radio song orchestration remains local.
 - Stage 3 thirty-fifth slice is complete: `server/services/netease-session.ts` now also owns `readCookieFromResponse`; `server.js` imports the helper for QR login cookie extraction while keeping login/session orchestration local.
+- Stage 3 thirty-sixth slice is complete: `server/services/netease-session.ts` now owns `getNeteaseLoginInfo` login-status/account fallback orchestration; `server.js` keeps a thin wrapper that injects current cookies, Netease API functions, cookie persistence, and logging.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease login info flow extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-session-service.test.js` failed with `getNeteaseLoginInfo is not a function`.
+- `npm run build:ts && node --test tests/netease-session-service.test.js tests/music-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 155 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 374 tests.
+- `npm run coverage`: passed, 374 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-session.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified no-cookie defaults/no deps calls, `login_status` before `user_account`, success short-circuit, warning arguments, account fallback options, auth-invalid `saveCookie('')`, fallback shapes, wrapper dependency injection, `setNeteaseApi` hook compatibility, and direct service branch coverage. Residual note: QA did not rerun coverage itself; main agent ran it serially and it passed.
 
 Netease cookie response helper extraction:
 

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  getNeteaseLoginInfo,
   isNeteaseAuthInvalidPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
@@ -96,4 +97,102 @@ test('readCookieFromResponse preserves Netease cookie extraction precedence', ()
   }), 'MUSIC_U=object-cookie; __csrf=csrf-token');
 
   assert.equal(readCookieFromResponse({ body: { data: {} } }), '');
+});
+
+test('getNeteaseLoginInfo preserves login_status success and account fallback behavior', async () => {
+  const calls = [];
+  const info = await getNeteaseLoginInfo('MUSIC_U=abc', {
+    now: () => 12345,
+    loginStatus: async opts => {
+      calls.push(['login_status', opts]);
+      return { body: { data: { profile: { userId: 7, nickname: 'Status User' }, account: { vipType: 10 } } } };
+    },
+    userAccount: async opts => {
+      calls.push(['user_account', opts]);
+      return { body: {} };
+    },
+    saveCookie: cookie => calls.push(['saveCookie', cookie]),
+    warn: (...args) => calls.push(['warn', args]),
+  });
+
+  assert.deepEqual(calls, [['login_status', { cookie: 'MUSIC_U=abc', timestamp: 12345 }]]);
+  assert.equal(info.loggedIn, true);
+  assert.equal(info.userId, 7);
+  assert.equal(info.nickname, 'Status User');
+  assert.equal(info.vipLevel, 'svip');
+
+  const fallbackCalls = [];
+  const fallbackInfo = await getNeteaseLoginInfo('MUSIC_U=abc', {
+    now: () => 22222,
+    loginStatus: async () => {
+      fallbackCalls.push(['login_status']);
+      throw new Error('status down');
+    },
+    userAccount: async opts => {
+      fallbackCalls.push(['user_account', opts]);
+      return { body: { profile: { user_id: 9, userName: 'Account User' } } };
+    },
+    saveCookie: cookie => fallbackCalls.push(['saveCookie', cookie]),
+    warn: (...args) => fallbackCalls.push(['warn', args]),
+  });
+
+  assert.deepEqual(fallbackCalls, [
+    ['login_status'],
+    ['warn', ['[Login] login_status failed:', 'status down']],
+    ['user_account', { cookie: 'MUSIC_U=abc', timestamp: 22222 }],
+  ]);
+  assert.equal(fallbackInfo.loggedIn, true);
+  assert.equal(fallbackInfo.userId, 9);
+  assert.equal(fallbackInfo.nickname, 'Account User');
+});
+
+test('getNeteaseLoginInfo preserves logged-out, auth-invalid clearing, and account failure fallbacks', async () => {
+  const loggedOut = await getNeteaseLoginInfo('', {
+    loginStatus: async () => {
+      throw new Error('should not call login_status');
+    },
+    userAccount: async () => {
+      throw new Error('should not call user_account');
+    },
+  });
+  assert.deepEqual(loggedOut, {
+    loggedIn: false,
+    vipType: 0,
+    vipLevel: 'none',
+    isVip: false,
+    isSvip: false,
+    vipLabel: '无VIP',
+  });
+
+  const cleared = [];
+  const invalid = await getNeteaseLoginInfo('MUSIC_U=bad', {
+    now: () => 33333,
+    loginStatus: async () => {
+      throw new Error('status down');
+    },
+    userAccount: async () => ({ body: { code: 401, message: '需要登录' } }),
+    saveCookie: cookie => cleared.push(cookie),
+    warn: () => {},
+  });
+  assert.deepEqual(cleared, ['']);
+  assert.equal(invalid.loggedIn, false);
+  assert.equal(invalid.hasCookie, true);
+  assert.equal(invalid.vipLabel, '无VIP');
+
+  const warnings = [];
+  const failed = await getNeteaseLoginInfo('MUSIC_U=broken', {
+    loginStatus: async () => {
+      throw new Error('status down');
+    },
+    userAccount: async () => {
+      throw new Error('account down');
+    },
+    warn: (...args) => warnings.push(args),
+  });
+  assert.deepEqual(warnings, [
+    ['[Login] login_status failed:', 'status down'],
+    ['[Login] account check failed:', 'account down'],
+  ]);
+  assert.equal(failed.loggedIn, false);
+  assert.equal(failed.hasCookie, true);
 });

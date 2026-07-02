@@ -144,7 +144,7 @@ const {
   normalizeApiMessage,
 } = require('./server-dist/server/services/provider-response');
 const {
-  isNeteaseAuthInvalidPayload,
+  getNeteaseLoginInfo,
   normalizeLoginInfo,
   normalizeNeteaseVip,
   readCookieFromResponse,
@@ -1241,30 +1241,12 @@ async function handleSongUrl(id, loginInfo, qualityPreference) {
 
 // ---------- 业务: 登录态/用户信息 ----------
 async function getLoginInfo() {
-  if (!userCookie) return { loggedIn: false, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
-
-  // login_status 对二维码 cookie 的资料刷新通常更及时；失败时再降级到 user_account。
-  try {
-    const st = await login_status({ cookie: userCookie, timestamp: Date.now() });
-    const body = st.body || {};
-    const data = body.data || body;
-    const info = normalizeLoginInfo(data.profile || body.profile, data.account || body.account, data);
-    if (info.loggedIn) return info;
-  } catch (e) {
-    console.warn('[Login] login_status failed:', e.message);
-  }
-
-  try {
-    const acc = await user_account({ cookie: userCookie, timestamp: Date.now() });
-    const body = acc.body || {};
-    const info = normalizeLoginInfo(body.profile, body.account, body);
-    if (info.loggedIn) return info;
-    if (isNeteaseAuthInvalidPayload(acc)) saveCookie('');
-    return { loggedIn: false, hasCookie: !!userCookie, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
-  } catch (e) {
-    console.warn('[Login] account check failed:', e.message);
-    return { loggedIn: false, hasCookie: !!userCookie, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
-  }
+  return getNeteaseLoginInfo(userCookie, {
+    loginStatus: login_status,
+    saveCookie,
+    userAccount: user_account,
+    warn: console.warn,
+  });
 }
 
 // ====================================================================
