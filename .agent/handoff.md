@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq get json helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq profile url helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -64,9 +64,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fortieth slice is complete: `server/services/app-info.ts` now also owns `/api/app/version` response payload construction; `server.js` delegates the route response shape to `buildAppVersionPayload`.
 - Stage 3 forty-first slice is complete: `server/services/qq-utils.ts` now owns QQ Musicu POST request construction and JSON parsing through `requestQQMusicJson`; `server.js` keeps a thin runtime-state wrapper that injects URL, headers, cookie, and `requestText`.
 - Stage 3 forty-second slice is complete: `server/services/qq-utils.ts` now owns QQ GET JSON request URL/header/cookie construction and parsing through `requestQQGetJson`; `server.js` keeps a thin runtime-state wrapper around current QQ headers/cookie/requestText.
+- Stage 3 forty-third slice is complete: `server/services/qq-utils.ts` now owns QQ profile homepage URL construction through `buildQQProfileUrl`; `server.js` uses it inside QQ login profile checking while keeping fallback/error orchestration local.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ profile URL helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `buildQQProfileUrl is not a function`.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 152 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 381 tests.
+- `npm run coverage`: passed, 381 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified base URL and parameter insertion order, route call-site replacement only, unchanged `requestText` headers, unchanged `profileUnavailable`/catch fallback branches, exact URL test coverage, targeted test pass (`152/152`), and full `npm test` pass (`381/381`). Residual note: helper uses `String(uin || '')`, but current call site still guards falsy `uin` before calling it, so behavior is unchanged.
 
 QQ GET JSON helper extraction:
 

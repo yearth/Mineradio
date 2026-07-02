@@ -210,6 +210,7 @@ const {
 const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
+  buildQQProfileUrl,
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
@@ -735,20 +736,7 @@ async function getQQLoginInfo() {
   if (!uin || !musicKey) return { provider: 'qq', loggedIn: false, hasCookie: !!qqCookie };
   const fallback = normalizeQQProfile(null, cookieObj);
   try {
-    const u = new URL('https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg');
-    u.searchParams.set('cid', '205360838');
-    u.searchParams.set('userid', uin);
-    u.searchParams.set('reqfrom', '1');
-    u.searchParams.set('g_tk', '5381');
-    u.searchParams.set('loginUin', uin);
-    u.searchParams.set('hostUin', '0');
-    u.searchParams.set('format', 'json');
-    u.searchParams.set('inCharset', 'utf8');
-    u.searchParams.set('outCharset', 'utf-8');
-    u.searchParams.set('notice', '0');
-    u.searchParams.set('platform', 'yqq.json');
-    u.searchParams.set('needNewCode', '0');
-    const text = await requestText(u.toString(), {
+    const text = await requestText(buildQQProfileUrl(uin), {
       headers: { ...QQ_HEADERS, Cookie: qqCookie },
     });
     const body = parseJSONText(text);

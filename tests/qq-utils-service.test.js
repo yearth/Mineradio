@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
+  buildQQProfileUrl,
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
@@ -30,6 +31,13 @@ test('audio proxy helpers preserve referer, range, and content type fallbacks', 
   assert.equal(audioContentTypeForUrl('https://cdn.example/song.flac', 'audio/unknown'), 'audio/flac');
   assert.equal(audioContentTypeForUrl('bad-url', 'audio/aac'), 'audio/aac');
   assert.equal(audioContentTypeForUrl('bad-url', ''), 'audio/mpeg');
+});
+
+test('buildQQProfileUrl preserves QQ profile homepage query params', () => {
+  assert.equal(
+    buildQQProfileUrl('00123'),
+    'https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=00123&reqfrom=1&g_tk=5381&loginUin=00123&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0',
+  );
 });
 
 test('mapQQPlaylist preserves legacy created and collected playlist mapping', () => {

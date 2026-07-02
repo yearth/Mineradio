@@ -48,6 +48,23 @@ export async function requestQQGetJson(opts: {
   return parseJSONText(text);
 }
 
+export function buildQQProfileUrl(uin: unknown): string {
+  const url = new URL('https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg');
+  url.searchParams.set('cid', '205360838');
+  url.searchParams.set('userid', String(uin || ''));
+  url.searchParams.set('reqfrom', '1');
+  url.searchParams.set('g_tk', '5381');
+  url.searchParams.set('loginUin', String(uin || ''));
+  url.searchParams.set('hostUin', '0');
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('inCharset', 'utf8');
+  url.searchParams.set('outCharset', 'utf-8');
+  url.searchParams.set('notice', '0');
+  url.searchParams.set('platform', 'yqq.json');
+  url.searchParams.set('needNewCode', '0');
+  return url.toString();
+}
+
 export function audioProxyHeadersFor(audioUrl: unknown, range: unknown, userAgent: string): Record<string, string> {
   const headers: Record<string, string> = { 'User-Agent': userAgent, Referer: 'https://music.163.com/' };
   try {
