@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is in progress; latest safe slice is request runtime override extraction into `server/runtime/request-runtime.ts`.
+- Worktree: server composition/runtime cleanup is in progress; latest safe slice is `__test` compatibility builder extraction into `server/test-support/runtime.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -93,9 +93,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup first slice is complete: `server/runtime/update-runtime.ts` now owns update job Map state plus update platform/manifest/autoDownload/autoPatch test overrides; `server.js` keeps the original wrapper names and injects the runtime job Map into existing update services/controllers.
 - Server composition/runtime cleanup second slice is complete: `server/runtime/cookie-runtime.ts` now owns Netease/QQ cookie initial file reads, save normalization/raw fallback, silent IO failure handling, and in-memory reset; `server.js` keeps compatibility `saveCookie`/`saveQQCookie` wrappers and reads current cookies through runtime getters.
 - Server composition/runtime cleanup third slice is complete: `server/runtime/request-runtime.ts` now owns the test-only requestText override; `server.js` keeps `requestText` as the compatibility wrapper around the runtime and preserves `setRequestText`/`resetMusicRuntime` behavior.
+- Server composition/runtime cleanup fourth slice is complete: `server/test-support/runtime.ts` now owns `buildServerTestRuntime(...)` for the legacy `module.exports.__test` compatibility object; `server.js` injects callbacks/helpers under the existing `NODE_ENV=test` guard and preserves the 15-key test surface/order.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+`__test` compatibility builder extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/server-test-runtime.test.js` failed because `buildServerTestRuntime` was not yet exported and `server.js` still assigned the literal `module.exports.__test` object.
+- `npm run build:ts && node --test tests/server-test-runtime.test.js`: passed, 3 tests.
+- `npm run build:ts && node --test tests/server-test-runtime.test.js tests/music-routes.test.js tests/update-routes.test.js tests/server-helpers.test.js`: passed, 180 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 475 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/test-support/runtime.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified the legacy 15-key `__test` surface/order, hook delegation, helper exports, `server.js` thinning scope, and no generated-file staging risk.
 
 Request runtime override extraction:
 

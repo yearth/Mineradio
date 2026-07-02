@@ -244,6 +244,9 @@ const {
   readPackageInfo: readPackageInfoService,
 } = require('./server-dist/server/services/app-info');
 const {
+  buildServerTestRuntime,
+} = require('./server-dist/server/test-support/runtime');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1549,39 +1552,27 @@ if (process.env.NODE_ENV === 'test') {
     lyric = api.lyric;
     lyric_new = api.lyric_new;
   };
-  module.exports.__test = {
-    setNeteaseApi(overrides) {
-      applyNeteaseApi(overrides);
+  module.exports.__test = buildServerTestRuntime({
+    setNeteaseApi: applyNeteaseApi,
+    setRequestText: fn => requestRuntime.setRequestText(fn),
+    helpers: {
+      normalizeCookieHeader,
+      rawCookieFallback,
+      parseGitHubRepository,
+      readUpdateConfig,
+      requestText,
+      moveInvalidUpdateFile,
+      buildWeatherMood,
     },
-    setRequestText(fn) {
-      requestRuntime.setRequestText(fn);
-    },
-    normalizeCookieHeader,
-    rawCookieFallback,
-    parseGitHubRepository,
-    readUpdateConfig,
-    requestText,
-    moveInvalidUpdateFile,
-    buildWeatherMood,
     resetMusicRuntime() {
       applyNeteaseApi();
       cookieRuntime.reset();
       requestRuntime.reset();
     },
-    setUpdatePlatform(value) {
-      updateRuntime.setPlatform(value);
-    },
-    setUpdateManifest(value) {
-      updateRuntime.setManifest(value);
-    },
-    setUpdateAutoDownload(value) {
-      updateRuntime.setAutoDownload(value);
-    },
-    setUpdateAutoPatch(value) {
-      updateRuntime.setAutoPatch(value);
-    },
-    resetUpdateRuntime() {
-      updateRuntime.reset();
-    },
-  };
+    setUpdatePlatform: value => updateRuntime.setPlatform(value),
+    setUpdateManifest: value => updateRuntime.setManifest(value),
+    setUpdateAutoDownload: value => updateRuntime.setAutoDownload(value),
+    setUpdateAutoPatch: value => updateRuntime.setAutoPatch(value),
+    resetUpdateRuntime: () => updateRuntime.reset(),
+  });
 }
