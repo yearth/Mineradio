@@ -234,6 +234,9 @@ const {
   buildAppVersionPayload,
   readPackageInfo: readPackageInfoService,
 } = require('./server-dist/server/services/app-info');
+const {
+  handleAppRoutes,
+} = require('./server-dist/server/controllers/app-controller');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1189,10 +1192,15 @@ const server = createHttpServer({
     port: PORT,
     handleRequest: async ({ req, res, url, pathname: pn }) => {
 
-  if (pn === '/api/app/version') {
-    sendJSON(res, buildAppVersionPayload({ packageInfo: APP_PACKAGE, appVersion: APP_VERSION, updateConfig: UPDATE_CONFIG }));
-    return;
-  }
+  if (await handleAppRoutes({
+    pathname: pn,
+    res,
+    sendJSON,
+    packageInfo: APP_PACKAGE,
+    appVersion: APP_VERSION,
+    updateConfig: UPDATE_CONFIG,
+    buildAppVersionPayload,
+  })) return;
 
   if (pn === '/api/update/latest') {
     try {

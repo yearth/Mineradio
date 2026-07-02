@@ -7,8 +7,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is Netease song comments payload helper extraction; commit after QA/pass verification should be `refactor: extract netease comments payload helper` (check `git log -1 --oneline` for the current hash).
-- Current phase: Stage 3, "server 领域拆分".
+- Worktree: controller/router TS split is in progress; latest safe slice is `/api/app/version` extraction into `server/controllers/app-controller.ts`.
+- Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
@@ -75,9 +75,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fifty-first slice is complete: `server/services/music-mapper.ts` now owns podcast collection radio item filtering and liked voice item filtering through `mapPodcastCollectionRadios` and `mapPodcastVoiceItems`; `server.js` keeps podcast collection request/fallback orchestration.
 - Stage 3 fifty-second slice is complete: `server/services/music-mapper.ts` now owns QQ playlist track filtering and playlist metadata payload construction through `buildQQPlaylistTracksPayload`; `server.js` keeps QQ playlist login, id validation, and detail request orchestration.
 - Stage 3 fifty-third slice is complete: `server/services/music-mapper.ts` now owns Netease song comment hot/normal selection, comment mapping/filtering, total fallback, and response payload construction through `buildNeteaseSongCommentsPayload`; `server.js` keeps comment route validation and API request orchestration.
+- Controller/router TS split first slice is complete: `server/controllers/app-controller.ts` now owns `/api/app/version` route handling through `handleAppRoutes`; `server.js` keeps the root compatibility entry and injects package/version/update dependencies.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+App controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/app-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/app-controller'`.
+- `npm run build:ts && node --test tests/app-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 148 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 392 tests.
+- `npm run coverage`: passed, 392 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/app-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route order, `/api/app/version`-only delegation, ignored-path `false` behavior, direct payload forwarding, undefined status semantics, tests, route descriptor surface count, targeted checks, full tests, and coverage evidence.
 
 Netease song comments payload helper extraction:
 

@@ -8,8 +8,15 @@ const { routeDescriptors, routeOwners } = require('../server-dist/server/router'
 const root = path.join(__dirname, '..');
 
 function legacyApiPaths() {
-  const serverSource = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
-  return Array.from(serverSource.matchAll(/if \(pn === '([^']+)'\)/g))
+  const routeSources = [
+    fs.readFileSync(path.join(root, 'server.js'), 'utf8'),
+    ...fs
+      .readdirSync(path.join(root, 'server', 'controllers'))
+      .filter(fileName => fileName.endsWith('.ts'))
+      .map(fileName => fs.readFileSync(path.join(root, 'server', 'controllers', fileName), 'utf8')),
+  ];
+
+  return Array.from(routeSources.join('\n').matchAll(/(?:pn|pathname) (?:===|!==) '([^']+)'/g))
     .map(match => match[1])
     .filter(routePath => routePath.startsWith('/api/'))
     .sort();
