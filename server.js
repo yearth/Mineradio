@@ -253,6 +253,9 @@ const {
   createPodcastRouteContext,
 } = require('./server-dist/server/composition/podcast-context');
 const {
+  createQQRouteContext,
+} = require('./server-dist/server/composition/qq-context');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1281,6 +1284,27 @@ function createPodcastRouteDependencies() {
   };
 }
 
+function createQQRouteDependencies() {
+  return {
+    sendJSON,
+    readRequestBody,
+    parseCookieString,
+    normalizeQQCookieInput,
+    qqCookieUin,
+    qqCookieMusicKey,
+    saveQQCookie,
+    getQQLoginInfo,
+    handleQQSearch,
+    handleQQSongUrl,
+    handleQQLyric,
+    handleQQUserPlaylists,
+    handleQQPlaylistTracks,
+    handleQQArtistDetail,
+    handleQQSongComments,
+    logger: console,
+  };
+}
+
 // ====================================================================
 //  HTTP Server
 // ====================================================================
@@ -1354,28 +1378,10 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (await handleQQRoutes({
-    pathname: pn,
-    url,
-    req,
-    res,
-    sendJSON,
-    readRequestBody,
-    parseCookieString,
-    normalizeQQCookieInput,
-    qqCookieUin,
-    qqCookieMusicKey,
-    saveQQCookie,
-    getQQLoginInfo,
-    handleQQSearch,
-    handleQQSongUrl,
-    handleQQLyric,
-    handleQQUserPlaylists,
-    handleQQPlaylistTracks,
-    handleQQArtistDetail,
-    handleQQSongComments,
-    logger: console,
-  })) return;
+  if (await handleQQRoutes(createQQRouteContext(
+    createQQRouteDependencies(),
+    { pathname: pn, url, req, res }
+  ))) return;
 
   if (await handlePodcastPublicRoutes(createPodcastRouteContext(
     createPodcastRouteDependencies(),
