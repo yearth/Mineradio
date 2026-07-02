@@ -258,6 +258,9 @@ const {
   handleQQRoutes,
 } = require('./server-dist/server/controllers/qq-controller');
 const {
+  handleSearchRoutes,
+} = require('./server-dist/server/controllers/search-controller');
+const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
 
@@ -1270,16 +1273,14 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  // ---------- 搜索 ----------
-  if (pn === '/api/search') {
-    try {
-      const kw    = url.searchParams.get('keywords') || '';
-      const limit = parseInt(url.searchParams.get('limit') || '20');
-      const songs = await handleSearch(kw, limit);
-      sendJSON(res, { songs });
-    } catch (err) { console.error('[Search]', err); sendJSON(res, { error: err.message, songs: [] }, 500); }
-    return;
-  }
+  if (await handleSearchRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    handleSearch,
+    logger: console,
+  })) return;
 
   if (await handleQQRoutes({
     pathname: pn,

@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is QQ route extraction into `server/controllers/qq-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is search route extraction into `server/controllers/search-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -85,9 +85,20 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split eighth slice is complete: `server/controllers/beatmap-controller.ts` now owns `/api/beatmap/cache/status` and `/api/beatmap/cache` route handling through `handleBeatmapRoutes`; `server.js` keeps the root compatibility entry and injects cache helpers, request-body reader, and `sendJSON`.
 - Controller/router TS split ninth slice is complete: `server/controllers/update-controller.ts` now owns `/api/update/latest`, `/api/update/download`, `/api/update/download/status`, `/api/update/patch`, and `/api/update/patch/status` through `handleUpdateRoutes`; `server.js` keeps the root compatibility entry and injects update orchestration helpers, job map, `publicUpdateJob`, fallback builder, and logger.
 - Controller/router TS split tenth slice is complete: `server/controllers/qq-controller.ts` now owns QQ routes (`/api/qq/search`, `/api/qq/song/url`, `/api/qq/lyric`, `/api/qq/login/status`, `/api/qq/login/cookie`, `/api/qq/logout`, `/api/qq/user/playlists`, `/api/qq/playlist/tracks`, `/api/qq/artist/detail`, `/api/qq/song/comments`) through `handleQQRoutes`; `server.js` keeps the root compatibility entry and injects QQ orchestration helpers, cookie/session helpers, request-body reader, `sendJSON`, and logger.
+- Controller/router TS split eleventh slice is complete: `server/controllers/search-controller.ts` now owns `/api/search` through `handleSearchRoutes`; `server.js` keeps the root compatibility entry and injects `handleSearch`, `sendJSON`, and logger while preserving legacy query parsing and fallback response behavior.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Search controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/search-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/search-controller'`.
+- `npm run build:ts && node --test tests/search-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 151 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 444 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/search-controller.js` at `100.00%`.
+- QA subagent review: initial `FAIL` found a legacy `parseInt` radix behavior drift; fixed by restoring bare `parseInt` and adding a `limit=0x10` regression test. Re-review `PASS` verified route order, descriptor coverage, default/success/error/unrelated-path behavior, and the legacy parseInt regression.
 
 QQ controller route extraction:
 
