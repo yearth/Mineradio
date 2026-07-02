@@ -205,6 +205,13 @@ const {
   orderWeatherSongs,
   weatherRadioSeedQueries,
 } = require('./server-dist/server/services/weather-utils');
+const {
+  audioContentTypeForUrl,
+  audioProxyHeadersFor,
+  mapQQComment,
+  mapQQPlaylist,
+  parseJSONText,
+} = require('./server-dist/server/services/qq-utils');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -864,12 +871,6 @@ async function buildWeatherRadio(params) {
   };
 }
 
-function parseJSONText(text) {
-  const raw = String(text || '').trim();
-  const json = raw.replace(/^callback\(([\s\S]*)\);?$/, '$1');
-  return JSON.parse(json);
-}
-
 async function qqMusicRequest(payload, opts) {
   opts = opts || {};
   const body = JSON.stringify(payload);
@@ -966,44 +967,6 @@ async function qqGetJSON(targetUrl, params, opts) {
   if (opts.cookie !== false && qqCookie) headers.Cookie = qqCookie;
   const text = await requestText(u.toString(), { headers });
   return parseJSONText(text);
-}
-
-function audioProxyHeadersFor(audioUrl, range) {
-  const headers = { 'User-Agent': UA, Referer: 'https://music.163.com/' };
-  try {
-    const host = new URL(audioUrl).hostname.toLowerCase();
-    if (host.includes('qq.com') || host.includes('qpic.cn')) headers.Referer = 'https://y.qq.com/';
-  } catch (e) {}
-  if (range) headers.Range = range;
-  return headers;
-}
-
-function audioContentTypeForUrl(audioUrl, upstreamType) {
-  let pathname = '';
-  try { pathname = new URL(audioUrl).pathname.toLowerCase(); } catch (e) {}
-  if (/\.flac$/.test(pathname)) return 'audio/flac';
-  if (/\.mp3$/.test(pathname)) return 'audio/mpeg';
-  if (/\.(m4a|mp4)$/.test(pathname)) return 'audio/mp4';
-  if (/\.ogg$/.test(pathname)) return 'audio/ogg';
-  if (/\.wav$/.test(pathname)) return 'audio/wav';
-  return upstreamType || 'audio/mpeg';
-}
-
-function mapQQPlaylist(pl, kind) {
-  pl = pl || {};
-  const id = pl.dissid || pl.tid || pl.dirid || pl.id || pl.diss_id;
-  return {
-    provider: 'qq',
-    source: 'qq',
-    id: id ? String(id) : '',
-    name: pl.diss_name || pl.name || pl.title || '',
-    cover: pl.diss_cover || pl.logo || pl.picurl || pl.cover || '',
-    trackCount: pl.song_cnt || pl.songnum || pl.total_song_num || pl.song_count || 0,
-    playCount: pl.listen_num || pl.visitnum || pl.play_count || 0,
-    creator: pl.hostname || pl.nick || pl.creator || 'QQ 音乐',
-    subscribed: kind === 'collect',
-    specialType: 0,
-  };
 }
 
 async function handleQQUserPlaylists() {
@@ -1253,25 +1216,6 @@ async function handleQQSongUrl(mid, mediaMid, qualityPreference) {
     rawMessage: info && (info.msg || info.tips || info.errmsg || ''),
     tried: fileCandidates.map(item => item.label + ' · ' + item.filename),
     requestedQuality,
-  };
-}
-
-function mapQQComment(raw) {
-  raw = raw || {};
-  const user = raw.user || raw.uin || {};
-  const nickname = raw.nick || raw.nickname || raw.encrypt_uin || user.nick || user.nickname || user.name || 'QQ 音乐用户';
-  const avatar = raw.avatarurl || raw.avatar || user.avatarurl || user.avatar || '';
-  const timeRaw = Number(raw.time || raw.commenttime || raw.createTime || 0) || 0;
-  return {
-    id: raw.commentid || raw.commentId || raw.id || '',
-    content: raw.rootcommentcontent || raw.content || raw.comment || '',
-    likedCount: Number(raw.praisenum || raw.praise_num || raw.likedCount || 0) || 0,
-    time: timeRaw && timeRaw < 10000000000 ? timeRaw * 1000 : timeRaw,
-    user: {
-      id: raw.encrypt_uin || raw.uin || user.uin || '',
-      nickname,
-      avatar,
-    },
   };
 }
 
@@ -2459,7 +2403,7 @@ const server = createHttpServer({
       const audioUrl = url.searchParams.get('url');
       if (!audioUrl) { res.writeHead(400); res.end('Missing url'); return; }
       const range = req.headers.range || '';
-      const hdr = audioProxyHeadersFor(audioUrl, range);
+      const hdr = audioProxyHeadersFor(audioUrl, range, UA);
       const up = await fetch(audioUrl, { headers: hdr });
       const out = {
         'Content-Type': audioContentTypeForUrl(audioUrl, up.headers.get('content-type')),

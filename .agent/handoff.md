@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extend weather radio helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq utils` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -51,9 +51,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-seventh slice is complete: `server/services/lyric-utils.ts` owns pure lyric text helpers (`decodeHtmlEntities`, `decodeQQLyricText`, `normalizeQQSongId`); `server.js` keeps QQ lyric API request/fallback orchestration.
 - Stage 3 twenty-eighth slice is complete: `server/services/weather-utils.ts` owns pure weather helper logic (`clampNumber`, `openMeteoWeatherLabel`, `buildWeatherMood`); `server.js` keeps Open-Meteo/IP/weather-radio request and playlist orchestration.
 - Stage 3 twenty-ninth slice is complete: `server/services/weather-utils.ts` now also owns pure weather-radio seed, fallback-weather payload, song low-signal filtering, scoring, dedupe, title/artist key, artist diversification, and final ordering helpers; `server.js` keeps weather provider and song-search orchestration.
+- Stage 3 thirtieth slice is complete: `server/services/qq-utils.ts` owns pure QQ JSON/audio/playlist/comment helpers (`parseJSONText`, `audioProxyHeadersFor`, `audioContentTypeForUrl`, `mapQQPlaylist`, `mapQQComment`); `server.js` keeps QQ request/session/route orchestration, with `UA` explicitly injected into the audio proxy helper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ utility extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed because `server-dist/server/services/qq-utils` did not exist.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 148 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 362 tests.
+- `npm run coverage`: passed, 362 tests; production-code line coverage `100.00%`, including `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified helper parity for callback JSON parsing, QQ/Netease audio referer/range/content-type behavior, playlist field priority, comment timestamp/user/likes mapping, unchanged `normalizeQQProfile` placement, no residual old helper definitions, and the `audioProxyHeadersFor(audioUrl, range, UA)` call site.
 
 Weather radio helper extension:
 
