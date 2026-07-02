@@ -261,6 +261,9 @@ const {
   handleSearchRoutes,
 } = require('./server-dist/server/controllers/search-controller');
 const {
+  handleNeteaseAuthRoutes,
+} = require('./server-dist/server/controllers/netease-auth-controller');
+const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
 
@@ -1367,28 +1370,28 @@ const server = createHttpServer({
     return;
   }
 
-  if (pn === '/api/login/cookie') {
-    try {
-      const body = await readRequestBody(req);
-      const raw = body.cookie || body.data || body.text || '';
-      const normalized = normalizeCookieHeader(raw);
-      const obj = parseCookieString(normalized);
-      if (!obj.MUSIC_U) {
-        sendJSON(res, { loggedIn: false, error: 'INVALID_NETEASE_COOKIE', message: '网易云 cookie 缺少 MUSIC_U' }, 400);
-        return;
-      }
-      saveCookie(normalized);
-      let info = await getLoginInfo();
-      if (!info.loggedIn && userCookie) {
-        info = pendingNeteaseLoginInfo();
-      }
-      sendJSON(res, { ...info, saved: true, hasCookie: !!userCookie }); /* node:coverage ignore next 4 */
-    } catch (err) {
-      console.error('[LoginCookie]', err);
-      sendJSON(res, { loggedIn: false, error: err.message }, 500);
-    }
-    return;
-  }
+  if (await handleNeteaseAuthRoutes({
+    pathname: pn,
+    url,
+    req,
+    res,
+    sendJSON,
+    readRequestBody,
+    normalizeCookieHeader,
+    parseCookieString,
+    saveCookie,
+    getUserCookie: () => userCookie,
+    getLoginInfo,
+    pendingNeteaseLoginInfo,
+    loginQrKey: login_qr_key,
+    loginQrCreate: login_qr_create,
+    loginQrCheck: login_qr_check,
+    readCookieFromResponse,
+    normalizeLoginInfo,
+    logout,
+    now: Date.now,
+    logger: console,
+  })) return;
 
   if (await handlePodcastBeatmapRoutes({
     pathname: pn,
@@ -1412,85 +1415,6 @@ const server = createHttpServer({
     now: Date.now,
     logger: console,
   })) return;
-
-  // ---------- 登录: QR Key ----------
-  if (pn === '/api/login/qr/key') {
-    try {
-      const r = await login_qr_key({ timestamp: Date.now() });
-      const key = r.body && r.body.data && r.body.data.unikey;
-      sendJSON(res, { key });
-    } catch (err) { sendJSON(res, { error: err.message }, 500); }
-    return;
-  }
-
-  // ---------- 登录: QR 二维码图片 ----------
-  if (pn === '/api/login/qr/create') {
-    try {
-      const key = url.searchParams.get('key');
-      const r = await login_qr_create({ key, qrimg: true, timestamp: Date.now() });
-      const d = r.body && r.body.data;
-      sendJSON(res, { img: d && d.qrimg, url: d && d.qrurl });
-    } catch (err) { sendJSON(res, { error: err.message }, 500); }
-    return;
-  }
-
-  // ---------- 登录: 轮询扫码状态 ----------
-  if (pn === '/api/login/qr/check') {
-    try {
-      const key = url.searchParams.get('key');
-      let r = await login_qr_check({ key, noCookie: true, timestamp: Date.now() });
-      let body = r.body || {};
-      let code = Number(body.code || r.code);
-      let msg  = body.message || r.message || '';
-      let cookie = readCookieFromResponse(r);
-      if (code === 803 && !cookie) {
-        try {
-          const retry = await login_qr_check({ key, timestamp: Date.now() });
-          const retryCookie = readCookieFromResponse(retry);
-          if (retryCookie) {
-            r = retry;
-            body = retry.body || body;
-            code = Number(body.code || retry.code || code);
-            msg = body.message || retry.message || msg;
-            cookie = retryCookie;
-          }
-        } catch (retryErr) {
-          console.warn('[Login] qr cookie retry failed:', retryErr.message);
-        }
-      }
-      // 803 = 授权成功, 802 = 已扫待确认, 801 = 等待扫码, 800 = 二维码过期
-      if (code === 803) {
-        if (cookie) saveCookie(cookie);
-        let info = await getLoginInfo();
-        if (!info.loggedIn) {
-          const profile = body.profile || (body.data && body.data.profile) || {};
-          info = normalizeLoginInfo(profile, body.account || (body.data && body.data.account), body.data || body);
-        }
-        if (!info.loggedIn && cookie) {
-          info = pendingNeteaseLoginInfo(body);
-        }
-        sendJSON(res, { code, message: msg, ...info, hasCookie: !!cookie });
-        return;
-      }
-      sendJSON(res, { code, message: msg, nickname: body.nickname, avatar: body.avatarUrl });
-    } catch (err) { sendJSON(res, { error: err.message }, 500); }
-    return;
-  }
-
-  // ---------- 登录态查询 ----------
-  if (pn === '/api/login/status') {
-    const info = await getLoginInfo();
-    sendJSON(res, info);
-    return;
-  }
-
-  // ---------- 登出 ----------
-  if (pn === '/api/logout') {
-    try { await logout({ cookie: userCookie }); } catch (e) {}
-    saveCookie('');
-    sendJSON(res, { ok: true });
-    return;
-  }
 
   // ---------- 用户歌单 ----------
   if (pn === '/api/user/playlists') {
