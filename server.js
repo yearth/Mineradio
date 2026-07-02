@@ -240,6 +240,9 @@ const {
 const {
   handleWeatherRoutes,
 } = require('./server-dist/server/controllers/weather-controller');
+const {
+  handlePodcastRoutes,
+} = require('./server-dist/server/controllers/podcast-controller');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1633,31 +1636,19 @@ const server = createHttpServer({
     return;
   }
 
-  // ---------- 登录: QR Key ----------
-  // ---------- 播客 DJ 长音频后端离线锁拍 ----------
-  if (pn === '/api/podcast/dj-beatmap') {
-    try {
-      const audioUrl = url.searchParams.get('url');
-      const durationSec = Math.max(0, Number(url.searchParams.get('duration') || 0) || 0);
-      if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) {
-        sendJSON(res, { error: 'Invalid audio url' }, 400);
-        return;
-      }
-      console.log('[PodcastDjBeatmap] start', Math.round(durationSec || 0) + 's');
-      const started = Date.now();
-      const introSec = Math.max(0, Number(url.searchParams.get('intro') || 0) || 0);
-      const map = introSec
-        ? await analyzePodcastDjIntro(audioUrl, { durationSec, introSec, userAgent: UA })
-        : await analyzePodcastDjStream(audioUrl, { durationSec, userAgent: UA });
-      console.log('[PodcastDjBeatmap] done beats:', map.visualBeatCount || 0, 'ms:', Date.now() - started, 'decode:', map.decode || {});
-      sendJSON(res, { ok: true, map });
-    } catch (err) {
-      console.error('[PodcastDjBeatmap]', err);
-      sendJSON(res, { ok: false, error: err.message || String(err) }, 500);
-    }
-    return;
-  }
+  if (await handlePodcastRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    analyzePodcastDjStream,
+    analyzePodcastDjIntro,
+    userAgent: UA,
+    now: Date.now,
+    logger: console,
+  })) return;
 
+  // ---------- 登录: QR Key ----------
   if (pn === '/api/login/qr/key') {
     try {
       const r = await login_qr_key({ timestamp: Date.now() });
