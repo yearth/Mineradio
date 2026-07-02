@@ -132,3 +132,146 @@ export function buildWeatherMood(weather: any, date?: Date): Record<string, any>
   mood.keywords = Array.from(new Set(mood.keywords)).slice(0, 7);
   return mood;
 }
+
+export function weatherRadioSeedQueries(mood: any): string[] {
+  const key = String(mood && mood.key || '');
+  if (key.includes('rain') || key.includes('storm')) return ['陈奕迅 阴天快乐', '周杰伦 雨下一整晚', '孙燕姿 遇见', '林宥嘉 说谎', '毛不易 消愁'];
+  if (key.includes('snow') || key.includes('cloudy')) return ['陈奕迅 好久不见', '莫文蔚 阴天', '李健 贝加尔湖畔', '朴树 平凡之路', '蔡健雅 达尔文'];
+  if (key.includes('humid')) return ['落日飞车 My Jinji', '告五人 爱人错过', '夏日入侵企画 想去海边', '陈绮贞 旅行的意义', '王若琳 Lost in Paradise'];
+  if (key.includes('night')) return ['方大同 特别的人', '陶喆 爱很简单', 'Frank Ocean Pink + White', '林忆莲 夜太黑', "Norah Jones Don't Know Why"];
+  return ['孙燕姿 天黑黑', '周杰伦 晴天', '五月天 温柔', '陈奕迅 稳稳的幸福', '王菲'];
+}
+
+export function fallbackWeatherForRadio(params: any, err: any, defaultLocation: any): Record<string, any> {
+  params = params || {};
+  defaultLocation = defaultLocation || {};
+  const name = String(params.city || params.q || params.location || defaultLocation.name).trim() || defaultLocation.name;
+  return {
+    provider: 'open-meteo',
+    location: {
+      name,
+      country: '',
+      admin1: '',
+      latitude: null,
+      longitude: null,
+      timezone: params.timezone || defaultLocation.timezone,
+      fallback: true,
+    },
+    label: '天气暂不可用',
+    weatherCode: null,
+    temperature: null,
+    apparentTemperature: null,
+    humidity: null,
+    precipitation: null,
+    cloudCover: null,
+    windSpeed: null,
+    windGusts: null,
+    isDay: null,
+    time: '',
+    updatedAt: Date.now(),
+    error: err && err.message || '',
+    mood: {
+      key: 'fallback',
+      title: '临时电台',
+      tagline: '天气暂时没有回来，先放一组稳妥的歌',
+      energy: 0.54,
+      warmth: 0.55,
+      focus: 0.55,
+      melancholy: 0.35,
+      keywords: ['华语 流行', 'indie pop', 'city pop', '轻快 歌单', 'chill pop'],
+    },
+  };
+}
+
+export function uniqueSongsByKey(songs: any[]): any[] {
+  const seen = new Set();
+  const out: any[] = [];
+  (songs || []).forEach(song => {
+    const key = String(song && (song.id || song.name + '|' + song.artist) || '').trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(song);
+  });
+  return out;
+}
+
+export function isLowSignalWeatherSong(song: any): boolean {
+  const text = String([
+    song && song.name,
+    song && song.artist,
+    song && song.album,
+  ].filter(Boolean).join(' ')).toLowerCase();
+  if (!text) return true;
+  if (/(^|[\s\-_/（(])ai(?:\s*(歌|歌曲|音乐|cover|翻唱|生成|作曲|演唱|女声|男声)|$|[\s\-_/）)])/i.test(text)) return true;
+  if (/suno|udio|人工智能|生成歌曲|ai歌曲|虚拟歌手|测试音频|demo|beat\s*maker/i.test(text)) return true;
+  if (/翻自|翻唱|cover|remix|伴奏|纯音乐|钢琴|dj|live\s*版|live版|唯美钢琴|karaoke|instrumental/i.test(text)) return true;
+  if (/白噪音|雨声|睡眠|助眠|冥想|疗愈频率|环境音|自然声音|asmr/i.test(text)) return true;
+  if (/[（(](r&b|lofi|jazz|dj|edm|trap|remix|伴奏|纯音乐|钢琴|电子|治愈|古风|女声|男声|英文|中文版|抖音|ai)[）)]/i.test(text)) return true;
+  if (/^(纯音乐|轻音乐|治愈系|放松|睡眠|雨天|阴天|夜晚|夏日|海边)$/i.test(String(song.name || '').trim())) return true;
+  return false;
+}
+
+export function scoreWeatherSong(song: any, mood: any): number {
+  const text = String((song && song.name || '') + ' ' + (song && song.artist || '') + ' ' + (song && song.album || '')).toLowerCase();
+  let score = 0;
+  if (song && song.cover) score += 4;
+  if (song && song.duration) score += 2;
+  if (song && song.weatherSource === 'daily') score += 6;
+  if (song && song.weatherSource === 'private') score += 4;
+  if (/周杰伦|陈奕迅|孙燕姿|五月天|王菲|陶喆|方大同|林宥嘉|蔡健雅|莫文蔚|李健|毛不易|告五人|落日飞车|陈绮贞|朴树/.test(text)) score += 10;
+  const key = String(mood && mood.key || '');
+  if (key.includes('rain') && /雨|阴|夜|慢|r&b|soul|陈奕迅|林宥嘉|孙燕姿/.test(text)) score += 5;
+  if (key.includes('humid') && /夏|海|city|pop|落日|告五人|方大同|陶喆/.test(text)) score += 5;
+  if (key.includes('night') && /夜|moon|jazz|soul|r&b|方大同|陶喆|王菲/.test(text)) score += 5;
+  if (key.includes('cloudy') && /阴|民谣|indie|陈绮贞|朴树|李健/.test(text)) score += 5;
+  return score;
+}
+
+export function weatherArtistKey(song: any): string {
+  const raw = String(song && song.artist || song && song.name || '').split(/\s*\/\s*|、|,|&/)[0] || '';
+  return raw.trim().toLowerCase() || 'unknown';
+}
+
+export function weatherTitleKey(song: any): string {
+  return String(song && song.name || '')
+    .toLowerCase()
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/[\s._\-·'’"“”「」《》:：/\\|]+/g, '')
+    .trim();
+}
+
+export function uniqueWeatherTitles(sorted: any[]): any[] {
+  const seen = new Set();
+  const out: any[] = [];
+  (sorted || []).forEach(song => {
+    const key = weatherTitleKey(song);
+    if (key && seen.has(key)) return;
+    if (key) seen.add(key);
+    out.push(song);
+  });
+  return out;
+}
+
+export function diversifyWeatherSongs(sorted: any[], artistLimit: number): any[] {
+  const primary: any[] = [];
+  const deferred: any[] = [];
+  const counts = new Map();
+  (sorted || []).forEach(song => {
+    const key = weatherArtistKey(song);
+    const count = counts.get(key) || 0;
+    if (count < artistLimit) {
+      primary.push(song);
+      counts.set(key, count + 1);
+    } else {
+      deferred.push(song);
+    }
+  });
+  return primary.length >= 8 ? primary : primary.concat(deferred.slice(0, 8 - primary.length));
+}
+
+export function orderWeatherSongs(songs: any[], mood: any): any[] {
+  const sorted = uniqueSongsByKey(songs)
+    .filter(song => song && song.name && song.id && !isLowSignalWeatherSong(song))
+    .sort((a, b) => scoreWeatherSong(b, mood) - scoreWeatherSong(a, mood));
+  return diversifyWeatherSongs(uniqueWeatherTitles(sorted), 2);
+}

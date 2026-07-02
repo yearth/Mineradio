@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract weather utils` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extend weather radio helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -50,9 +50,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-sixth slice is complete: `server/services/music-mapper.ts` now also owns pure podcast program, voice, collection-radio, collection-metadata, and response-array extraction helpers; `server.js` keeps API-backed podcast fetch orchestration.
 - Stage 3 twenty-seventh slice is complete: `server/services/lyric-utils.ts` owns pure lyric text helpers (`decodeHtmlEntities`, `decodeQQLyricText`, `normalizeQQSongId`); `server.js` keeps QQ lyric API request/fallback orchestration.
 - Stage 3 twenty-eighth slice is complete: `server/services/weather-utils.ts` owns pure weather helper logic (`clampNumber`, `openMeteoWeatherLabel`, `buildWeatherMood`); `server.js` keeps Open-Meteo/IP/weather-radio request and playlist orchestration.
+- Stage 3 twenty-ninth slice is complete: `server/services/weather-utils.ts` now also owns pure weather-radio seed, fallback-weather payload, song low-signal filtering, scoring, dedupe, title/artist key, artist diversification, and final ordering helpers; `server.js` keeps weather provider and song-search orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Weather radio helper extension:
+
+- Initial RED: `npm run build:ts && node --test tests/weather-utils-service.test.js` failed because new exports such as `weatherRadioSeedQueries`, `isLowSignalWeatherSong`, and `orderWeatherSongs` were not functions.
+- During GREEN, the new `orderWeatherSongs` test first expected `[1, 4, 5]`; failure showed actual `[1, 5, 4]`. Root cause: legacy `scoreWeatherSong` gives rain-mood bonus to `孙燕姿`, so the test expectation was corrected to `[1, 5, 4]` without changing production logic.
+- `npm run build:ts && node --test tests/weather-utils-service.test.js tests/weather-mood.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 153 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 358 tests.
+- `npm run coverage`: passed, 358 tests; production-code line coverage `100.00%`, including `server-dist/server/services/weather-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified helper parity for seed buckets, fallback payload/default-location injection, low-signal regexes, score rules, title/artist keys, title dedupe, artist diversification, final ordering, unchanged `buildWeatherRadio` orchestration, direct service tests, and generated artifact tracking. Residual note: tests do not assert every full seed array or all fallback name-priority branches, but QA code comparison found equivalent copies.
 
 Weather utility extraction:
 
