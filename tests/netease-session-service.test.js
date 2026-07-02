@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const {
   getNeteaseLoginInfo,
   isNeteaseAuthInvalidPayload,
+  isNeteaseLoginReady,
+  neteaseLoginRequiredPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
   pendingNeteaseLoginInfo,
@@ -81,6 +83,15 @@ test('isNeteaseAuthInvalidPayload preserves auth failure rules', () => {
   assert.equal(isNeteaseAuthInvalidPayload({ body: { code: 401 } }), true);
   assert.equal(isNeteaseAuthInvalidPayload({ body: { code: 403, message: '请先登录后再访问' } }), true);
   assert.equal(isNeteaseAuthInvalidPayload({ status: 500, body: { msg: 'server unavailable' } }), false);
+});
+
+test('netease login requirement helpers preserve route auth semantics', () => {
+  assert.equal(isNeteaseLoginReady({ loggedIn: true, userId: 123 }), true);
+  assert.equal(isNeteaseLoginReady({ loggedIn: true, userId: '0' }), true);
+  assert.equal(isNeteaseLoginReady({ loggedIn: true }), false);
+  assert.equal(isNeteaseLoginReady({ loggedIn: false, userId: 123 }), false);
+  assert.equal(isNeteaseLoginReady(null), false);
+  assert.deepEqual(neteaseLoginRequiredPayload(), { error: 'LOGIN_REQUIRED', loggedIn: false });
 });
 
 test('readCookieFromResponse preserves Netease cookie extraction precedence', () => {

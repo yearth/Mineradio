@@ -118,6 +118,14 @@ export function isNeteaseAuthInvalidPayload(payload: any): boolean {
   return /未登录|需要登录|请先登录|login/i.test(msg) && code >= 300;
 }
 
+export function isNeteaseLoginReady(info: any): boolean {
+  return !!(info && info.loggedIn && info.userId);
+}
+
+export function neteaseLoginRequiredPayload(): Record<string, unknown> {
+  return { error: 'LOGIN_REQUIRED', loggedIn: false };
+}
+
 export function readCookieFromResponse(resp: any): string {
   const candidates = [
     resp && resp.cookie,

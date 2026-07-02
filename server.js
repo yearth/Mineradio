@@ -145,6 +145,8 @@ const {
 } = require('./server-dist/server/services/provider-response');
 const {
   getNeteaseLoginInfo,
+  isNeteaseLoginReady,
+  neteaseLoginRequiredPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
   pendingNeteaseLoginInfo,
@@ -540,8 +542,8 @@ function qqCookiePlaybackKey(obj) {
 }
 async function requireLogin(res) {
   const info = await getLoginInfo();
-  if (!info.loggedIn || !info.userId) {
-    sendJSON(res, { error: 'LOGIN_REQUIRED', loggedIn: false }, 401);
+  if (!isNeteaseLoginReady(info)) {
+    sendJSON(res, neteaseLoginRequiredPayload(), 401);
     return null;
   }
   return info;
