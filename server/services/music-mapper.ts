@@ -24,6 +24,62 @@ export function mapSongRecord(s: any): Record<string, unknown> {
   };
 }
 
+export function mapDiscoverPlaylist(pl: any, tag?: string): Record<string, unknown> {
+  pl = pl || {};
+  const creator = pl.creator || pl.user || {};
+  const id = pl.id || pl.resourceId || pl.creativeId;
+  return {
+    provider: 'netease',
+    source: 'netease',
+    type: 'playlist',
+    id,
+    name: pl.name || pl.title || '',
+    cover: pl.picUrl || pl.coverImgUrl || pl.coverUrl || pl.uiElement && pl.uiElement.image && pl.uiElement.image.imageUrl || '',
+    trackCount: pl.trackCount || pl.songCount || pl.programCount || 0,
+    playCount: pl.playCount || pl.playcount || 0,
+    creator: creator.nickname || creator.name || '',
+    tag: tag || pl.alg || '',
+  };
+}
+
+export function lowSignalText(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+export function isLowSignalPodcastItem(item: any): boolean {
+  const name = lowSignalText(item && (item.name || item.title || item.radioName));
+  const sub = lowSignalText(item && (item.djName || item.category || item.desc || item.sub));
+  const text = name + ' ' + sub;
+  return /购买播客|付费精品|qzone|空间背景音乐|背景音乐|四只烤翅|试纸烤翅/i.test(text);
+}
+
+export function isQQFavoritePlaylist(pl: any): boolean {
+  const name = String(pl && pl.name || '').trim();
+  return /我喜欢|我的喜欢|喜欢的音乐/i.test(name);
+}
+
+export function isQzoneBackgroundPlaylist(pl: any): boolean {
+  const text = String((pl && pl.name || '') + ' ' + (pl && pl.creator || '')).toLowerCase();
+  return /qzone|空间|背景音乐/i.test(text);
+}
+
+export function mapPodcastRadio(r: any): Record<string, unknown> {
+  r = r || {};
+  const dj = r.dj || r.djSimple || r.djUser || r.creator || {};
+  const id = r.id || r.rid || r.radioId;
+  return {
+    id,
+    rid: id,
+    name: r.name || r.radioName || '',
+    cover: r.picUrl || r.picURL || r.coverUrl || r.coverImgUrl || r.avatarUrl || '',
+    desc: r.desc || r.description || r.rcmdText || '',
+    djName: dj.nickname || r.djName || r.nickname || '',
+    category: r.category || r.categoryName || '',
+    programCount: r.programCount || r.programNum || r.programCnt || 0,
+    subCount: r.subCount || r.subedCount || r.subscriberCount || 0,
+  };
+}
+
 export function qqAlbumCover(albumMid: unknown, size?: number): string {
   if (!albumMid) return '';
   const px = size || 300;

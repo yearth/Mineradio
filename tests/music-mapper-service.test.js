@@ -2,7 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  isLowSignalPodcastItem,
+  isQQFavoritePlaylist,
+  isQzoneBackgroundPlaylist,
+  lowSignalText,
   mapArtists,
+  mapDiscoverPlaylist,
+  mapPodcastRadio,
   mapQQArtists,
   mapQQPlaylistTrack,
   mapQQSmartSong,
@@ -40,6 +46,60 @@ test('mapSongRecord preserves Netease song shape and artist filtering', () => {
   });
 
   assert.equal(mapSongRecord({ album: { coverUrl: 'https://img.example/fallback.jpg' }, duration: 123 }).cover, 'https://img.example/fallback.jpg');
+});
+
+test('mapDiscoverPlaylist and mapPodcastRadio preserve list item mapping', () => {
+  assert.deepEqual(mapDiscoverPlaylist({
+    resourceId: 'pl001',
+    title: 'Daily Mix',
+    coverImgUrl: 'https://img.example/cover.jpg',
+    songCount: 12,
+    playcount: 99,
+    user: { name: 'Curator' },
+    alg: 'daily',
+  }, '推荐歌单'), {
+    provider: 'netease',
+    source: 'netease',
+    type: 'playlist',
+    id: 'pl001',
+    name: 'Daily Mix',
+    cover: 'https://img.example/cover.jpg',
+    trackCount: 12,
+    playCount: 99,
+    creator: 'Curator',
+    tag: '推荐歌单',
+  });
+
+  assert.deepEqual(mapPodcastRadio({
+    radioId: 'radio001',
+    radioName: 'Night Radio',
+    picURL: 'https://img.example/radio.jpg',
+    description: 'Late sounds',
+    djSimple: { nickname: 'DJ One' },
+    categoryName: 'Music',
+    programCnt: 8,
+    subscriberCount: 100,
+  }), {
+    id: 'radio001',
+    rid: 'radio001',
+    name: 'Night Radio',
+    cover: 'https://img.example/radio.jpg',
+    desc: 'Late sounds',
+    djName: 'DJ One',
+    category: 'Music',
+    programCount: 8,
+    subCount: 100,
+  });
+});
+
+test('low signal and QQ playlist predicates preserve filtering rules', () => {
+  assert.equal(lowSignalText('  QZone 背景音乐  '), 'qzone 背景音乐');
+  assert.equal(isLowSignalPodcastItem({ name: '付费精品', category: '播客' }), true);
+  assert.equal(isLowSignalPodcastItem({ radioName: 'City Pop', desc: 'night drive' }), false);
+  assert.equal(isQQFavoritePlaylist({ name: '我喜欢的音乐' }), true);
+  assert.equal(isQQFavoritePlaylist({ name: 'Road Trip' }), false);
+  assert.equal(isQzoneBackgroundPlaylist({ name: '空间背景音乐', creator: 'QQ' }), true);
+  assert.equal(isQzoneBackgroundPlaylist({ name: 'Daily Mix', creator: 'QQ 音乐' }), false);
 });
 
 test('QQ artist and album helpers preserve legacy URL and filtering behavior', () => {

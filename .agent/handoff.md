@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract music mapper helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extend music mapper helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -43,9 +43,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 nineteenth slice is complete: `server/services/cookie-session.ts` owns cookie normalization, raw cookie fallback, parse/serialize helpers, QQ UIN/key/profile helpers, and QQ cookie input normalization; `server.js` keeps thin wrappers for helpers that need the current in-memory `qqCookie`.
 - Stage 3 twentieth slice is complete: `server/services/playback-restriction.ts` owns Netease/QQ playback restriction payload creation and classification; `server.js` imports the compiled service and route call sites keep the same function names.
 - Stage 3 twenty-first slice is complete: `server/services/music-mapper.ts` owns pure Netease/QQ song mapping helpers (`mapArtists`, `mapSongRecord`, `qqAlbumCover`, `mapQQArtists`, `mapQQSmartSong`, `mapQQTrack`, `mapQQPlaylistTrack`); `server.js` keeps request flow, route handlers, and `qqSingerAvatar`.
+- Stage 3 twenty-second slice is complete: `server/services/music-mapper.ts` also owns discover playlist, podcast radio, low-signal podcast filtering, and QQ playlist predicate helpers; `server.js` keeps request flow and route handlers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Music mapper list/filter helper extension:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed because `mapDiscoverPlaylist` and `lowSignalText` were not exported.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 151 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 339 tests.
+- `npm run coverage`: passed, 339 tests; production-code line coverage `100.00%`, including `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified playlist/radio fallback parity, low-signal and QQ/Qzone predicate parity, unchanged server.js call sites, direct service tests, route behavior coverage, and generated artifact tracking.
 
 Music mapper helper extraction:
 
