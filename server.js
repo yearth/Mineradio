@@ -52,7 +52,6 @@ const path = require('path');
 const crypto = require('crypto');
 const tls = require('tls');
 const { once } = require('events');
-const { fileURLToPath } = require('url');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
 const { defaultBeatMapCacheDir } = require('./lib/platform-paths');
 const { compareVersions, normalizeVersion } = require('./lib/version-utils');
@@ -130,6 +129,10 @@ const {
   fetchTextFromCandidates: fetchTextFromCandidatesService,
   localUpdateFallback: localUpdateFallbackService,
 } = require('./server-dist/server/services/update-fetch');
+const {
+  fetchManifestUpdateInfo: fetchManifestUpdateInfoService,
+  readUpdateManifest: readUpdateManifestService,
+} = require('./server-dist/server/services/update-manifest-source');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -290,25 +293,19 @@ function normalizeManifestUpdateInfo(data) {
   });
 }
 async function readUpdateManifest(ref) {
-  const value = String(ref || '').trim();
-  if (!value) throw new Error('UPDATE_MANIFEST_MISSING');
-  if (/^https?:\/\//i.test(value)) {
-    const resp = await fetch(value, {
-      headers: { 'User-Agent': `Mineradio/${APP_VERSION}` },
-    });
-    if (!resp.ok) throw new Error('Update manifest ' + resp.status);
-    return resp.json();
-  }
-  const file = /^file:/i.test(value) ? fileURLToPath(value) : path.resolve(value);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return readUpdateManifestService(ref, {
+    fs,
+    path,
+    fetch,
+    userAgent: `Mineradio/${APP_VERSION}`,
+  });
 }
 async function fetchManifestUpdateInfo(ref) {
-  try {
-    const data = await readUpdateManifest(ref);
-    return normalizeManifestUpdateInfo(data);
-  } catch (err) {
-    return localUpdateFallback(err.message || 'Update manifest failed', { configured: true });
-  }
+  return fetchManifestUpdateInfoService(ref, {
+    readManifest: readUpdateManifest,
+    normalizeManifestUpdateInfo,
+    localUpdateFallback,
+  });
 }
 function beatCacheRootInfo() {
   const dir = path.resolve(BEATMAP_CACHE_DIR);

@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `7ed199b refactor: extract update progress helpers`; current uncommitted slice extracts update fetch helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `9e5c8c7 refactor: extract update fetch helpers`; current uncommitted slice extracts update manifest source helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -33,7 +33,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 tenth slice is complete: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
 - Stage 3 eleventh slice is complete: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
 - Stage 3 twelfth slice is complete: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
-- Stage 3 thirteenth slice is QA-passed and ready to commit: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
+- Stage 3 thirteenth slice is complete: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
+- Stage 3 fourteenth slice is QA-passed and ready to commit: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -391,6 +392,20 @@ Stage 3 update fetch service slice:
 - `npm test`: passed, 304 tests.
 - `npm run coverage`: passed, 304 tests; production-code line coverage `100.00%`, branch coverage `72.18%`, function coverage `95.91%`; `server-dist/server/services/update-fetch.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified fallback shape, candidate fetch behavior, wrapper injection, service tests, generated artifact tracking, and `git diff --check`.
+
+Stage 3 update manifest source service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-manifest-source-service.test.js` failed because `server-dist/server/services/update-manifest-source` did not exist.
+- Added `server/services/update-manifest-source.ts` for `readUpdateManifest` and `fetchManifestUpdateInfo`.
+- `server.js` now imports the compiled manifest source helpers and injects `fs`, `path`, `fetch`, `Mineradio/${APP_VERSION}`, `normalizeManifestUpdateInfo`, and `localUpdateFallback` through wrappers.
+- Added `tests/update-manifest-source-service.test.js` for empty manifest refs, local JSON paths, `file:` URLs, remote JSON fetch with User-Agent, HTTP error messages, normalize success flow, and fallback `{ configured: true }` flow.
+- `npm run build:ts && node --test tests/update-manifest-source-service.test.js tests/update-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 42 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 309 tests.
+- `npm run coverage`: passed, 309 tests; production-code line coverage `100.00%`, branch coverage `72.24%`, function coverage `95.70%`; `server-dist/server/services/update-manifest-source.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified manifest read behavior, wrapper injection, fallback reason/configured behavior, absence of stale `fileURLToPath` require, targeted tests, and generated artifact tracking.
 
 ## Decisions
 
