@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract podcast mapper helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract lyric utils` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -48,9 +48,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-fourth slice is complete: `server/services/provider-response.ts` owns provider API code/message normalization helpers; `server.js` keeps login invalidation and playlist add-song orchestration.
 - Stage 3 twenty-fifth slice is complete: `server/services/netease-session.ts` owns Netease VIP detection, login profile normalization, and auth-invalid payload detection; `server.js` keeps session fetch/orchestration.
 - Stage 3 twenty-sixth slice is complete: `server/services/music-mapper.ts` now also owns pure podcast program, voice, collection-radio, collection-metadata, and response-array extraction helpers; `server.js` keeps API-backed podcast fetch orchestration.
+- Stage 3 twenty-seventh slice is complete: `server/services/lyric-utils.ts` owns pure lyric text helpers (`decodeHtmlEntities`, `decodeQQLyricText`, `normalizeQQSongId`); `server.js` keeps QQ lyric API request/fallback orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Lyric utility extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/lyric-utils-service.test.js` failed because `server-dist/server/services/lyric-utils` did not exist.
+- `npm run build:ts && node --test tests/lyric-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 147 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 352 tests.
+- `npm run coverage`: passed, 352 tests; production-code line coverage `100.00%`, including `server-dist/server/services/lyric-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified helper parity for entity decode order, `String(text || '')`, base64 detection, BOM stripping, Chinese/bracket acceptance, CRLF normalization, trimming, `normalizeQQSongId` legacy behavior, unchanged `server.js` QQ lyric orchestration, direct helper tests, and generated artifact tracking. Residual note: QA did not rerun full build/test/coverage because it stayed read-only; main agent ran those serially.
 
 Podcast mapper helper extraction:
 
