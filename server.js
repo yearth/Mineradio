@@ -151,11 +151,10 @@ const {
 const {
   normalizeCookieHeader,
   normalizeQQCookieInput,
+  normalizeQQProfile: normalizeQQProfileService,
   normalizeQQUin,
   parseCookieString,
-  qqCookieAvatar: qqCookieAvatarService,
   qqCookieMusicKey: qqCookieMusicKeyService,
-  qqCookieNickname: qqCookieNicknameService,
   qqCookiePlaybackKey: qqCookiePlaybackKeyService,
   qqCookieUin: qqCookieUinService,
   rawCookieFallback,
@@ -528,12 +527,6 @@ function qqCookieMusicKey(obj) {
 function qqCookiePlaybackKey(obj) {
   return qqCookiePlaybackKeyService(obj || qqCookieObject());
 }
-function qqCookieNickname(obj, uin) {
-  return qqCookieNicknameService(obj || qqCookieObject(), uin);
-}
-function qqCookieAvatar(obj, uin) {
-  return qqCookieAvatarService(obj || qqCookieObject(), uin);
-}
 async function requireLogin(res) {
   const info = await getLoginInfo();
   if (!info.loggedIn || !info.userId) {
@@ -836,38 +829,7 @@ async function qqMusicRequest(payload, opts) {
 }
 
 function normalizeQQProfile(body, cookieObj) {
-  cookieObj = cookieObj || qqCookieObject();
-  const uin = qqCookieUin(cookieObj);
-  const data = (body && (body.data || body.profile || body.creator || body.result)) || {};
-  const creator = (data.creator || data.user || data.profile || data) || {};
-  const vipInfo = data.vipInfo || data.vipinfo || data.vip || creator.vipInfo || creator.vipinfo || {};
-  const profileNick = creator.nick || creator.nickname || creator.name || creator.hostname || creator.title || '';
-  const profileAvatar = creator.headpic || creator.avatar || creator.avatarUrl || creator.logo || '';
-  const cookieNick = qqCookieNickname(cookieObj, uin);
-  const nick = profileNick || cookieNick || '';
-  const avatar = profileAvatar || qqCookieAvatar(cookieObj, uin);
-  let vipType = Number(
-    cookieObj.vipType || cookieObj.vip_type ||
-    data.vipType || data.vip_type || data.viptype || data.music_vip_level || data.green_vip_level || data.luxury_vip_level ||
-    creator.vipType || creator.vip_type || creator.music_vip_level || creator.green_vip_level || creator.luxury_vip_level ||
-    vipInfo.vipType || vipInfo.vip_type || vipInfo.music_vip_level || vipInfo.green_vip_level || vipInfo.luxury_vip_level || 0
-  ) || 0;
-  if (!vipType) {
-    const vipFlag = data.isVip || data.is_vip || data.vipFlag || data.vipflag || creator.isVip || creator.is_vip || vipInfo.isVip || vipInfo.is_vip || vipInfo.vipFlag;
-    if (vipFlag === true || Number(vipFlag) > 0 || String(vipFlag || '').toLowerCase() === 'true') vipType = 1;
-  }
-  return {
-    provider: 'qq',
-    loggedIn: !!(uin && qqCookieMusicKey(cookieObj)),
-    preview: false,
-    userId: uin,
-    nickname: nick || (uin ? ('QQ ' + uin) : 'QQ 音乐'),
-    avatar,
-    vipType,
-    hasCookie: !!qqCookie,
-    playbackKeyReady: !!qqCookiePlaybackKey(cookieObj),
-    profileSource: profileNick || profileAvatar ? 'qq-profile' : (cookieNick || avatar ? 'cookie' : 'fallback'),
-  };
+  return normalizeQQProfileService(body, cookieObj || qqCookieObject(), !!qqCookie);
 }
 
 async function getQQLoginInfo() {

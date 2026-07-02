@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   decodeQQCookieValue,
   normalizeCookieHeader,
+  normalizeQQProfile,
   normalizeQQCookieInput,
   normalizeQQUin,
   parseCookieString,
@@ -71,4 +72,58 @@ test('normalizeQQCookieInput maps alternate uin fields and preserves login field
     normalizeQQCookieInput('qqmusic_uin=o00123; qqmusic_key=play-key'),
     'qqmusic_uin=o00123; qqmusic_key=play-key; uin=123'
   );
+});
+
+test('normalizeQQProfile preserves QQ profile, cookie fallback, and auth metadata', () => {
+  const cookieObj = parseCookieString('uin=o12345; qm_keyst=music-key; music_key=play-key; ptnick_12345=Cookie%20User; vip_type=2');
+
+  assert.deepEqual(normalizeQQProfile({
+    data: {
+      creator: {
+        nickname: 'Profile User',
+        avatarUrl: 'https://img.example/profile.jpg',
+      },
+    },
+  }, cookieObj, true), {
+    provider: 'qq',
+    loggedIn: true,
+    preview: false,
+    userId: '12345',
+    nickname: 'Profile User',
+    avatar: 'https://img.example/profile.jpg',
+    vipType: 2,
+    hasCookie: true,
+    playbackKeyReady: true,
+    profileSource: 'qq-profile',
+  });
+
+  assert.deepEqual(normalizeQQProfile({
+    result: {
+      vipInfo: { isVip: true },
+    },
+  }, parseCookieString('uin=o888; qqmusic_key=key; ptnick_888=Cookie%20Only'), true), {
+    provider: 'qq',
+    loggedIn: true,
+    preview: false,
+    userId: '888',
+    nickname: 'Cookie Only',
+    avatar: 'https://q1.qlogo.cn/g?b=qq&nk=888&s=100',
+    vipType: 1,
+    hasCookie: true,
+    playbackKeyReady: true,
+    profileSource: 'cookie',
+  });
+
+  assert.deepEqual(normalizeQQProfile(null, {}, false), {
+    provider: 'qq',
+    loggedIn: false,
+    preview: false,
+    userId: '',
+    nickname: 'QQ 音乐',
+    avatar: '',
+    vipType: 0,
+    hasCookie: false,
+    playbackKeyReady: false,
+    profileSource: 'fallback',
+  });
 });

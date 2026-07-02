@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract beatmap cache service` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq profile normalization` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -53,9 +53,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-ninth slice is complete: `server/services/weather-utils.ts` now also owns pure weather-radio seed, fallback-weather payload, song low-signal filtering, scoring, dedupe, title/artist key, artist diversification, and final ordering helpers; `server.js` keeps weather provider and song-search orchestration.
 - Stage 3 thirtieth slice is complete: `server/services/qq-utils.ts` owns pure QQ JSON/audio/playlist/comment helpers (`parseJSONText`, `audioProxyHeadersFor`, `audioContentTypeForUrl`, `mapQQPlaylist`, `mapQQComment`); `server.js` keeps QQ request/session/route orchestration, with `UA` explicitly injected into the audio proxy helper.
 - Stage 3 thirty-first slice is complete: `server/services/beatmap-cache.ts` owns beatmap cache root checks, directory creation, safe cache filenames, compact payload serialization, cache reads, and atomic writes; `server.js` keeps the beatmap cache API routes and memory-only fallback response shapes.
+- Stage 3 thirty-second slice is complete: `server/services/cookie-session.ts` now also owns QQ profile normalization; `server.js` keeps a thin wrapper that injects the current cookie object and `hasCookie` state for QQ login/session orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ profile normalization extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/cookie-session-service.test.js` failed with `normalizeQQProfile is not a function`.
+- During GREEN, first coverage run failed at `99.90%` because the migrated logic left unused `qqCookieNickname`/`qqCookieAvatar` wrappers in `server.js`; verified no server call sites remained and removed the dead wrappers/imports.
+- `npm run build:ts && node --test tests/cookie-session-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 150 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 366 tests.
+- `npm run coverage`: passed, 366 tests; production-code line coverage `100.00%`, including `server-dist/server/services/cookie-session.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified parity for body/data/profile/creator/result extraction, creator/vipInfo fallback, profile vs cookie nickname/avatar priority, VIP source order and flag upgrade, logged-in/music-key rules, `hasCookie` injection, `playbackKeyReady`, `profileSource`, and unchanged `getQQLoginInfo`/QQ route flow.
 
 Beatmap cache service extraction:
 
