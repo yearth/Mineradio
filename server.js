@@ -245,6 +245,9 @@ const {
   handlePodcastBeatmapRoutes,
   handlePodcastPublicRoutes,
 } = require('./server-dist/server/controllers/podcast-controller');
+const {
+  handleMediaRoutes,
+} = require('./server-dist/server/controllers/media-controller');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -1962,56 +1965,17 @@ const server = createHttpServer({
     return;
   }
 
-  // ---------- 封面代理 (带 CORS 头, 给 canvas 提取像素用) ----------
-  if (pn === '/api/cover') {
-    try {
-      const coverUrl = url.searchParams.get('url');
-      // URL 校验: 必须是 http(s) 开头, 否则直接 404 (不要让 fetch 抛错)
-      if (!coverUrl || !/^https?:\/\//i.test(coverUrl)) {
-        res.writeHead(400, { 'Access-Control-Allow-Origin': '*' });
-        res.end('Invalid cover url');
-        return;
-      }
-      const resp = await fetch(coverUrl, { headers: { 'User-Agent': UA, 'Referer': 'https://music.163.com/' } });
-      const ct  = resp.headers.get('content-type') || 'image/jpeg';
-      const cl  = resp.headers.get('content-length');
-      const hdr = {
-        'Content-Type': ct,
-        'Access-Control-Allow-Origin': '*',
-        'Cross-Origin-Resource-Policy': 'cross-origin',
-        'Cache-Control': 'public, max-age=86400',
-      };
-      if (cl) hdr['Content-Length'] = cl;
-      res.writeHead(resp.status, hdr);
-      const reader = resp.body.getReader();
-      while (true) { const c = await reader.read(); if (c.done) break; res.write(c.value); }
-      res.end();
-    } catch (err) { console.error('[Cover]', err); res.writeHead(500); res.end(); }
-    return;
-  }
-
-  // ---------- 音频代理 (支持 Range) ----------
-  if (pn === '/api/audio') {
-    try {
-      const audioUrl = url.searchParams.get('url');
-      if (!audioUrl) { res.writeHead(400); res.end('Missing url'); return; }
-      const range = req.headers.range || '';
-      const hdr = audioProxyHeadersFor(audioUrl, range, UA);
-      const up = await fetch(audioUrl, { headers: hdr });
-      const out = {
-        'Content-Type': audioContentTypeForUrl(audioUrl, up.headers.get('content-type')),
-        'Access-Control-Allow-Origin': '*',
-        'Accept-Ranges': 'bytes',
-      };
-      const cl = up.headers.get('content-length'); if (cl) out['Content-Length'] = cl;
-      const cr = up.headers.get('content-range');  if (cr) out['Content-Range']  = cr;
-      res.writeHead(up.status, out);
-      const reader = up.body.getReader();
-      while (true) { const c = await reader.read(); if (c.done) break; res.write(c.value); }
-      res.end();
-    } catch (err) { console.error('[Audio]', err); res.writeHead(500); res.end(); }
-    return;
-  }
+  if (await handleMediaRoutes({
+    pathname: pn,
+    url,
+    req,
+    res,
+    fetch,
+    audioProxyHeadersFor,
+    audioContentTypeForUrl,
+    userAgent: UA,
+    logger: console,
+  })) return;
 
   // ---------- 静态资源 ----------
   serveStatic(res, resolveStaticFilePath(pn, __dirname));
