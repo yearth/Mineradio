@@ -49,7 +49,6 @@ const http = require('http');
 const https = require('https');
 const fs   = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const tls = require('tls');
 const { once } = require('events');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
@@ -212,6 +211,11 @@ const {
   mapQQPlaylist,
   parseJSONText,
 } = require('./server-dist/server/services/qq-utils');
+const {
+  beatCacheRootInfo: beatCacheRootInfoService,
+  readBeatMapCache: readBeatMapCacheService,
+  writeBeatMapCache: writeBeatMapCacheService,
+} = require('./server-dist/server/services/beatmap-cache');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -337,69 +341,13 @@ async function fetchManifestUpdateInfo(ref) {
   });
 }
 function beatCacheRootInfo() {
-  const dir = path.resolve(BEATMAP_CACHE_DIR);
-  const root = path.parse(dir).root;
-  const drive = root ? root.replace(/[\\\/]+$/, '').toUpperCase() : '';
-  const allowed = !!root && !/^C:$/i.test(drive);
-  const available = allowed && fs.existsSync(root);
-  return { dir, root, drive, allowed, available };
-}
-function ensureBeatMapCacheDir() {
-  const info = beatCacheRootInfo();
-  if (!info.allowed) { /* node:coverage ignore next 5 */
-    const err = new Error('BEAT_CACHE_ON_C_DRIVE_DISABLED');
-    err.code = 'BEAT_CACHE_ON_C_DRIVE_DISABLED';
-    err.info = info;
-    throw err;
-  }
-  if (!info.available) { /* node:coverage ignore next 5 */
-    const err = new Error('BEAT_CACHE_DRIVE_UNAVAILABLE');
-    err.code = 'BEAT_CACHE_DRIVE_UNAVAILABLE';
-    err.info = info;
-    throw err;
-  }
-  fs.mkdirSync(info.dir, { recursive: true });
-  return info.dir;
-}
-function safeBeatMapCacheFile(key) {
-  const raw = String(key || '').trim();
-  if (!raw || raw.length > 240) return null;
-  const hash = crypto.createHash('sha1').update(raw).digest('hex');
-  const label = raw.replace(/[^a-z0-9_.-]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'beatmap';
-  return path.join(ensureBeatMapCacheDir(), `${label}-${hash}.json`);
-}
-function compactBeatMapCachePayload(body) {
-  const key = String(body && body.key || '').trim();
-  const map = body && body.map;
-  if (!key || !map || typeof map !== 'object') return null;
-  return {
-    v: 1,
-    key,
-    savedAt: Date.now(),
-    meta: {
-      provider: String(body.provider || '').slice(0, 32),
-      title: String(body.title || '').slice(0, 160),
-      artist: String(body.artist || '').slice(0, 160),
-      mode: String(body.mode || 'mr').slice(0, 32),
-    },
-    map,
-  };
+  return beatCacheRootInfoService(BEATMAP_CACHE_DIR);
 }
 function readBeatMapCache(key) {
-  const file = safeBeatMapCacheFile(key);
-  if (!file || !fs.existsSync(file)) return null;
-  const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return raw && raw.map ? raw : null;
+  return readBeatMapCacheService(key, BEATMAP_CACHE_DIR);
 }
 function writeBeatMapCache(body) {
-  const payload = compactBeatMapCachePayload(body);
-  if (!payload) return { ok: false, error: 'INVALID_BEATMAP_CACHE_PAYLOAD' };
-  const file = safeBeatMapCacheFile(payload.key);
-  if (!file) return { ok: false, error: 'INVALID_BEATMAP_CACHE_KEY' };
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(payload));
-  fs.renameSync(tmp, file);
-  return { ok: true, key: payload.key, savedAt: payload.savedAt, dir: path.dirname(file) };
+  return writeBeatMapCacheService(body, BEATMAP_CACHE_DIR);
 }
 function localUpdateFallback(reason, opts) {
   opts = opts || {};

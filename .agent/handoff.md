@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq utils` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract beatmap cache service` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -52,9 +52,23 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-eighth slice is complete: `server/services/weather-utils.ts` owns pure weather helper logic (`clampNumber`, `openMeteoWeatherLabel`, `buildWeatherMood`); `server.js` keeps Open-Meteo/IP/weather-radio request and playlist orchestration.
 - Stage 3 twenty-ninth slice is complete: `server/services/weather-utils.ts` now also owns pure weather-radio seed, fallback-weather payload, song low-signal filtering, scoring, dedupe, title/artist key, artist diversification, and final ordering helpers; `server.js` keeps weather provider and song-search orchestration.
 - Stage 3 thirtieth slice is complete: `server/services/qq-utils.ts` owns pure QQ JSON/audio/playlist/comment helpers (`parseJSONText`, `audioProxyHeadersFor`, `audioContentTypeForUrl`, `mapQQPlaylist`, `mapQQComment`); `server.js` keeps QQ request/session/route orchestration, with `UA` explicitly injected into the audio proxy helper.
+- Stage 3 thirty-first slice is complete: `server/services/beatmap-cache.ts` owns beatmap cache root checks, directory creation, safe cache filenames, compact payload serialization, cache reads, and atomic writes; `server.js` keeps the beatmap cache API routes and memory-only fallback response shapes.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Beatmap cache service extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/beatmap-cache-service.test.js` failed because `server-dist/server/services/beatmap-cache` did not exist.
+- During GREEN, first `tsc` failed because the new service used ES Node imports and `NodeJS.ErrnoException` while the repo TS config intentionally avoids Node types; fixed by matching existing service style with `declare function require` and `any` error annotations.
+- Coverage first failed at `99.90%` because unused `server.js` wrappers for `ensureBeatMapCacheDir` and `safeBeatMapCacheFile` remained; verified they were unreferenced and removed them rather than testing dead code.
+- `npm run build:ts && node --test tests/beatmap-cache-service.test.js tests/beatmap-cache-routes.test.js tests/project-structure.test.js`: passed, 9 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 365 tests.
+- `npm run coverage`: passed, 365 tests; production-code line coverage `100.00%`, including `server-dist/server/services/beatmap-cache.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified parity for root/drive availability, C-drive guard, directory creation, key length, SHA1 filename, label sanitize/truncate, payload metadata truncation/default mode, read malformed-map behavior, write temp/rename result and invalid errors, plus unchanged beatmap cache route response shapes and memory-only fallback.
 
 QQ utility extraction:
 
