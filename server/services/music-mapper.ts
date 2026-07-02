@@ -317,3 +317,16 @@ export function buildQQPlaylistTracksPayload(pid: unknown, detail: any): {
   };
   return { playlist, tracks };
 }
+
+export function buildNeteaseSongCommentsPayload(body: any, id: unknown, offset: unknown): Record<string, unknown> {
+  body = body || {};
+  const raw = body.hotComments && offset === 0 ? body.hotComments : (body.comments || []);
+  const comments = (raw || []).map((c: any) => ({
+    id: c.commentId,
+    content: c.content || '',
+    likedCount: c.likedCount || 0,
+    time: c.time || 0,
+    user: c.user ? { id: c.user.userId, nickname: c.user.nickname || '', avatar: c.user.avatarUrl || '' } : null,
+  })).filter((c: Record<string, unknown>) => c.content);
+  return { id, total: body.total || 0, comments, hot: !!(body.hotComments && offset === 0), body };
+}

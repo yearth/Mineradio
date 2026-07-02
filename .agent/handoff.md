@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ playlist tracks payload helper extraction; commit after QA/pass verification should be `refactor: extract qq playlist tracks payload helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is Netease song comments payload helper extraction; commit after QA/pass verification should be `refactor: extract netease comments payload helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -74,9 +74,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 fiftieth slice is complete: `server/services/qq-utils.ts` now owns QQ song comments page calculation, hot/normal comment selection, comment filtering, total fallback, and response payload construction through `buildQQSongCommentsPayload`; `server.js` keeps topid resolution and QQ comment request orchestration.
 - Stage 3 fifty-first slice is complete: `server/services/music-mapper.ts` now owns podcast collection radio item filtering and liked voice item filtering through `mapPodcastCollectionRadios` and `mapPodcastVoiceItems`; `server.js` keeps podcast collection request/fallback orchestration.
 - Stage 3 fifty-second slice is complete: `server/services/music-mapper.ts` now owns QQ playlist track filtering and playlist metadata payload construction through `buildQQPlaylistTracksPayload`; `server.js` keeps QQ playlist login, id validation, and detail request orchestration.
+- Stage 3 fifty-third slice is complete: `server/services/music-mapper.ts` now owns Netease song comment hot/normal selection, comment mapping/filtering, total fallback, and response payload construction through `buildNeteaseSongCommentsPayload`; `server.js` keeps comment route validation and API request orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease song comments payload helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed with `buildNeteaseSongCommentsPayload is not a function`.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 157 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 390 tests.
+- `npm run coverage`: passed, 390 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route validation/request orchestration stayed in `server.js`, hot/normal selection, comment field mapping, content filtering, total/hot/body/id response shape, tests, and validation evidence.
 
 QQ playlist tracks payload helper extraction:
 

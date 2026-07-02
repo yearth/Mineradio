@@ -178,6 +178,7 @@ const {
 const {
   firstArrayFrom,
   isLowSignalPodcastItem,
+  buildNeteaseSongCommentsPayload,
   buildQQPlaylistTracksPayload,
   mapArtists,
   mapDiscoverPlaylist,
@@ -1942,15 +1943,7 @@ const server = createHttpServer({
       if (!id) { sendJSON(res, { error: 'Missing song id', comments: [] }, 400); return; }
       const r = await comment_music({ id, limit, offset, cookie: userCookie, timestamp: Date.now() });
       const body = r.body || r || {};
-      const raw = body.hotComments && offset === 0 ? body.hotComments : (body.comments || []);
-      const comments = (raw || []).map(c => ({
-        id: c.commentId,
-        content: c.content || '',
-        likedCount: c.likedCount || 0,
-        time: c.time || 0,
-        user: c.user ? { id: c.user.userId, nickname: c.user.nickname || '', avatar: c.user.avatarUrl || '' } : null,
-      })).filter(c => c.content);
-      sendJSON(res, { id, total: body.total || 0, comments, hot: !!(body.hotComments && offset === 0), body });
+      sendJSON(res, buildNeteaseSongCommentsPayload(body, id, offset));
     } catch (err) {
       console.error('[SongComments]', err);
       sendJSON(res, { error: err.message, comments: [] }, 500);

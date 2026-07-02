@@ -7,6 +7,7 @@ const {
   isQzoneBackgroundPlaylist,
   firstArrayFrom,
   lowSignalText,
+  buildNeteaseSongCommentsPayload,
   buildQQPlaylistTracksPayload,
   mapArtists,
   mapDiscoverPlaylist,
@@ -456,4 +457,41 @@ test('buildQQPlaylistTracksPayload preserves QQ playlist metadata and track filt
     playlist: { provider: 'qq', id: 'playlist002', name: '', cover: '', trackCount: 0 },
     tracks: [],
   });
+});
+
+test('buildNeteaseSongCommentsPayload preserves Netease comments hot selection and filtering', () => {
+  const body = {
+    total: 12,
+    hotComments: [
+      { commentId: 'hot1', content: 'Pinned', likedCount: 8, time: 1700000000000, user: { userId: 1, nickname: 'Hot User', avatarUrl: 'hot.jpg' } },
+      { commentId: 'empty', content: '' },
+    ],
+    comments: [
+      { commentId: 'normal1', content: 'Regular', likedCount: 3, time: 1700000100000, user: { userId: 2, nickname: 'Normal User', avatarUrl: 'normal.jpg' } },
+    ],
+  };
+
+  assert.deepEqual(buildNeteaseSongCommentsPayload(body, 'song001', 0), {
+    id: 'song001',
+    total: 12,
+    comments: [{
+      id: 'hot1',
+      content: 'Pinned',
+      likedCount: 8,
+      time: 1700000000000,
+      user: { id: 1, nickname: 'Hot User', avatar: 'hot.jpg' },
+    }],
+    hot: true,
+    body,
+  });
+
+  assert.deepEqual(buildNeteaseSongCommentsPayload(body, 'song001', 20).comments, [{
+    id: 'normal1',
+    content: 'Regular',
+    likedCount: 3,
+    time: 1700000100000,
+    user: { id: 2, nickname: 'Normal User', avatar: 'normal.jpg' },
+  }]);
+  assert.equal(buildNeteaseSongCommentsPayload(body, 'song001', 20).hot, false);
+  assert.equal(buildNeteaseSongCommentsPayload({}, 'song002', 0).total, 0);
 });
