@@ -147,6 +147,7 @@ const {
   getNeteaseLoginInfo,
   normalizeLoginInfo,
   normalizeNeteaseVip,
+  pendingNeteaseLoginInfo,
   readCookieFromResponse,
 } = require('./server-dist/server/services/netease-session');
 const {
@@ -1714,17 +1715,7 @@ const server = createHttpServer({
       saveCookie(normalized);
       let info = await getLoginInfo();
       if (!info.loggedIn && userCookie) {
-        info = {
-          loggedIn: true,
-          pendingProfile: true,
-          nickname: '网易云用户',
-          avatar: '',
-          vipType: 0,
-          vipLevel: 'none',
-          isVip: false,
-          isSvip: false,
-          vipLabel: '无VIP',
-        };
+        info = pendingNeteaseLoginInfo();
       }
       sendJSON(res, { ...info, saved: true, hasCookie: !!userCookie }); /* node:coverage ignore next 4 */
     } catch (err) {
@@ -1812,17 +1803,7 @@ const server = createHttpServer({
           info = normalizeLoginInfo(profile, body.account || (body.data && body.data.account), body.data || body);
         }
         if (!info.loggedIn && cookie) {
-          info = {
-            loggedIn: true,
-            pendingProfile: true,
-            nickname: (body.nickname || (body.profile && body.profile.nickname) || '网易云用户'),
-            avatar: body.avatarUrl || (body.profile && body.profile.avatarUrl) || '',
-            vipType: 0,
-            vipLevel: 'none',
-            isVip: false,
-            isSvip: false,
-            vipLabel: '无VIP',
-          };
+          info = pendingNeteaseLoginInfo(body);
         }
         sendJSON(res, { code, message: msg, ...info, hasCookie: !!cookie });
         return;

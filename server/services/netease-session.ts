@@ -160,3 +160,18 @@ export async function getNeteaseLoginInfo(userCookie: string, deps: NeteaseLogin
     return { ...loggedOutDefaults, hasCookie: !!userCookie };
   }
 }
+
+export function pendingNeteaseLoginInfo(body?: any): Record<string, unknown> {
+  body = body || {};
+  return {
+    loggedIn: true,
+    pendingProfile: true,
+    nickname: body.nickname || (body.profile && body.profile.nickname) || '网易云用户',
+    avatar: body.avatarUrl || (body.profile && body.profile.avatarUrl) || '',
+    vipType: 0,
+    vipLevel: 'none',
+    isVip: false,
+    isSvip: false,
+    vipLabel: '无VIP',
+  };
+}

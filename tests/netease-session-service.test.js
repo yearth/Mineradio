@@ -6,6 +6,7 @@ const {
   isNeteaseAuthInvalidPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
+  pendingNeteaseLoginInfo,
   readCookieFromResponse,
 } = require('../server-dist/server/services/netease-session');
 
@@ -195,4 +196,41 @@ test('getNeteaseLoginInfo preserves logged-out, auth-invalid clearing, and accou
   ]);
   assert.equal(failed.loggedIn, false);
   assert.equal(failed.hasCookie, true);
+});
+
+test('pendingNeteaseLoginInfo preserves pending profile fallbacks', () => {
+  assert.deepEqual(pendingNeteaseLoginInfo(), {
+    loggedIn: true,
+    pendingProfile: true,
+    nickname: '网易云用户',
+    avatar: '',
+    vipType: 0,
+    vipLevel: 'none',
+    isVip: false,
+    isSvip: false,
+    vipLabel: '无VIP',
+  });
+
+  assert.deepEqual(pendingNeteaseLoginInfo({
+    nickname: 'QR User',
+    avatarUrl: 'https://img.example/qr.jpg',
+    profile: {
+      nickname: 'Profile User',
+      avatarUrl: 'https://img.example/profile.jpg',
+    },
+  }), {
+    loggedIn: true,
+    pendingProfile: true,
+    nickname: 'QR User',
+    avatar: 'https://img.example/qr.jpg',
+    vipType: 0,
+    vipLevel: 'none',
+    isVip: false,
+    isSvip: false,
+    vipLabel: '无VIP',
+  });
+
+  assert.equal(pendingNeteaseLoginInfo({
+    profile: { nickname: 'Profile User', avatarUrl: 'https://img.example/profile.jpg' },
+  }).nickname, 'Profile User');
 });
