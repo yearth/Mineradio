@@ -67,6 +67,9 @@ const {
   createCookieRuntime,
 } = require('./server-dist/server/runtime/cookie-runtime');
 const {
+  createRequestRuntime,
+} = require('./server-dist/server/runtime/request-runtime');
+const {
   createUpdateRuntime,
 } = require('./server-dist/server/runtime/update-runtime');
 const {
@@ -697,10 +700,12 @@ const QQ_HEADERS = {
   'User-Agent': UA,
 };
 
-let requestTextOverride = null;
-function requestText(targetUrl, opts, body) {
-  if (requestTextOverride) return requestTextOverride(targetUrl, opts || {}, body);
+function baseRequestText(targetUrl, opts, body) {
   return requestTextService(targetUrl, opts, body, { http, https });
+}
+const requestRuntime = createRequestRuntime({ requestText: baseRequestText });
+function requestText(targetUrl, opts, body) {
+  return requestRuntime.requestText(targetUrl, opts, body);
 }
 
 async function requestJson(targetUrl, opts, body) {
@@ -1549,7 +1554,7 @@ if (process.env.NODE_ENV === 'test') {
       applyNeteaseApi(overrides);
     },
     setRequestText(fn) {
-      requestTextOverride = fn;
+      requestRuntime.setRequestText(fn);
     },
     normalizeCookieHeader,
     rawCookieFallback,
@@ -1561,7 +1566,7 @@ if (process.env.NODE_ENV === 'test') {
     resetMusicRuntime() {
       applyNeteaseApi();
       cookieRuntime.reset();
-      requestTextOverride = null;
+      requestRuntime.reset();
     },
     setUpdatePlatform(value) {
       updateRuntime.setPlatform(value);
