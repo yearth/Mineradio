@@ -54,3 +54,26 @@ export function classifyQQPlaybackRestriction(info: any, session: any): Record<s
   }
   return playbackRestriction('qq', 'url_unavailable', 'QQ 音乐没有返回播放地址，可能受版权、会员或官方客户端限制', 'switch_source', { code, rawMessage: rawMsg });
 }
+
+export function qqPlaybackUnavailablePayload(opts: any): Record<string, unknown> {
+  const info = opts && opts.info;
+  const hasSession = !!(opts && opts.hasSession);
+  const hasPlaybackKey = !!(opts && opts.hasPlaybackKey);
+  const restriction = classifyQQPlaybackRestriction(info, { hasSession, hasPlaybackKey });
+  const fileCandidates = (opts && Array.isArray(opts.fileCandidates)) ? opts.fileCandidates : [];
+  return {
+    provider: 'qq',
+    url: '',
+    playable: false,
+    error: 'QQ_URL_UNAVAILABLE',
+    loggedIn: hasSession,
+    playbackKeyReady: hasPlaybackKey,
+    restriction,
+    reason: restriction.category,
+    message: restriction.message,
+    qqCode: info && (info.result || info.code || info.errtype),
+    rawMessage: info && (info.msg || info.tips || info.errmsg || ''),
+    tried: fileCandidates.map((item: any) => item.label + ' · ' + item.filename),
+    requestedQuality: opts && opts.requestedQuality,
+  };
+}

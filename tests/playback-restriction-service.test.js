@@ -5,6 +5,7 @@ const {
   classifyNeteasePlaybackRestriction,
   classifyQQPlaybackRestriction,
   playbackRestriction,
+  qqPlaybackUnavailablePayload,
 } = require('../server-dist/server/services/playback-restriction');
 
 test('playbackRestriction builds legacy restriction payloads', () => {
@@ -73,4 +74,34 @@ test('classifyQQPlaybackRestriction preserves paid, provider error, and fallback
     code: 0,
     rawMessage: '',
   });
+});
+
+test('qqPlaybackUnavailablePayload preserves QQ URL unavailable response shape', () => {
+  const payload = qqPlaybackUnavailablePayload({
+    info: { result: 104003, tips: 'web session only' },
+    hasSession: true,
+    hasPlaybackKey: false,
+    fileCandidates: [
+      { label: '320k MP3', filename: 'M800songmid.mp3' },
+      { label: 'AAC/M4A', filename: 'C400songmid.m4a' },
+    ],
+    requestedQuality: 'exhigh',
+  });
+
+  assert.equal(payload.provider, 'qq');
+  assert.equal(payload.url, '');
+  assert.equal(payload.playable, false);
+  assert.equal(payload.error, 'QQ_URL_UNAVAILABLE');
+  assert.equal(payload.loggedIn, true);
+  assert.equal(payload.playbackKeyReady, false);
+  assert.equal(payload.reason, 'login_required');
+  assert.equal(payload.message, 'QQ 音乐当前只拿到了网页登录状态，还缺少播放授权，请重新打开官方 QQ 音乐登录窗口完成授权');
+  assert.equal(payload.qqCode, 104003);
+  assert.equal(payload.rawMessage, 'web session only');
+  assert.deepEqual(payload.tried, ['320k MP3 · M800songmid.mp3', 'AAC/M4A · C400songmid.m4a']);
+  assert.equal(payload.requestedQuality, 'exhigh');
+  assert.deepEqual(payload.restriction, classifyQQPlaybackRestriction({ result: 104003, tips: 'web session only' }, {
+    hasSession: true,
+    hasPlaybackKey: false,
+  }));
 });

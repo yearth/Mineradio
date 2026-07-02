@@ -165,8 +165,8 @@ const {
 } = require('./server-dist/server/services/cookie-session');
 const {
   classifyNeteasePlaybackRestriction,
-  classifyQQPlaybackRestriction,
   playbackRestriction,
+  qqPlaybackUnavailablePayload,
 } = require('./server-dist/server/services/playback-restriction');
 const {
   NETEASE_QUALITY_CANDIDATES,
@@ -972,25 +972,13 @@ async function handleQQSongUrl(mid, mediaMid, qualityPreference) {
       requestedQuality,
     };
   }
-  const restriction = classifyQQPlaybackRestriction(info, {
+  return qqPlaybackUnavailablePayload({
+    info,
     hasSession: !!(uin && musicKey),
     hasPlaybackKey: !!(uin && playbackKey),
-  });
-  return {
-    provider: 'qq',
-    url: '',
-    playable: false,
-    error: 'QQ_URL_UNAVAILABLE',
-    loggedIn: !!(uin && musicKey),
-    playbackKeyReady: !!(uin && playbackKey),
-    restriction,
-    reason: restriction.category,
-    message: restriction.message,
-    qqCode: info && (info.result || info.code || info.errtype),
-    rawMessage: info && (info.msg || info.tips || info.errmsg || ''),
-    tried: fileCandidates.map(item => item.label + ' · ' + item.filename),
+    fileCandidates,
     requestedQuality,
-  };
+  });
 }
 
 async function handleQQSongComments(id, mid, limit, offset) {
