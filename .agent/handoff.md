@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease session helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract podcast mapper helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -47,9 +47,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-third slice is complete: `server/services/playback-quality.ts` owns Netease/QQ quality candidate tables, quality preference alias normalization, fallback candidate ordering, and Netease SVIP detection; `server.js` keeps playback URL orchestration.
 - Stage 3 twenty-fourth slice is complete: `server/services/provider-response.ts` owns provider API code/message normalization helpers; `server.js` keeps login invalidation and playlist add-song orchestration.
 - Stage 3 twenty-fifth slice is complete: `server/services/netease-session.ts` owns Netease VIP detection, login profile normalization, and auth-invalid payload detection; `server.js` keeps session fetch/orchestration.
+- Stage 3 twenty-sixth slice is complete: `server/services/music-mapper.ts` now also owns pure podcast program, voice, collection-radio, collection-metadata, and response-array extraction helpers; `server.js` keeps API-backed podcast fetch orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Podcast mapper helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed because `mapPodcastProgram` and `firstArrayFrom` were not exported.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 153 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 349 tests.
+- `npm run coverage`: passed, 349 tests; production-code line coverage `100.00%`, including `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified helper parity, the subtle `mapPodcastVoice` fallback where `voiceListName` affects `artist` but not `album`/`radioName`, unchanged `server.js` podcast API orchestration, route coverage for podcast endpoints, and generated artifact tracking. Residual note: `mapPodcastProgram` explicit `fallbackRadio` path is mostly protected by exact-copy behavior rather than a dedicated new assertion.
 
 Netease session helper extraction:
 

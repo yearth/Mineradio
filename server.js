@@ -174,17 +174,22 @@ const {
   qualityCandidatesFrom,
 } = require('./server-dist/server/services/playback-quality');
 const {
+  firstArrayFrom,
   isLowSignalPodcastItem,
   isQQFavoritePlaylist,
   isQzoneBackgroundPlaylist,
   mapArtists,
   mapDiscoverPlaylist,
+  mapPodcastCollectionRadio,
+  mapPodcastProgram,
   mapPodcastRadio,
+  mapPodcastVoice,
   mapQQArtists,
   mapQQPlaylistTrack,
   mapQQSmartSong,
   mapQQTrack,
   mapSongRecord,
+  podcastCollectionMeta,
   qqAlbumCover,
 } = require('./server-dist/server/services/music-mapper');
 
@@ -1673,101 +1678,6 @@ async function handleQQLyric(mid, id) {
     qrc: qrcText,
     roma: romaText,
     source: lyricText ? source : 'qq-empty',
-  };
-}
-
-function mapPodcastProgram(p, fallbackRadio) {
-  p = p || {};
-  const mainSong = p.mainSong || p.song || p.mainTrack || {};
-  const radio = p.radio || fallbackRadio || {};
-  const mappedRadio = mapPodcastRadio(radio);
-  const artists = mapArtists(mainSong.ar || mainSong.artists || []);
-  const album = mainSong.al || mainSong.album || {};
-  const dj = p.dj || radio.dj || {};
-  const playableId = mainSong.id || p.mainSongId || p.songId;
-  return {
-    type: 'podcast',
-    source: 'podcast',
-    id: playableId,
-    programId: p.id || p.programId,
-    radioId: mappedRadio.id,
-    name: p.name || mainSong.name || '',
-    artist: mappedRadio.name || dj.nickname || artists.map(a => a.name).join(' / ') || mappedRadio.djName || '',
-    artists,
-    artistId: artists[0] && artists[0].id,
-    album: mappedRadio.name || album.name || 'Podcast',
-    cover: p.coverUrl || p.cover || p.blurCoverUrl || mappedRadio.cover || album.picUrl || '',
-    duration: p.duration || mainSong.dt || mainSong.duration || 0,
-    fee: mainSong.fee,
-    djName: mappedRadio.djName || dj.nickname || '',
-    radioName: mappedRadio.name || '',
-    desc: p.description || p.desc || '',
-    createTime: p.createTime || 0,
-    serialNum: p.serialNum || p.serial || 0,
-  };
-}
-
-function firstArrayFrom(obj, keys) {
-  obj = obj || {};
-  for (const key of keys) {
-    const value = obj[key];
-    if (Array.isArray(value)) return value;
-    if (value && Array.isArray(value.list)) return value.list;
-    if (value && Array.isArray(value.data)) return value.data;
-    if (value && Array.isArray(value.resources)) return value.resources;
-  }
-  return [];
-}
-
-function mapPodcastVoice(v) {
-  v = v || {};
-  const raw = v.resource || v.voice || v.data || v.program || v;
-  const mainSong = raw.mainSong || raw.song || raw.track || {};
-  const radio = raw.radio || raw.djRadio || raw.voiceList || raw.podcast || {};
-  const playableId = raw.trackId || raw.songId || raw.mainSongId || mainSong.id || raw.id;
-  return {
-    type: 'podcast',
-    source: 'podcast',
-    sourceType: 'podcast-voice',
-    id: playableId,
-    programId: raw.programId || raw.voiceId || raw.id,
-    radioId: radio.id || radio.radioId || radio.voiceListId || raw.radioId || raw.voiceListId,
-    name: raw.name || raw.songName || raw.title || mainSong.name || '',
-    artist: (radio.name || radio.radioName || radio.voiceListName || raw.podcastName || raw.djName || 'Voice'),
-    album: radio.name || radio.radioName || raw.podcastName || 'Podcast',
-    cover: raw.coverUrl || raw.cover || raw.picUrl || raw.coverImgUrl || radio.picUrl || radio.coverUrl || '',
-    duration: raw.duration || raw.durationMs || mainSong.dt || mainSong.duration || 0,
-    djName: raw.djName || (radio.dj && radio.dj.nickname) || '',
-    radioName: radio.name || radio.radioName || raw.podcastName || '',
-    desc: raw.desc || raw.description || '',
-  };
-}
-
-function mapPodcastCollectionRadio(r, key) {
-  const radio = mapPodcastRadio(r);
-  return {
-    ...radio,
-    type: 'podcast-radio',
-    sourceType: 'podcast-radio',
-    collectionKey: key || '',
-    radioId: radio.id,
-    name: radio.name,
-    artist: radio.djName || radio.category || 'Podcast',
-    album: radio.category || 'Podcast',
-  };
-}
-
-function podcastCollectionMeta(key, items) {
-  const meta = {
-    collect: { key: 'collect', title: '收藏播客', sub: '你收藏的播客', itemType: 'radio' },
-    created: { key: 'created', title: '创建播客', sub: '你创建的播客', itemType: 'radio' },
-    liked: { key: 'liked', title: '喜欢的声音', sub: '收藏或最近喜欢的声音', itemType: 'voice' },
-  }[key] || { key, title: key, sub: '', itemType: 'radio' };
-  const first = (items || [])[0] || {};
-  return {
-    ...meta,
-    count: (items || []).length,
-    cover: first.cover || first.picUrl || first.coverUrl || '',
   };
 }
 

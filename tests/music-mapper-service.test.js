@@ -5,15 +5,20 @@ const {
   isLowSignalPodcastItem,
   isQQFavoritePlaylist,
   isQzoneBackgroundPlaylist,
+  firstArrayFrom,
   lowSignalText,
   mapArtists,
   mapDiscoverPlaylist,
+  mapPodcastCollectionRadio,
+  mapPodcastProgram,
   mapPodcastRadio,
+  mapPodcastVoice,
   mapQQArtists,
   mapQQPlaylistTrack,
   mapQQSmartSong,
   mapQQTrack,
   mapSongRecord,
+  podcastCollectionMeta,
   qqAlbumCover,
 } = require('../server-dist/server/services/music-mapper');
 
@@ -100,6 +105,121 @@ test('low signal and QQ playlist predicates preserve filtering rules', () => {
   assert.equal(isQQFavoritePlaylist({ name: 'Road Trip' }), false);
   assert.equal(isQzoneBackgroundPlaylist({ name: '空间背景音乐', creator: 'QQ' }), true);
   assert.equal(isQzoneBackgroundPlaylist({ name: 'Daily Mix', creator: 'QQ 音乐' }), false);
+});
+
+test('podcast program and voice mappers preserve legacy playable item fallbacks', () => {
+  assert.deepEqual(mapPodcastProgram({
+    id: 'program001',
+    mainSong: {
+      id: 901,
+      name: 'Episode Track',
+      ar: [{ id: 7, name: 'Host A' }],
+      al: { name: 'Track Album', picUrl: 'https://img.example/track.jpg' },
+      dt: 188000,
+      fee: 0,
+    },
+    radio: {
+      id: 'radio001',
+      name: 'Night Podcast',
+      dj: { nickname: 'DJ One' },
+      picUrl: 'https://img.example/radio.jpg',
+    },
+    desc: 'Episode desc',
+    serial: 4,
+  }), {
+    type: 'podcast',
+    source: 'podcast',
+    id: 901,
+    programId: 'program001',
+    radioId: 'radio001',
+    name: 'Episode Track',
+    artist: 'Night Podcast',
+    artists: [{ id: 7, name: 'Host A' }],
+    artistId: 7,
+    album: 'Night Podcast',
+    cover: 'https://img.example/radio.jpg',
+    duration: 188000,
+    fee: 0,
+    djName: 'DJ One',
+    radioName: 'Night Podcast',
+    desc: 'Episode desc',
+    createTime: 0,
+    serialNum: 4,
+  });
+
+  assert.deepEqual(mapPodcastVoice({
+    resource: {
+      voiceId: 'voice001',
+      trackId: 902,
+      title: 'Voice Title',
+      durationMs: 90000,
+      podcastName: 'Voice Podcast',
+      coverImgUrl: 'https://img.example/voice.jpg',
+      voiceList: { voiceListId: 'vl001', voiceListName: 'Voice List', dj: { nickname: 'Voice DJ' } },
+      description: 'Voice desc',
+    },
+  }), {
+    type: 'podcast',
+    source: 'podcast',
+    sourceType: 'podcast-voice',
+    id: 902,
+    programId: 'voice001',
+    radioId: 'vl001',
+    name: 'Voice Title',
+    artist: 'Voice List',
+    album: 'Voice Podcast',
+    cover: 'https://img.example/voice.jpg',
+    duration: 90000,
+    djName: 'Voice DJ',
+    radioName: 'Voice Podcast',
+    desc: 'Voice desc',
+  });
+});
+
+test('podcast collection helpers preserve array extraction and summary metadata', () => {
+  assert.deepEqual(firstArrayFrom({ data: { list: [{ id: 1 }] } }, ['missing', 'data']), [{ id: 1 }]);
+  assert.deepEqual(firstArrayFrom({ data: { resources: [{ id: 2 }] } }, ['data']), [{ id: 2 }]);
+  assert.deepEqual(firstArrayFrom(null, ['data']), []);
+
+  assert.deepEqual(mapPodcastCollectionRadio({
+    radioId: 'radio002',
+    radioName: 'Collected Radio',
+    categoryName: 'Talk',
+    djName: 'Collector',
+  }, 'collect'), {
+    id: 'radio002',
+    rid: 'radio002',
+    name: 'Collected Radio',
+    cover: '',
+    desc: '',
+    djName: 'Collector',
+    category: 'Talk',
+    programCount: 0,
+    subCount: 0,
+    type: 'podcast-radio',
+    sourceType: 'podcast-radio',
+    collectionKey: 'collect',
+    radioId: 'radio002',
+    artist: 'Collector',
+    album: 'Talk',
+  });
+
+  assert.deepEqual(podcastCollectionMeta('liked', [{ cover: 'https://img.example/liked.jpg' }]), {
+    key: 'liked',
+    title: '喜欢的声音',
+    sub: '收藏或最近喜欢的声音',
+    itemType: 'voice',
+    count: 1,
+    cover: 'https://img.example/liked.jpg',
+  });
+  assert.deepEqual(podcastCollectionMeta('custom', [{ picUrl: 'https://img.example/custom.jpg' }]), {
+    key: 'custom',
+    title: 'custom',
+    sub: '',
+    itemType: 'radio',
+    count: 1,
+    cover: 'https://img.example/custom.jpg',
+  });
 });
 
 test('QQ artist and album helpers preserve legacy URL and filtering behavior', () => {
