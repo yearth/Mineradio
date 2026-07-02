@@ -264,6 +264,9 @@ const {
   handleNeteaseAuthRoutes,
 } = require('./server-dist/server/controllers/netease-auth-controller');
 const {
+  handleNeteaseLibraryRoutes,
+} = require('./server-dist/server/controllers/netease-library-controller');
+const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
 
@@ -1416,159 +1419,28 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  // ---------- 用户歌单 ----------
-  if (pn === '/api/user/playlists') {
-    try {
-      const info = await getLoginInfo();
-      if (!info.loggedIn || !info.userId) { sendJSON(res, { loggedIn: false, playlists: [] }); return; }
-      const limit = Math.max(12, Math.min(100, parseInt(url.searchParams.get('limit') || '60', 10) || 60));
-      const r = await user_playlist({ uid: info.userId, limit, cookie: userCookie, timestamp: Date.now() });
-      const list = ((r.body && r.body.playlist) || []).map(pl => ({
-        id: pl.id,
-        name: pl.name,
-        cover: pl.coverImgUrl || '',
-        trackCount: pl.trackCount || 0,
-        playCount: pl.playCount || 0,
-        creator: (pl.creator && pl.creator.nickname) || '',
-        subscribed: !!pl.subscribed,
-        specialType: pl.specialType || 0,
-      }));
-      sendJSON(res, { loggedIn: true, userId: info.userId, playlists: list });
-    } catch (err) {
-      console.error('[UserPlaylists]', err);
-      sendJSON(res, { error: err.message, loggedIn: false, playlists: [] }, 500);
-    }
-    return;
-  }
-
-  // ---------- 红心状态 ----------
-  if (pn === '/api/song/like/check') {
-    try {
-      const info = await requireLogin(res);
-      if (!info) return;
-      const ids = String(url.searchParams.get('ids') || url.searchParams.get('id') || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-      if (!ids.length) { sendJSON(res, { error: 'Missing song id', liked: {}, ids: [] }, 400); return; }
-      let likedIds = [];
-      try {
-        if (typeof song_like_check === 'function') {
-          const checked = await song_like_check({ ids: JSON.stringify(ids.map(Number).filter(Boolean)), cookie: userCookie, timestamp: Date.now() });
-          const data = (checked.body && (checked.body.data || checked.body.ids)) || checked.body || {};
-          if (Array.isArray(data)) likedIds = data.map(String);
-          else if (data && typeof data === 'object') {
-            ids.forEach(id => {
-              if (data[id] || data[String(id)] || data[Number(id)]) likedIds.push(String(id));
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('[LikeCheck] direct check failed:', e.message);
-      }
-      if (!likedIds.length) {
-        const r = await likelist({ uid: info.userId, cookie: userCookie, timestamp: Date.now() });
-        likedIds = ((r.body && r.body.ids) || []).map(String);
-      }
-      const set = new Set(likedIds);
-      const liked = {};
-      ids.forEach(id => { liked[id] = set.has(String(id)); });
-      sendJSON(res, { loggedIn: true, ids, liked });
-    } catch (err) {
-      console.error('[LikeCheck]', err);
-      sendJSON(res, { error: err.message }, 500);
-    }
-    return;
-  }
-
-  // ---------- 红心/取消红心 ----------
-  if (pn === '/api/song/like') {
-    try {
-      const info = await requireLogin(res);
-      if (!info) return;
-      const body = req.method === 'POST' ? await readRequestBody(req) : {};
-      const id = body.id || url.searchParams.get('id');
-      const nextLike = String(body.like != null ? body.like : (url.searchParams.get('like') || 'true')) !== 'false';
-      if (!id) { sendJSON(res, { error: 'Missing song id' }, 400); return; }
-      const r = await like_song({ id, like: String(nextLike), cookie: userCookie, timestamp: Date.now() });
-      const code = (r.body && r.body.code) || r.code || 200;
-      sendJSON(res, { loggedIn: true, id, liked: nextLike, code, body: r.body || r });
-    } catch (err) {
-      console.error('[Like]', err);
-      sendJSON(res, { error: err.message }, 500);
-    }
-    return;
-  }
-
-  // ---------- 创建歌单 ----------
-  if (pn === '/api/playlist/create') {
-    try {
-      const info = await requireLogin(res);
-      if (!info) return;
-      const body = req.method === 'POST' ? await readRequestBody(req) : {};
-      const name = String(body.name || url.searchParams.get('name') || '').trim();
-      const privacy = String(body.privacy || url.searchParams.get('privacy') || '0');
-      if (!name) { sendJSON(res, { error: 'Missing playlist name' }, 400); return; }
-      const r = await playlist_create({ name, privacy, cookie: userCookie, timestamp: Date.now() });
-      const created = (r.body && (r.body.playlist || r.body.data)) || {};
-      sendJSON(res, { loggedIn: true, playlist: created, body: r.body || r });
-    } catch (err) {
-      console.error('[PlaylistCreate]', err);
-      sendJSON(res, { error: err.message }, 500);
-    }
-    return;
-  }
-
-  // ---------- 收藏歌曲到歌单 ----------
-  if (pn === '/api/playlist/add-song') {
-    try {
-      const info = await requireLogin(res);
-      if (!info) return;
-      const body = req.method === 'POST' ? await readRequestBody(req) : {};
-      const pid = body.pid || url.searchParams.get('pid');
-      const id = body.id || body.ids || url.searchParams.get('id') || url.searchParams.get('ids');
-      if (!pid || !id) { sendJSON(res, { error: 'Missing playlist id or song id' }, 400); return; }
-      const attempts = [];
-      let finalBody = null;
-      let finalCode = 0;
-      let finalMessage = '';
-      let success = false;
-
-      const primary = await playlist_tracks({ op: 'add', pid, tracks: String(id), cookie: userCookie, timestamp: Date.now() });
-      finalBody = primary.body || primary;
-      finalCode = normalizeApiCode(primary);
-      finalMessage = normalizeApiMessage(primary);
-      success = finalCode === 200 && !(finalBody && finalBody.error);
-      attempts.push({ api: 'playlist_tracks', code: finalCode, message: finalMessage, body: finalBody });
-
-      if (!success && typeof playlist_track_add === 'function') {
-        try {
-          const fallback = await playlist_track_add({ pid, ids: String(id), cookie: userCookie, timestamp: Date.now() });
-          finalBody = fallback.body || fallback;
-          finalCode = normalizeApiCode(fallback);
-          finalMessage = normalizeApiMessage(fallback);
-          success = finalCode === 200 && !(finalBody && finalBody.error);
-          attempts.push({ api: 'playlist_track_add', code: finalCode, message: finalMessage, body: finalBody });
-        } catch (fallbackErr) {
-          const errBody = fallbackErr.body || fallbackErr.response || {};
-          finalBody = errBody;
-          finalCode = normalizeApiCode(errBody);
-          finalMessage = normalizeApiMessage(errBody) || fallbackErr.message || '';
-          attempts.push({ api: 'playlist_track_add', code: finalCode, message: finalMessage, body: errBody });
-        }
-      }
-
-      if (!success) {
-        sendJSON(res, { loggedIn: true, pid, id, success: false, code: finalCode, error: finalMessage || 'PLAYLIST_ADD_FAILED', attempts }, finalCode === 401 ? 401 : 409);
-        return;
-      }
-      sendJSON(res, { loggedIn: true, pid, id, success: true, code: finalCode, body: finalBody, attempts });
-    } catch (err) {
-      console.error('[PlaylistAddSong]', err);
-      sendJSON(res, { error: err.message }, 500);
-    }
-    return;
-  }
+  if (await handleNeteaseLibraryRoutes({
+    pathname: pn,
+    url,
+    req,
+    res,
+    sendJSON,
+    readRequestBody,
+    getLoginInfo,
+    requireLogin,
+    getUserCookie: () => userCookie,
+    userPlaylist: user_playlist,
+    songLikeCheck: song_like_check,
+    likelist,
+    likeSong: like_song,
+    playlistCreate: playlist_create,
+    playlistTracks: playlist_tracks,
+    playlistTrackAdd: playlist_track_add,
+    normalizeApiCode,
+    normalizeApiMessage,
+    now: Date.now,
+    logger: console,
+  })) return;
 
   // ---------- 歌词 ----------
   if (pn === '/api/lyric') {

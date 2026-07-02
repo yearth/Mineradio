@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is Netease auth route extraction into `server/controllers/netease-auth-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is Netease library route extraction into `server/controllers/netease-library-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -87,9 +87,20 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split tenth slice is complete: `server/controllers/qq-controller.ts` now owns QQ routes (`/api/qq/search`, `/api/qq/song/url`, `/api/qq/lyric`, `/api/qq/login/status`, `/api/qq/login/cookie`, `/api/qq/logout`, `/api/qq/user/playlists`, `/api/qq/playlist/tracks`, `/api/qq/artist/detail`, `/api/qq/song/comments`) through `handleQQRoutes`; `server.js` keeps the root compatibility entry and injects QQ orchestration helpers, cookie/session helpers, request-body reader, `sendJSON`, and logger.
 - Controller/router TS split eleventh slice is complete: `server/controllers/search-controller.ts` now owns `/api/search` through `handleSearchRoutes`; `server.js` keeps the root compatibility entry and injects `handleSearch`, `sendJSON`, and logger while preserving legacy query parsing and fallback response behavior.
 - Controller/router TS split twelfth slice is complete: `server/controllers/netease-auth-controller.ts` now owns Netease auth/session routes (`/api/login/cookie`, `/api/login/qr/key`, `/api/login/qr/create`, `/api/login/qr/check`, `/api/login/status`, `/api/logout`) through `handleNeteaseAuthRoutes`; `server.js` keeps the root compatibility entry and injects cookie/session helpers, QR APIs, login normalization helpers, logout, clock, `sendJSON`, and logger.
+- Controller/router TS split thirteenth slice is complete: `server/controllers/netease-library-controller.ts` now owns Netease library/write routes (`/api/user/playlists`, `/api/song/like/check`, `/api/song/like`, `/api/playlist/create`, `/api/playlist/add-song`) through `handleNeteaseLibraryRoutes`; `server.js` keeps the root compatibility entry and injects login helpers, current cookie getter, Netease write APIs, provider response normalizers, request-body reader, clock, `sendJSON`, and logger.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease library controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-library-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/netease-library-controller'`.
+- `npm run build:ts && node --test tests/netease-library-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 155 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 462 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/netease-library-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route order, user-playlist mapping/fallback, like check direct/fallback/error behavior, like toggle and playlist-create parsing/validation/fallbacks, playlist add-song primary/fallback/status/attempt semantics, login-required early return, unrelated-path behavior, route descriptor coverage, and `node --check server.js`.
 
 Netease auth controller route extraction:
 
