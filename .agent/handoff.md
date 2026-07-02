@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `40ad4f8 refactor: extract update manifest source helpers`; current uncommitted slice extracts update check orchestration helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `4532f0c refactor: extract update check helpers`; current uncommitted slice extracts update patch buffer download helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -35,7 +35,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twelfth slice is complete: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
 - Stage 3 thirteenth slice is complete: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
 - Stage 3 fourteenth slice is complete: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
-- Stage 3 fifteenth slice is QA-passed and ready to commit: `server/services/update-check.ts` owns latest update check orchestration across mac preview fallback, manifest override, GitHub API release metadata, latest.yml fallback, and local fallback.
+- Stage 3 fifteenth slice is complete: `server/services/update-check.ts` owns latest update check orchestration across mac preview fallback, manifest override, GitHub API release metadata, latest.yml fallback, and local fallback.
+- Stage 3 sixteenth slice is QA-passed and ready to commit: `server/services/update-patch-download.ts` owns single-candidate patch package download, patch progress, max-size guard, and buffer verification.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -422,6 +423,21 @@ Stage 3 update check service slice:
 - First `npm run coverage` failed at `99.97%` line coverage because `server-dist/server/services/update-check.js` lines 50-51 were uncovered; added a direct HTTP non-ok + latest.yml failure test.
 - Final `npm run coverage`: passed, 314 tests; production-code line coverage `100.00%`, branch coverage `72.18%`, function coverage `95.72%`; `server-dist/server/services/update-check.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified legacy behavior parity, wrapper dependency injection, removed-import safety, test coverage, generated artifact tracking, `node --test tests/update-check-service.test.js`, `node --check server.js`, `npm run typecheck`, and `git diff --check`.
+
+Stage 3 update patch download service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-patch-download-service.test.js` failed because `server-dist/server/services/update-patch-download` did not exist.
+- Added `server/services/update-patch-download.ts` for `downloadPatchBufferFromCandidate`.
+- `server.js` now imports the compiled patch download helper and injects patch max bytes, User-Agent, mirror digest guard, attempt preparation, fetch timeout helper, update error helper, speed/progress helpers, and buffer verification.
+- Added `tests/update-patch-download-service.test.js` for guard/prepare ordering, patch job state setup, User-Agent and 12000ms timeout, content-length total fallback, received reset, progress update, verify call, speed windows, HTTP errors, and `PATCH_TOO_LARGE`.
+- First GREEN build exposed the repo's no-Node-types TS constraint for `Buffer`; fixed with local `declare const Buffer: any` instead of adding `@types/node`.
+- `npm run build:ts && node --test tests/update-patch-download-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 35 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 317 tests.
+- `npm run coverage`: passed, 317 tests; production-code line coverage `100.00%`, branch coverage `72.31%`, function coverage `95.73%`; `server-dist/server/services/update-patch-download.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior parity, wrapper injection completeness, service tests, full tests, coverage, and generated artifact tracking.
 
 ## Decisions
 

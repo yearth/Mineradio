@@ -131,6 +131,9 @@ const {
   fetchLatestUpdateInfo: fetchLatestUpdateInfoService,
   fetchLatestYmlUpdateInfo: fetchLatestYmlUpdateInfoService,
 } = require('./server-dist/server/services/update-check');
+const {
+  downloadPatchBufferFromCandidate: downloadPatchBufferFromCandidateService,
+} = require('./server-dist/server/services/update-patch-download');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -554,44 +557,17 @@ function normalizePatchPayload(payload) {
   return normalizePatchPayloadService(payload, { currentVersion: APP_VERSION });
 }
 async function downloadPatchBufferFromCandidate(job, candidate, index, total) {
-  ensureMirrorCanBeVerified(job, candidate);
-  prepareUpdateJobAttempt(job, candidate, index, total);
-  job.mode = 'patch';
-  job.message = '正在下载快速补丁';
-  job.progress = 0;
-  job.updatedAt = Date.now();
-
-  const resp = await fetchWithTimeout(candidate.url, {
-    headers: { 'User-Agent': `Mineradio/${APP_VERSION}` },
-  }, 12000);
-  if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status);
-
-  job.total = parseInt(resp.headers.get('content-length') || '0', 10) || job.expectedSize || job.total || 0;
-  job.received = 0;
-  const chunks = [];
-  const reader = resp.body.getReader();
-  let speedWindowAt = Date.now();
-  let speedWindowBytes = 0;
-  while (true) {
-    const chunk = await reader.read();
-    if (chunk.done) break;
-    const buf = Buffer.from(chunk.value);
-    job.received += buf.length;
-    speedWindowBytes += buf.length;
-    if (job.received > PATCH_MAX_BYTES) throw updateError('PATCH_TOO_LARGE', 'Patch package is too large');
-    chunks.push(buf);
-    const now = Date.now();
-    if (now - speedWindowAt >= 700) {
-      job.speedBps = updateSpeedBps(speedWindowBytes, now - speedWindowAt);
-      speedWindowAt = now;
-      speedWindowBytes = 0;
-    }
-    Object.assign(job, patchProgress({ received: job.received, total: job.total, speedBps: job.speedBps }));
-    job.updatedAt = Date.now();
-  }
-  const raw = Buffer.concat(chunks);
-  verifyUpdateBuffer(raw, job);
-  return raw;
+  return downloadPatchBufferFromCandidateService(job, candidate, index, total, {
+    patchMaxBytes: PATCH_MAX_BYTES,
+    userAgent: `Mineradio/${APP_VERSION}`,
+    ensureMirrorCanBeVerified,
+    prepareUpdateJobAttempt,
+    fetchWithTimeout,
+    updateError,
+    updateSpeedBps,
+    patchProgress,
+    verifyUpdateBuffer,
+  });
 }
 async function downloadAndApplyPatchWithMirrors(job) {
   const candidates = Array.isArray(job.downloadCandidates) && job.downloadCandidates.length
