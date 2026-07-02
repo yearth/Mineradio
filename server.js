@@ -213,6 +213,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  requestQQGetJson,
   requestQQMusicJson,
   qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
@@ -764,14 +765,15 @@ async function getQQLoginInfo() {
 
 async function qqGetJSON(targetUrl, params, opts) {
   opts = opts || {};
-  const u = new URL(targetUrl);
-  Object.keys(params || {}).forEach(k => {
-    if (params[k] != null) u.searchParams.set(k, String(params[k]));
+  return requestQQGetJson({
+    url: targetUrl,
+    params,
+    baseHeaders: QQ_HEADERS,
+    headers: opts.headers || {},
+    cookie: qqCookie,
+    includeCookie: opts.cookie !== false,
+    requestText,
   });
-  const headers = { ...QQ_HEADERS, ...(opts.headers || {}) };
-  if (opts.cookie !== false && qqCookie) headers.Cookie = qqCookie;
-  const text = await requestText(u.toString(), { headers });
-  return parseJSONText(text);
 }
 
 async function handleQQUserPlaylists() {

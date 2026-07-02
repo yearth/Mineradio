@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq musicu request helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq get json helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -63,9 +63,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-ninth slice is complete: `server/services/app-info.ts` owns package.json reading and empty fallback behavior; `server.js` keeps a thin path/fs wrapper for startup app metadata.
 - Stage 3 fortieth slice is complete: `server/services/app-info.ts` now also owns `/api/app/version` response payload construction; `server.js` delegates the route response shape to `buildAppVersionPayload`.
 - Stage 3 forty-first slice is complete: `server/services/qq-utils.ts` now owns QQ Musicu POST request construction and JSON parsing through `requestQQMusicJson`; `server.js` keeps a thin runtime-state wrapper that injects URL, headers, cookie, and `requestText`.
+- Stage 3 forty-second slice is complete: `server/services/qq-utils.ts` now owns QQ GET JSON request URL/header/cookie construction and parsing through `requestQQGetJson`; `server.js` keeps a thin runtime-state wrapper around current QQ headers/cookie/requestText.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ GET JSON helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `requestQQGetJson is not a function`.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 151 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 380 tests.
+- `npm run coverage`: passed, 380 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified URL construction, query param null/undefined skipping, value stringification, header merge, cookie gating, `requestText` delegation, callback JSON parsing, compiled export availability, targeted test pass (`151/151`), full `npm test` pass (`380/380`), and scoped `git diff --check` pass. Residual note: runtime `server-dist` dependency remains an existing project build requirement covered by `npm run build:ts` and structure tests.
 
 QQ Musicu request helper extraction:
 

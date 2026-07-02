@@ -7,6 +7,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  requestQQGetJson,
   requestQQMusicJson,
   qqSingerAvatar,
 } = require('../server-dist/server/services/qq-utils');
@@ -119,6 +120,49 @@ test('requestQQMusicJson preserves musicu POST body, headers, cookie, and JSON p
     cookie: 'uin=o123',
     includeCookie: false,
     requestText: async (url, opts) => {
+      assert.equal(opts.headers.Cookie, undefined);
+      return '{"code":0}';
+    },
+  });
+});
+
+test('requestQQGetJson preserves query params, headers, cookie gating, and JSON parsing', async () => {
+  const calls = [];
+  const result = await requestQQGetJson({
+    url: 'https://c.y.qq.com/fcgi?a=keep',
+    params: {
+      page: 2,
+      keyword: 'rain',
+      ignored: null,
+      skipped: undefined,
+    },
+    baseHeaders: { Referer: 'https://y.qq.com/' },
+    headers: { Host: 'c.y.qq.com' },
+    cookie: 'uin=o123; qm_keyst=key',
+    includeCookie: true,
+    requestText: async (url, opts) => {
+      calls.push({ url, opts });
+      return 'callback({"code":0,"list":[1,2]});';
+    },
+  });
+
+  assert.deepEqual(result, { code: 0, list: [1, 2] });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://c.y.qq.com/fcgi?a=keep&page=2&keyword=rain');
+  assert.deepEqual(calls[0].opts.headers, {
+    Referer: 'https://y.qq.com/',
+    Host: 'c.y.qq.com',
+    Cookie: 'uin=o123; qm_keyst=key',
+  });
+
+  await requestQQGetJson({
+    url: 'https://c.y.qq.com/fcgi',
+    params: { page: 1 },
+    baseHeaders: {},
+    cookie: 'uin=o123',
+    includeCookie: false,
+    requestText: async (url, opts) => {
+      assert.equal(url, 'https://c.y.qq.com/fcgi?page=1');
       assert.equal(opts.headers.Cookie, undefined);
       return '{"code":0}';
     },

@@ -28,6 +28,26 @@ export async function requestQQMusicJson(opts: {
   return parseJSONText(text);
 }
 
+export async function requestQQGetJson(opts: {
+  url: string;
+  params?: Record<string, unknown>;
+  baseHeaders?: Record<string, string>;
+  headers?: Record<string, string>;
+  cookie?: string;
+  includeCookie?: boolean;
+  requestText: (targetUrl: string, requestOpts: Record<string, unknown>) => Promise<string>;
+}): Promise<any> {
+  const url = new URL(opts.url);
+  Object.keys(opts.params || {}).forEach(key => {
+    const value = opts.params ? opts.params[key] : undefined;
+    if (value != null) url.searchParams.set(key, String(value));
+  });
+  const headers: Record<string, string> = { ...(opts.baseHeaders || {}), ...(opts.headers || {}) };
+  if (opts.includeCookie && opts.cookie) headers.Cookie = opts.cookie;
+  const text = await opts.requestText(url.toString(), { headers });
+  return parseJSONText(text);
+}
+
 export function audioProxyHeadersFor(audioUrl: unknown, range: unknown, userAgent: string): Record<string, string> {
   const headers: Record<string, string> = { 'User-Agent': userAgent, Referer: 'https://music.163.com/' };
   try {
