@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is in progress; latest safe slice is update runtime state extraction into `server/runtime/update-runtime.ts`.
+- Worktree: server composition/runtime cleanup is in progress; latest safe slice is cookie runtime state extraction into `server/runtime/cookie-runtime.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -91,9 +91,20 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split fourteenth slice is complete: `server/controllers/netease-media-controller.ts` now owns Netease media/read routes (`/api/song/url`, `/api/lyric`, `/api/song/comments`, `/api/artist/detail`, `/api/playlist/tracks`) through `handleNeteaseMediaRoutes`; `server.js` keeps the root compatibility entry, preserves the early `/api/song/url` dispatch position, and injects current cookie getter, login helpers, Netease media APIs, mappers, comment payload builder, clock, `sendJSON`, and logger.
 - Controller/router TS split is complete: API route business branches now live under `server/controllers/*.ts`; root `server.js` keeps controller ordering, dependency injection, runtime state, compatibility wrappers, and static fallback.
 - Server composition/runtime cleanup first slice is complete: `server/runtime/update-runtime.ts` now owns update job Map state plus update platform/manifest/autoDownload/autoPatch test overrides; `server.js` keeps the original wrapper names and injects the runtime job Map into existing update services/controllers.
+- Server composition/runtime cleanup second slice is complete: `server/runtime/cookie-runtime.ts` now owns Netease/QQ cookie initial file reads, save normalization/raw fallback, silent IO failure handling, and in-memory reset; `server.js` keeps compatibility `saveCookie`/`saveQQCookie` wrappers and reads current cookies through runtime getters.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Cookie runtime state extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/cookie-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/cookie-runtime'`.
+- `npm run build:ts && node --test tests/cookie-runtime.test.js tests/music-routes.test.js tests/qq-controller.test.js tests/netease-auth-controller.test.js tests/server-test-runtime.test.js`: passed, 162 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 472 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/runtime/cookie-runtime.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified startup trim reads, save normalization/raw fallback, silent IO failure behavior, no residual local mutable `let userCookie`/`let qqCookie` state in `server.js`, current-cookie reads across QQ/Netease/search/podcast/controller deps, `resetMusicRuntime()` clearing in-memory cookies without deleting files, and no generated-file staging risk.
 
 Update runtime state extraction:
 
