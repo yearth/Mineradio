@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `1a19a9b refactor: extract update job factory helpers`; current uncommitted slice extracts update patch apply helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `e8ed241 refactor: extract update patch apply helpers`; current uncommitted slice extracts update progress helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -31,7 +31,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 eighth slice is complete: `server/services/update-job-runtime.ts` owns update job public projection, active job lookup, job trimming, attempt reset, error state assignment, and mirror digest guard logic; `server.js` delegates through current job-map wrappers where needed.
 - Stage 3 ninth slice is complete: `server/services/update-file-cache.ts` owns update hash helpers, downloaded buffer/file verification, invalid cache renaming, and verified cached installer job construction; `server.js` injects fs/path/job-map wrappers.
 - Stage 3 tenth slice is complete: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
-- Stage 3 eleventh slice is QA-passed and ready to commit: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
+- Stage 3 eleventh slice is complete: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
+- Stage 3 twelfth slice is QA-passed and ready to commit: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -360,6 +361,21 @@ Stage 3 update patch apply service slice:
 - First `npm run coverage` failed because the now-unused local `backupPatchTarget` wrapper in `server.js` lowered server line coverage to `99.75%`; removed that dead wrapper.
 - Final `npm run coverage`: passed, 295 tests; production-code line coverage `100.00%`, branch coverage `71.82%`, function coverage `95.86%`; `server-dist/server/services/update-patch-apply.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified legacy backup/write behavior parity, dependency injection completeness, safe deletion of the unused wrapper, service tests, `node --check server.js`, targeted service tests, `git diff --check`, and generated artifact tracking.
+
+Stage 3 update progress service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-progress-service.test.js` failed because `server-dist/server/services/update-progress` did not exist.
+- Added `server/services/update-progress.ts` for `speedBps`, `installerProgress`, and `patchProgress`.
+- `server.js` now imports those pure helpers and uses them inside installer and patch download loops; speed-window thresholds remain `900ms` for installer and `700ms` for patch.
+- Added `tests/update-progress-service.test.js` for speed rounding, installer known-size clamp/ETA, installer unknown-size legacy log fallback including 0 bytes -> progress `7`, patch known-size 84%-scale clamp/ETA, and patch unknown-size 76%-clamped log fallback.
+- First GREEN run exposed a wrong test expectation for installer unknown-size 0 bytes; legacy code uses `Math.max(1, received / 1024)` before log progress, so the expected progress was corrected from `1` to `7`.
+- `npm run build:ts && node --test tests/update-progress-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 37 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 300 tests.
+- `npm run coverage`: passed, 300 tests; production-code line coverage `100.00%`, branch coverage `71.95%`, function coverage `95.89%`; `server-dist/server/services/update-progress.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified formula parity, `server.js` timing/state/message preservation, service test boundaries, no generated artifact tracking, `node --test tests/update-progress-service.test.js`, and `node --check server.js`.
 
 ## Decisions
 

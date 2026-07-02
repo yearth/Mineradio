@@ -121,6 +121,11 @@ const {
 const {
   writePatchFile: writePatchFileService,
 } = require('./server-dist/server/services/update-patch-apply');
+const {
+  installerProgress,
+  patchProgress,
+  speedBps: updateSpeedBps,
+} = require('./server-dist/server/services/update-progress');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -543,17 +548,11 @@ async function downloadUpdateAssetWithMirrors(job) {
           speedWindowBytes += buf.length;
           const now = Date.now();
           if (now - speedWindowAt >= 900) {
-            job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000));
+            job.speedBps = updateSpeedBps(speedWindowBytes, now - speedWindowAt);
             speedWindowAt = now;
             speedWindowBytes = 0;
           }
-          if (job.total > 0) {
-            job.progress = Math.max(1, Math.min(99, Math.round((job.received / job.total) * 100)));
-            job.etaSeconds = job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0;
-          } else {
-            const kb = Math.max(1, job.received / 1024);
-            job.progress = Math.max(1, Math.min(88, Math.round(Math.log10(kb + 1) * 24)));
-          }
+          Object.assign(job, installerProgress({ received: job.received, total: job.total, speedBps: job.speedBps }));
           job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小';
           job.updatedAt = Date.now();
           if (!writer.write(buf)) await once(writer, 'drain');
@@ -645,14 +644,11 @@ async function downloadPatchBufferFromCandidate(job, candidate, index, total) {
     chunks.push(buf);
     const now = Date.now();
     if (now - speedWindowAt >= 700) {
-      job.speedBps = Math.round(speedWindowBytes / Math.max(0.001, (now - speedWindowAt) / 1000));
+      job.speedBps = updateSpeedBps(speedWindowBytes, now - speedWindowAt);
       speedWindowAt = now;
       speedWindowBytes = 0;
     }
-    job.progress = job.total > 0
-      ? Math.max(1, Math.min(84, Math.round((job.received / job.total) * 84)))
-      : Math.max(1, Math.min(76, Math.round(Math.log10(job.received / 1024 + 1) * 24)));
-    job.etaSeconds = job.total > 0 && job.speedBps > 0 ? Math.max(0, Math.round((job.total - job.received) / job.speedBps)) : 0;
+    Object.assign(job, patchProgress({ received: job.received, total: job.total, speedBps: job.speedBps }));
     job.updatedAt = Date.now();
   }
   const raw = Buffer.concat(chunks);
