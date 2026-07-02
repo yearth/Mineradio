@@ -213,6 +213,16 @@ export function mapQQSmartSong(item: any): Record<string, unknown> {
   };
 }
 
+export function uniqueNamedQQSongs(songs: any[]): any[] {
+  const seen = new Set();
+  return (songs || []).filter(song => {
+    const key = song && (song.mid || song.id || (song.name + '|' + song.artist));
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return !!song.name;
+  });
+}
+
 export function mapQQTrack(track: any, fallback: any): Record<string, unknown> {
   track = track || {};
   fallback = fallback || {};

@@ -192,6 +192,7 @@ const {
   mapSongRecord,
   podcastCollectionMeta,
   qqAlbumCover,
+  uniqueNamedQQSongs,
 } = require('./server-dist/server/services/music-mapper');
 const {
   decodeHtmlEntities,
@@ -917,13 +918,7 @@ async function handleQQSearch(keywords, limit) {
       return item;
     }
   }));
-  const seen = new Set();
-  return detailed.filter(song => {
-    const key = song && (song.mid || song.id || (song.name + '|' + song.artist));
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return !!song.name;
-  });
+  return uniqueNamedQQSongs(detailed);
 }
 
 async function handleQQSongUrl(mid, mediaMid, qualityPreference) {

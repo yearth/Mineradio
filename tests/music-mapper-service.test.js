@@ -20,6 +20,7 @@ const {
   mapSongRecord,
   podcastCollectionMeta,
   qqAlbumCover,
+  uniqueNamedQQSongs,
 } = require('../server-dist/server/services/music-mapper');
 
 test('mapSongRecord preserves Netease song shape and artist filtering', () => {
@@ -250,6 +251,23 @@ test('mapQQSmartSong preserves smartbox fallback song shape', () => {
     fee: 0,
     playable: false,
   });
+});
+
+test('uniqueNamedQQSongs preserves QQ search dedupe and filtering keys', () => {
+  assert.deepEqual(uniqueNamedQQSongs([
+    { mid: 'mid1', id: 1, name: 'Song 1', artist: 'Artist 1' },
+    { mid: 'mid1', id: 2, name: 'Duplicate mid', artist: 'Artist 2' },
+    { id: 'id-only', name: 'Song 2', artist: 'Artist 2' },
+    { id: 'id-only', name: 'Duplicate id', artist: 'Artist 3' },
+    { name: 'Song 3', artist: 'Artist 3' },
+    { name: 'Song 3', artist: 'Artist 3' },
+    { mid: 'empty-name', name: '', artist: 'Artist 4' },
+    null,
+  ]), [
+    { mid: 'mid1', id: 1, name: 'Song 1', artist: 'Artist 1' },
+    { id: 'id-only', name: 'Song 2', artist: 'Artist 2' },
+    { name: 'Song 3', artist: 'Artist 3' },
+  ]);
 });
 
 test('mapQQTrack preserves detailed QQ track mapping and fallback fields', () => {

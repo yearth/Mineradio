@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ unavailable payload helper extraction; commit after QA/pass verification should be `refactor: extract qq unavailable payload helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is QQ search dedupe helper extraction; commit after QA/pass verification should be `refactor: extract qq search dedupe helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -69,9 +69,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-fifth slice is complete: `server/services/qq-utils.ts` now owns QQ smartbox search URL construction, callback JSON parsing, limit clamping/defaulting, and smart-song mapping through `requestQQSmartboxSearch`; `server.js` keeps a thin runtime wrapper.
 - Stage 3 forty-sixth slice is complete: `server/services/playback-quality.ts` now owns QQ vkey file candidate construction through `qqVkeyFileCandidates`; `server.js` keeps QQ vkey request/session/restriction response orchestration.
 - Stage 3 forty-seventh slice is complete: `server/services/playback-restriction.ts` now owns QQ playback-unavailable response payload construction through `qqPlaybackUnavailablePayload`; `server.js` keeps QQ vkey request/session/success orchestration.
+- Stage 3 forty-eighth slice is complete: `server/services/music-mapper.ts` now owns QQ search result dedupe/name filtering through `uniqueNamedQQSongs`; `server.js` keeps QQ smartbox/detail orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ search dedupe helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed with `uniqueNamedQQSongs is not a function`.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 154 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 386 tests.
+- `npm run coverage`: passed, 386 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified the helper preserves the legacy `mid || id || name + '|' + artist` key, filters falsy/duplicate keys and empty names, keeps first occurrence, leaves QQ smartbox/detail/fallback orchestration unchanged, and has tests for `mid`/`id`/`name|artist` dedupe plus empty-name/null filtering.
 
 QQ unavailable payload helper extraction:
 
