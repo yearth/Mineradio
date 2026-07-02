@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest local slice is Stage 3 update error service extraction after `37165ab refactor: extract update manifest normalization`.
+- Worktree: check `git status --short --branch`; latest committed slice is `f481cb8 refactor: extract update error helpers`.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -26,6 +26,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 third micro-slice is complete: `publicDownloadUrls` moved into `server/services/update-download-candidates.ts`; `server.js` imports it from compiled TS.
 - Stage 3 fourth slice is complete: `server/services/update-manifest.ts` owns manifest update normalization; `server.js` delegates through an `APP_VERSION`/fallback-notes/download-candidate wrapper.
 - Stage 3 fifth slice is complete: `server/services/update-errors.ts` owns update error creation and classification; `server.js` imports the compiled helpers directly.
+- Stage 3 sixth slice is complete: `server/services/update-latest-yml.ts` owns latest.yml fallback parsing and GitHub release download URL construction; `server.js` delegates through an `APP_VERSION`/repository/download-candidate wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -266,6 +267,21 @@ Stage 3 update error service slice:
 - `npm test`: passed, 259 tests.
 - `npm run coverage`: passed, 259 tests; production-code line coverage `100.00%`, branch coverage `69.46%`, function coverage `95.37%`; `server-dist/server/services/update-errors.js` line coverage `100.00%`.
 - QA subagent final review: `PASS`. Read-only QA verified the object fallback compatibility fix, targeted update tests, `node --check server.js`, `npm run typecheck`, `npm test`, `npm run coverage`, `git diff --check`, and generated artifact tracking.
+
+Stage 3 latest.yml update service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-latest-yml-service.test.js` failed because `server-dist/server/services/update-latest-yml` did not exist.
+- Added `server/services/update-latest-yml.ts` for `yamlScalar`, `githubReleaseDownloadUrl`, and `parseLatestYmlUpdateInfo`.
+- `server.js` now imports `parseLatestYmlUpdateInfo` from the compiled TS service and injects `APP_VERSION`, configured GitHub owner/repo, and `uniqueDownloadCandidates`.
+- Added `tests/update-latest-yml-service.test.js` for quoted YAML scalar parsing, regex-special key escaping, repository/path URL encoding, latest.yml mapping, digest normalization, fallback asset naming, and sparse latest.yml fallbacks.
+- First coverage run after extraction failed because an unused `server.js` wrapper around `githubReleaseDownloadUrl` left lines 393-398 uncovered; removed that wrapper instead of keeping dead adapter code.
+- `npm run build:ts && node --test tests/update-latest-yml-service.test.js tests/update-routes.test.js tests/update-utils.test.js tests/project-structure.test.js`: passed, 49 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 263 tests.
+- `npm run coverage`: passed, 263 tests; production-code line coverage `100.00%`, branch coverage `69.77%`, function coverage `95.38%`; `server-dist/server/services/update-latest-yml.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified service extraction, latest.yml fallback route behavior, targeted tests, `npm test`, `npm run coverage`, `git diff --check`, generated artifact tracking, and handoff consistency.
 
 ## Decisions
 

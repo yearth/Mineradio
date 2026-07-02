@@ -81,7 +81,6 @@ const {
 } = require('./server-dist/server/services/update-config');
 const {
   buildMirrorUrl,
-  publicDownloadUrls,
   uniqueDownloadCandidates: buildUniqueDownloadCandidates,
 } = require('./server-dist/server/services/update-download-candidates');
 const {
@@ -91,6 +90,9 @@ const {
   classifyUpdateError,
   updateError,
 } = require('./server-dist/server/services/update-errors');
+const {
+  parseLatestYmlUpdateInfo: parseLatestYmlUpdateInfoService,
+} = require('./server-dist/server/services/update-latest-yml');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -386,58 +388,13 @@ async function fetchTextFromCandidates(candidates, timeoutMs) {
   }
   throw updateError('UPDATE_ALL_LINES_FAILED', failures.join('；') || 'All update lines failed');
 }
-function yamlScalar(text, key) {
-  const pattern = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:\\s*(.+?)\\s*$', 'm');
-  const match = String(text || '').match(pattern);
-  if (!match) return '';
-  return match[1].trim().replace(/^['"]|['"]$/g, '');
-}
-function githubReleaseDownloadUrl(version, fileName) {
-  const tag = 'v' + normalizeVersion(version);
-  const encodedOwner = encodeURIComponent(UPDATE_CONFIG.owner);
-  const encodedRepo = encodeURIComponent(UPDATE_CONFIG.repo);
-  const encodedName = String(fileName || '').split('/').map(part => encodeURIComponent(part)).join('/');
-  return `https://github.com/${encodedOwner}/${encodedRepo}/releases/download/${tag}/${encodedName}`;
-}
 function parseLatestYmlUpdateInfo(text, reason) {
-  const latestVersion = normalizeVersion(yamlScalar(text, 'version') || APP_VERSION) || APP_VERSION;
-  const assetPath = yamlScalar(text, 'path') || yamlScalar(text, 'url') || `Mineradio-${latestVersion}-Setup.exe`;
-  const sha512 = normalizeDigest(yamlScalar(text, 'sha512'), 'sha512');
-  const size = Number(yamlScalar(text, 'size') || 0) || 0;
-  const releaseDate = yamlScalar(text, 'releaseDate');
-  const downloadUrl = githubReleaseDownloadUrl(latestVersion, assetPath);
-  const candidates = uniqueDownloadCandidates(downloadUrl);
-  const asset = {
-    name: updateAssetNameFromUrl(downloadUrl) || assetPath,
-    size,
-    contentType: 'application/octet-stream',
-    downloadUrl,
-    downloadUrls: publicDownloadUrls(candidates),
-    sha256: '',
-    sha512,
-  };
-  return {
-    configured: true,
-    preview: false,
-    updateAvailable: compareVersions(latestVersion, APP_VERSION) > 0,
+  return parseLatestYmlUpdateInfoService(text, reason, {
     currentVersion: APP_VERSION,
-    latestVersion,
-    release: {
-      tagName: 'v' + latestVersion,
-      name: 'Mineradio v' + latestVersion,
-      version: latestVersion,
-      publishedAt: releaseDate,
-      htmlUrl: `https://github.com/${UPDATE_CONFIG.owner}/${UPDATE_CONFIG.repo}/releases/tag/v${latestVersion}`,
-      downloadUrl,
-      asset,
-      patch: null,
-      patchAvailable: false,
-      summary: '发现新版本，已启用备用更新线路。',
-      notes: ['更新检测已切换到备用线路', '下载时会自动选择国内加速线路', '下载失败会显示具体原因和当前速度'],
-    },
-    source: 'latest-yml',
-    reason: reason || '',
-  };
+    owner: UPDATE_CONFIG.owner,
+    repo: UPDATE_CONFIG.repo,
+    uniqueDownloadCandidates,
+  });
 }
 async function fetchLatestYmlUpdateInfo(reason) {
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') throw updateError('UPDATE_REPOSITORY_NOT_CONFIGURED');
