@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is discover route extraction into `server/controllers/discover-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is beatmap cache route extraction into `server/controllers/beatmap-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -82,9 +82,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split fifth slice is complete: `server/controllers/podcast-controller.ts` now owns authenticated podcast routes (`/api/podcast/my`, `/api/podcast/my/items`) through `handlePodcastAuthenticatedRoutes`; all podcast routes now delegate through the TS podcast controller.
 - Controller/router TS split sixth slice is complete: `server/controllers/media-controller.ts` now owns `/api/cover` and `/api/audio` streaming proxy route handling through `handleMediaRoutes`; `server.js` keeps the root compatibility entry and injects fetch, UA, audio header/content-type helpers, and logger.
 - Controller/router TS split seventh slice is complete: `server/controllers/discover-controller.ts` now owns `/api/discover/home` route handling through `handleDiscoverRoutes`; `server.js` keeps the root compatibility entry and injects the existing discover orchestration helper, `sendJSON`, and logger.
+- Controller/router TS split eighth slice is complete: `server/controllers/beatmap-controller.ts` now owns `/api/beatmap/cache/status` and `/api/beatmap/cache` route handling through `handleBeatmapRoutes`; `server.js` keeps the root compatibility entry and injects cache helpers, request-body reader, and `sendJSON`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Beatmap cache controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/beatmap-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/beatmap-controller'`.
+- `npm run build:ts && node --test tests/beatmap-controller.test.js tests/beatmap-cache-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 14 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 427 tests.
+- `npm run coverage`: passed, 427 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/beatmap-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route order, status payload reason precedence, GET miss/hit/read-error payloads, POST body/write error payloads, unsupported-method 405 behavior, ignored-path behavior, route descriptor coverage, and noted the new controller/test files must be included in the commit.
 
 Discover controller route extraction:
 
