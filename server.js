@@ -225,6 +225,7 @@ const {
   requestText: requestTextService,
 } = require('./server-dist/server/services/request-client');
 const {
+  buildAppVersionPayload,
   readPackageInfo: readPackageInfoService,
 } = require('./server-dist/server/services/app-info');
 
@@ -1253,19 +1254,7 @@ const server = createHttpServer({
     handleRequest: async ({ req, res, url, pathname: pn }) => {
 
   if (pn === '/api/app/version') {
-    sendJSON(res, {
-      name: APP_PACKAGE.name || 'mineradio',
-      productName: APP_PACKAGE.productName || 'Mineradio',
-      version: APP_VERSION,
-      update: {
-        provider: UPDATE_CONFIG.provider,
-        configured: UPDATE_CONFIG.configured,
-        owner: UPDATE_CONFIG.owner,
-        repo: UPDATE_CONFIG.repo,
-        preview: UPDATE_CONFIG.preview,
-        manifestOverride: !!UPDATE_CONFIG.manifest,
-      },
-    });
+    sendJSON(res, buildAppVersionPayload({ packageInfo: APP_PACKAGE, appVersion: APP_VERSION, updateConfig: UPDATE_CONFIG }));
     return;
   }
 

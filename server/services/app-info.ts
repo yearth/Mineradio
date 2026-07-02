@@ -11,3 +11,25 @@ export function readPackageInfo(packagePath: string, deps?: { fs?: any }): Recor
     return {};
   }
 }
+
+export function buildAppVersionPayload(opts: {
+  packageInfo?: any;
+  appVersion?: string;
+  updateConfig?: any;
+}): Record<string, unknown> {
+  const packageInfo = opts.packageInfo || {};
+  const updateConfig = opts.updateConfig || {};
+  return {
+    name: packageInfo.name || 'mineradio',
+    productName: packageInfo.productName || 'Mineradio',
+    version: opts.appVersion,
+    update: {
+      provider: updateConfig.provider,
+      configured: updateConfig.configured,
+      owner: updateConfig.owner,
+      repo: updateConfig.repo,
+      preview: updateConfig.preview,
+      manifestOverride: !!updateConfig.manifest,
+    },
+  };
+}

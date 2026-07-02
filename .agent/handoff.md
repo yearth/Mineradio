@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract app package info helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract app version payload helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -61,9 +61,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-seventh slice is complete: `server/services/netease-session.ts` now owns pending Netease login profile fallback construction; `server.js` reuses it for cookie and QR login pending-profile responses.
 - Stage 3 thirty-eighth slice is complete: `server/services/qq-utils.ts` now owns QQ singer avatar URL construction; `server.js` imports it for `/api/qq/artist/detail` fallback avatars.
 - Stage 3 thirty-ninth slice is complete: `server/services/app-info.ts` owns package.json reading and empty fallback behavior; `server.js` keeps a thin path/fs wrapper for startup app metadata.
+- Stage 3 fortieth slice is complete: `server/services/app-info.ts` now also owns `/api/app/version` response payload construction; `server.js` delegates the route response shape to `buildAppVersionPayload`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+App version payload helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/app-info-service.test.js` failed with `buildAppVersionPayload is not a function`.
+- `npm run build:ts && node --test tests/app-info-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 146 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 378 tests.
+- `npm run coverage`: passed, 378 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/app-info.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified app version payload shape preservation, name/productName defaults, version injection, update metadata passthrough, `manifestOverride` truthiness, route delegation, helper tests, targeted test pass (`146/146`), `git diff --check`, `node --check server.js`, and optional full `npm test` pass (`378/378`). Residual note: QA observed `.agent/handoff.md` modified outside code/test diff; that documentation update is intentional for handoff continuity.
 
 App package info helper extraction:
 
