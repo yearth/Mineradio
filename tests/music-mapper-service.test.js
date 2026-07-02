@@ -10,9 +10,11 @@ const {
   mapArtists,
   mapDiscoverPlaylist,
   mapPodcastCollectionRadio,
+  mapPodcastCollectionRadios,
   mapPodcastProgram,
   mapPodcastRadio,
   mapPodcastVoice,
+  mapPodcastVoiceItems,
   mapQQArtists,
   mapQQPlaylistTrack,
   mapQQSmartSong,
@@ -205,6 +207,35 @@ test('podcast collection helpers preserve array extraction and summary metadata'
     artist: 'Collector',
     album: 'Talk',
   });
+
+  assert.deepEqual(mapPodcastCollectionRadios([
+    { id: 11, name: 'Collected Radio', djName: 'DJ A' },
+    { name: 'Missing Id' },
+  ], 'collect'), [{
+    id: 11,
+    rid: 11,
+    name: 'Collected Radio',
+    cover: '',
+    desc: '',
+    djName: 'DJ A',
+    category: '',
+    programCount: 0,
+    subCount: 0,
+    type: 'podcast-radio',
+    sourceType: 'podcast-radio',
+    collectionKey: 'collect',
+    radioId: 11,
+    artist: 'DJ A',
+    album: 'Podcast',
+  }]);
+
+  assert.deepEqual(mapPodcastVoiceItems([
+    { trackId: 21, name: 'Voice 1', radio: { name: 'Radio A' } },
+    { trackId: 22, name: '' },
+    { name: 'Missing Id' },
+  ]).map(item => ({ id: item.id, name: item.name, artist: item.artist })), [
+    { id: 21, name: 'Voice 1', artist: 'Radio A' },
+  ]);
 
   assert.deepEqual(podcastCollectionMeta('liked', [{ cover: 'https://img.example/liked.jpg' }]), {
     key: 'liked',

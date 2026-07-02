@@ -180,10 +180,10 @@ const {
   isLowSignalPodcastItem,
   mapArtists,
   mapDiscoverPlaylist,
-  mapPodcastCollectionRadio,
+  mapPodcastCollectionRadios,
   mapPodcastProgram,
   mapPodcastRadio,
-  mapPodcastVoice,
+  mapPodcastVoiceItems,
   mapQQArtists,
   mapQQPlaylistTrack,
   mapQQTrack,
@@ -1079,17 +1079,17 @@ async function fetchMyPodcastItems(key, info, limit, offset) {
   if (key === 'collect') {
     const r = await dj_sublist({ limit, offset, cookie: userCookie, timestamp: Date.now() });
     const raw = firstArrayFrom(r.body, ['djRadios', 'djradios', 'radios', 'data']);
-    return { itemType: 'radio', items: raw.map(x => mapPodcastCollectionRadio(x, key)).filter(x => x.id) };
+    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
   }
   if (key === 'created') {
     const r = await user_audio({ uid: info.userId, cookie: userCookie, timestamp: Date.now() });
     const raw = firstArrayFrom(r.body, ['data', 'djRadios', 'djradios', 'radios']);
-    return { itemType: 'radio', items: raw.map(x => mapPodcastCollectionRadio(x, key)).filter(x => x.id) };
+    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
   }
   if (key === 'paid') {
     const r = await dj_paygift({ limit, offset, cookie: userCookie, timestamp: Date.now() });
     const raw = firstArrayFrom(r.body, ['data', 'djRadios', 'djradios', 'radios']);
-    return { itemType: 'radio', items: raw.map(x => mapPodcastCollectionRadio(x, key)).filter(x => x.id) };
+    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
   }
   if (key === 'liked') {
     let raw = [];
@@ -1107,7 +1107,7 @@ async function fetchMyPodcastItems(key, info, limit, offset) {
         console.warn('[MyPodcastLiked] recent voice fallback failed:', e.message);
       }
     }
-    return { itemType: 'voice', items: raw.map(mapPodcastVoice).filter(x => x.id && x.name) };
+    return { itemType: 'voice', items: mapPodcastVoiceItems(raw) };
   }
   return { itemType: 'radio', items: [] };
 }

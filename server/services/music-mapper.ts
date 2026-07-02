@@ -161,6 +161,14 @@ export function mapPodcastCollectionRadio(r: any, key?: string): Record<string, 
   };
 }
 
+export function mapPodcastCollectionRadios(raw: any[], key?: string): any[] {
+  return (raw || []).map(x => mapPodcastCollectionRadio(x, key)).filter(x => x.id);
+}
+
+export function mapPodcastVoiceItems(raw: any[]): any[] {
+  return (raw || []).map(mapPodcastVoice).filter(x => x.id && x.name);
+}
+
 export function podcastCollectionMeta(key: string, items: any[]): Record<string, unknown> {
   const meta = {
     collect: { key: 'collect', title: '收藏播客', sub: '你收藏的播客', itemType: 'radio' },

@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ song comments payload helper extraction; commit after QA/pass verification should be `refactor: extract qq comments payload helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is podcast collection item mapper extraction; commit after QA/pass verification should be `refactor: extract podcast collection item mappers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -72,9 +72,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-eighth slice is complete: `server/services/music-mapper.ts` now owns QQ search result dedupe/name filtering through `uniqueNamedQQSongs`; `server.js` keeps QQ smartbox/detail orchestration.
 - Stage 3 forty-ninth slice is complete: `server/services/music-mapper.ts` now owns QQ user playlist merge/filter/dedupe/favorite ordering through `uniqueQQPlaylists`; `server.js` keeps QQ login and created/collected playlist request orchestration.
 - Stage 3 fiftieth slice is complete: `server/services/qq-utils.ts` now owns QQ song comments page calculation, hot/normal comment selection, comment filtering, total fallback, and response payload construction through `buildQQSongCommentsPayload`; `server.js` keeps topid resolution and QQ comment request orchestration.
+- Stage 3 fifty-first slice is complete: `server/services/music-mapper.ts` now owns podcast collection radio item filtering and liked voice item filtering through `mapPodcastCollectionRadios` and `mapPodcastVoiceItems`; `server.js` keeps podcast collection request/fallback orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Podcast collection item mapper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed with `mapPodcastCollectionRadios is not a function`.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 155 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 388 tests.
+- `npm run coverage`: passed, 388 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified `fetchMyPodcastItems` kept limit/offset clamping, collect/created/paid API requests, `firstArrayFrom` keys, liked sati/recent fallback, logs, unknown-key fallback, itemType values, and exact radio/voice map-filter behavior.
 
 QQ song comments payload helper extraction:
 
