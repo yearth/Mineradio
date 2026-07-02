@@ -250,6 +250,12 @@ const {
   createNeteaseMediaRouteContext,
 } = require('./server-dist/server/composition/netease-media-context');
 const {
+  createNeteaseAuthRouteContext,
+} = require('./server-dist/server/composition/netease-auth-context');
+const {
+  createNeteaseLibraryRouteContext,
+} = require('./server-dist/server/composition/netease-library-context');
+const {
   createPodcastRouteContext,
 } = require('./server-dist/server/composition/podcast-context');
 const {
@@ -1273,6 +1279,48 @@ function createNeteaseMediaRouteDependencies() {
   };
 }
 
+function createNeteaseAuthRouteDependencies() {
+  return {
+    sendJSON,
+    readRequestBody,
+    normalizeCookieHeader,
+    parseCookieString,
+    saveCookie,
+    getUserCookie: () => currentUserCookie(),
+    getLoginInfo,
+    pendingNeteaseLoginInfo,
+    loginQrKey: login_qr_key,
+    loginQrCreate: login_qr_create,
+    loginQrCheck: login_qr_check,
+    readCookieFromResponse,
+    normalizeLoginInfo,
+    logout,
+    now: Date.now,
+    logger: console,
+  };
+}
+
+function createNeteaseLibraryRouteDependencies() {
+  return {
+    sendJSON,
+    readRequestBody,
+    getLoginInfo,
+    requireLogin,
+    getUserCookie: () => currentUserCookie(),
+    userPlaylist: user_playlist,
+    songLikeCheck: song_like_check,
+    likelist,
+    likeSong: like_song,
+    playlistCreate: playlist_create,
+    playlistTracks: playlist_tracks,
+    playlistTrackAdd: playlist_track_add,
+    normalizeApiCode,
+    normalizeApiMessage,
+    now: Date.now,
+    logger: console,
+  };
+}
+
 function createPodcastRouteDependencies() {
   return {
     sendJSON,
@@ -1438,56 +1486,20 @@ const server = createHttpServer({
     { pathname: pn, url, res }
   ))) return;
 
-  if (await handleNeteaseAuthRoutes({
-    pathname: pn,
-    url,
-    req,
-    res,
-    sendJSON,
-    readRequestBody,
-    normalizeCookieHeader,
-    parseCookieString,
-    saveCookie,
-    getUserCookie: () => currentUserCookie(),
-    getLoginInfo,
-    pendingNeteaseLoginInfo,
-    loginQrKey: login_qr_key,
-    loginQrCreate: login_qr_create,
-    loginQrCheck: login_qr_check,
-    readCookieFromResponse,
-    normalizeLoginInfo,
-    logout,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handleNeteaseAuthRoutes(createNeteaseAuthRouteContext(
+    createNeteaseAuthRouteDependencies(),
+    { pathname: pn, url, req, res }
+  ))) return;
 
   if (await handlePodcastBeatmapRoutes(createPodcastRouteContext(
     createPodcastRouteDependencies(),
     { pathname: pn, url, res }
   ))) return;
 
-  if (await handleNeteaseLibraryRoutes({
-    pathname: pn,
-    url,
-    req,
-    res,
-    sendJSON,
-    readRequestBody,
-    getLoginInfo,
-    requireLogin,
-    getUserCookie: () => currentUserCookie(),
-    userPlaylist: user_playlist,
-    songLikeCheck: song_like_check,
-    likelist,
-    likeSong: like_song,
-    playlistCreate: playlist_create,
-    playlistTracks: playlist_tracks,
-    playlistTrackAdd: playlist_track_add,
-    normalizeApiCode,
-    normalizeApiMessage,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handleNeteaseLibraryRoutes(createNeteaseLibraryRouteContext(
+    createNeteaseLibraryRouteDependencies(),
+    { pathname: pn, url, req, res }
+  ))) return;
 
   if (await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
     createNeteaseMediaRouteDependencies(),

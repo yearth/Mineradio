@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is in progress; latest safe slice is update/beatmap route dependency composition extraction into `server/composition/ops-route-contexts.ts`.
+- Worktree: server composition/runtime cleanup is complete through controller route context composition; latest safe slice is Netease auth/library route dependency composition extraction into `server/composition/netease-auth-context.ts` and `server/composition/netease-library-context.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -99,9 +99,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup seventh slice is complete: `server/composition/qq-context.ts` now owns QQ route context assembly; `server.js` keeps `createQQRouteDependencies()` as a per-request pass-through dependency factory and the QQ route branch remains in the same position.
 - Server composition/runtime cleanup eighth slice is complete: `server/composition/simple-route-contexts.ts` now owns app/discover/weather/search/media proxy route context assembly; `server.js` keeps per-request factories where runtime-overridable dependencies such as `fetch` must not be frozen.
 - Server composition/runtime cleanup ninth slice is complete: `server/composition/ops-route-contexts.ts` now owns update/beatmap route context assembly; `server.js` injects the stable update job Map and beatmap cache dependencies through thin route context builders.
+- Server composition/runtime cleanup tenth slice is complete: `server/composition/netease-auth-context.ts` and `server/composition/netease-library-context.ts` now own Netease auth/library route context assembly; `server.js` keeps per-request dependency factories so test-rebound Netease API functions are read lazily.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease auth/library route dependency composition extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-user-composition.test.js` failed with `Cannot find module '../server-dist/server/composition/netease-auth-context'`.
+- `npm run build:ts && node --test tests/netease-user-composition.test.js tests/netease-auth-controller.test.js tests/netease-library-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 166 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 482 tests; production-code line coverage `100.00%`, including `server.js`, `server-dist/server/composition/netease-auth-context.js`, and `server-dist/server/composition/netease-library-context.js` at `100.00%`.
+- First QA subagent review: `NEEDS WORK`. Implementation behavior was accepted, but QA found the new composition test did not assert `ctx.url` binding and only sampled replaceable API function identity preservation.
+- Follow-up test-only fix: `tests/netease-user-composition.test.js` now asserts `ctx.url` identity for both auth/library and all replaceable Netease API function references (`loginQrKey`, `loginQrCreate`, `loginQrCheck`, `logout`, `userPlaylist`, `songLikeCheck`, `likelist`, `likeSong`, `playlistCreate`, `playlistTracks`, `playlistTrackAdd`).
+- QA subagent re-review: `PASS`. Read-only QA verified the test gaps were closed, route order stayed intact, dependency factories remain per-request, composition modules remain object-assembly-only with key order coverage, focused/static validation passed, and no generated-file staging risk.
 
 Update/beatmap route dependency composition extraction:
 
