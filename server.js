@@ -178,8 +178,6 @@ const {
 const {
   firstArrayFrom,
   isLowSignalPodcastItem,
-  isQQFavoritePlaylist,
-  isQzoneBackgroundPlaylist,
   mapArtists,
   mapDiscoverPlaylist,
   mapPodcastCollectionRadio,
@@ -193,6 +191,7 @@ const {
   podcastCollectionMeta,
   qqAlbumCover,
   uniqueNamedQQSongs,
+  uniqueQQPlaylists,
 } = require('./server-dist/server/services/music-mapper');
 const {
   decodeHtmlEntities,
@@ -798,13 +797,7 @@ async function handleQQUserPlaylists() {
     ? createdRaw.value.data.disslist.map(pl => mapQQPlaylist(pl, 'created')) : [];
   const collected = collectRaw.status === 'fulfilled' && collectRaw.value && collectRaw.value.data && Array.isArray(collectRaw.value.data.cdlist)
     ? collectRaw.value.data.cdlist.map(pl => mapQQPlaylist(pl, 'collect')) : [];
-  const seen = new Set();
-  const playlists = created.concat(collected).filter(pl => {
-    if (!pl.id || !pl.name || seen.has(pl.id)) return false;
-    if (isQzoneBackgroundPlaylist(pl)) return false;
-    seen.add(pl.id);
-    return true;
-  }).sort((a, b) => Number(isQQFavoritePlaylist(b)) - Number(isQQFavoritePlaylist(a)));
+  const playlists = uniqueQQPlaylists(created.concat(collected));
   return { loggedIn: true, provider: 'qq', userId: uin, playlists };
 }
 

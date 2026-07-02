@@ -223,6 +223,16 @@ export function uniqueNamedQQSongs(songs: any[]): any[] {
   });
 }
 
+export function uniqueQQPlaylists(playlists: any[]): any[] {
+  const seen = new Set();
+  return (playlists || []).filter(pl => {
+    if (!pl.id || !pl.name || seen.has(pl.id)) return false;
+    if (isQzoneBackgroundPlaylist(pl)) return false;
+    seen.add(pl.id);
+    return true;
+  }).sort((a, b) => Number(isQQFavoritePlaylist(b)) - Number(isQQFavoritePlaylist(a)));
+}
+
 export function mapQQTrack(track: any, fallback: any): Record<string, unknown> {
   track = track || {};
   fallback = fallback || {};

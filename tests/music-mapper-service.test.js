@@ -21,6 +21,7 @@ const {
   podcastCollectionMeta,
   qqAlbumCover,
   uniqueNamedQQSongs,
+  uniqueQQPlaylists,
 } = require('../server-dist/server/services/music-mapper');
 
 test('mapSongRecord preserves Netease song shape and artist filtering', () => {
@@ -267,6 +268,22 @@ test('uniqueNamedQQSongs preserves QQ search dedupe and filtering keys', () => {
     { mid: 'mid1', id: 1, name: 'Song 1', artist: 'Artist 1' },
     { id: 'id-only', name: 'Song 2', artist: 'Artist 2' },
     { name: 'Song 3', artist: 'Artist 3' },
+  ]);
+});
+
+test('uniqueQQPlaylists preserves QQ playlist filtering, dedupe, and favorite ordering', () => {
+  assert.deepEqual(uniqueQQPlaylists([
+    { id: 'normal-1', name: 'Daily Mix', creator: 'QQ' },
+    { id: 'favorite', name: '我喜欢的音乐', creator: 'QQ' },
+    { id: 'normal-1', name: 'Duplicate Normal', creator: 'QQ' },
+    { id: '', name: 'Missing Id', creator: 'QQ' },
+    { id: 'missing-name', name: '', creator: 'QQ' },
+    { id: 'qzone', name: '空间背景音乐', creator: 'QQ' },
+    { id: 'normal-2', name: 'Road Trip', creator: 'QQ' },
+  ]), [
+    { id: 'favorite', name: '我喜欢的音乐', creator: 'QQ' },
+    { id: 'normal-1', name: 'Daily Mix', creator: 'QQ' },
+    { id: 'normal-2', name: 'Road Trip', creator: 'QQ' },
   ]);
 });
 

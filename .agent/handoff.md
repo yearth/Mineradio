@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ search dedupe helper extraction; commit after QA/pass verification should be `refactor: extract qq search dedupe helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is QQ playlist merge helper extraction; commit after QA/pass verification should be `refactor: extract qq playlist merge helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -70,9 +70,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-sixth slice is complete: `server/services/playback-quality.ts` now owns QQ vkey file candidate construction through `qqVkeyFileCandidates`; `server.js` keeps QQ vkey request/session/restriction response orchestration.
 - Stage 3 forty-seventh slice is complete: `server/services/playback-restriction.ts` now owns QQ playback-unavailable response payload construction through `qqPlaybackUnavailablePayload`; `server.js` keeps QQ vkey request/session/success orchestration.
 - Stage 3 forty-eighth slice is complete: `server/services/music-mapper.ts` now owns QQ search result dedupe/name filtering through `uniqueNamedQQSongs`; `server.js` keeps QQ smartbox/detail orchestration.
+- Stage 3 forty-ninth slice is complete: `server/services/music-mapper.ts` now owns QQ user playlist merge/filter/dedupe/favorite ordering through `uniqueQQPlaylists`; `server.js` keeps QQ login and created/collected playlist request orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ playlist merge helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed with `uniqueQQPlaylists is not a function`.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 155 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 387 tests.
+- `npm run coverage`: passed, 387 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified created/collected requests, `Promise.allSettled`, `mapQQPlaylist`, and response shape remained unchanged; `uniqueQQPlaylists` preserves missing id/name filtering, duplicate-id first occurrence, Qzone background filtering, favorite playlist ordering, and non-favorite relative order.
 
 QQ search dedupe helper extraction:
 
