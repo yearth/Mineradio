@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract cookie session helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract playback restriction helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -41,11 +41,23 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 eighteenth slice is complete: `server/services/update-patch-runner.ts` owns patch candidate loop, BOM-safe JSON parsing, payload normalization, file writes, success state, and failure aggregation.
 - Update domain extraction is complete at the service layer: `server.js` keeps thin update wrappers and route handlers, while update config/check/fetch/manifest/download/cache/job/patch/progress behavior lives under `server/services/update-*.ts`.
 - Stage 3 nineteenth slice is complete: `server/services/cookie-session.ts` owns cookie normalization, raw cookie fallback, parse/serialize helpers, QQ UIN/key/profile helpers, and QQ cookie input normalization; `server.js` keeps thin wrappers for helpers that need the current in-memory `qqCookie`.
+- Stage 3 twentieth slice is complete: `server/services/playback-restriction.ts` owns Netease/QQ playback restriction payload creation and classification; `server.js` imports the compiled service and route call sites keep the same function names.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
 
-Cookie/session helper extraction:
+Playback restriction helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/playback-restriction-service.test.js` failed because `server-dist/server/services/playback-restriction` did not exist.
+- `npm run build:ts && node --test tests/playback-restriction-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 148 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 332 tests.
+- `npm run coverage`: passed, 332 tests; production-code line coverage `100.00%`, including `server-dist/server/services/playback-restriction.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified payload shape, Netease and QQ classification parity, server.js call sites, direct service tests, and TS build import path.
+
+Previous cookie/session helper extraction:
 
 - Initial RED: `npm run build:ts && node --test tests/cookie-session-service.test.js` failed because `server-dist/server/services/cookie-session` did not exist.
 - `npm run build:ts && node --test tests/cookie-session-service.test.js tests/server-helpers.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 154 tests.
