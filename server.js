@@ -54,14 +54,8 @@ const tls = require('tls');
 const { once } = require('events');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
 const { defaultBeatMapCacheDir } = require('./lib/platform-paths');
-const { compareVersions, normalizeVersion } = require('./lib/version-utils');
 const {
-  extractReleaseNotes,
-  normalizeDigest,
-  pickPatchAsset,
-  pickReleaseAsset,
   safeUpdateFileName,
-  updateAssetNameFromUrl,
 } = require('./lib/update-utils');
 const {
   createHttpServer,
@@ -133,6 +127,10 @@ const {
   fetchManifestUpdateInfo: fetchManifestUpdateInfoService,
   readUpdateManifest: readUpdateManifestService,
 } = require('./server-dist/server/services/update-manifest-source');
+const {
+  fetchLatestUpdateInfo: fetchLatestUpdateInfoService,
+  fetchLatestYmlUpdateInfo: fetchLatestYmlUpdateInfoService,
+} = require('./server-dist/server/services/update-check');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -407,66 +405,27 @@ function parseLatestYmlUpdateInfo(text, reason) {
   });
 }
 async function fetchLatestYmlUpdateInfo(reason) {
-  if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') throw updateError('UPDATE_REPOSITORY_NOT_CONFIGURED');
-  const latestYmlUrl = `https://github.com/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}/releases/latest/download/latest.yml`;
-  const candidates = uniqueDownloadCandidates(latestYmlUrl);
-  const result = await fetchTextFromCandidates(candidates, 6500);
-  return parseLatestYmlUpdateInfo(result.text, reason);
+  return fetchLatestYmlUpdateInfoService(reason, {
+    config: UPDATE_CONFIG,
+    updateError,
+    uniqueDownloadCandidates,
+    fetchTextFromCandidates,
+    parseLatestYmlUpdateInfo,
+  });
 }
 async function fetchLatestUpdateInfo() {
-  if (updateRuntimePlatform() !== 'win32') {
-    return localUpdateFallback('当前 macOS 预览版暂不启用 Windows 更新通道。', { configured: true });
-  }
-  const manifest = updateManifestRef();
-  if (manifest) return fetchManifestUpdateInfo(manifest);
-  if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') return localUpdateFallback();
-  const apiUrl = `https://api.github.com/repos/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}/releases/latest`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8500);
-  try {
-    const resp = await fetch(apiUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': `Mineradio/${APP_VERSION}`,
-        'Accept': 'application/vnd.github+json',
-      },
-    });
-    if (!resp.ok) {
-      try { return await fetchLatestYmlUpdateInfo('GitHub Releases ' + resp.status); }
-      catch (_) { return localUpdateFallback('GitHub Releases ' + resp.status, { configured: true }); }
-    }
-    const data = await resp.json();
-    const latestVersion = normalizeVersion(data.tag_name || data.name || APP_VERSION) || APP_VERSION;
-    const asset = pickReleaseAsset(data.assets, { uniqueDownloadCandidates });
-    const patch = pickPatchAsset(data.assets, APP_VERSION, latestVersion, { uniqueDownloadCandidates });
-    const notes = extractReleaseNotes(data.body).length ? extractReleaseNotes(data.body) : UPDATE_FALLBACK_NOTES;
-    return {
-      configured: true,
-      preview: false,
-      updateAvailable: compareVersions(latestVersion, APP_VERSION) > 0,
-      currentVersion: APP_VERSION,
-      latestVersion,
-      release: {
-        tagName: data.tag_name || ('v' + latestVersion),
-        name: data.name || ('Mineradio v' + latestVersion),
-        version: latestVersion,
-        publishedAt: data.published_at || '',
-        htmlUrl: data.html_url || '',
-        downloadUrl: asset ? asset.downloadUrl : '',
-        asset,
-        patch,
-        patchAvailable: !!(patch && patch.downloadUrl && compareVersions(latestVersion, APP_VERSION) > 0),
-        summary: notes[0] || '发现新版本，建议更新。',
-        notes,
-      },
-    };
-  } catch (err) {
-    const reason = err && err.message || 'Update check failed';
-    try { return await fetchLatestYmlUpdateInfo(reason); }
-    catch (fallbackErr) { return localUpdateFallback((fallbackErr && fallbackErr.message) || reason, { configured: true }); }
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchLatestUpdateInfoService({
+    platform: updateRuntimePlatform,
+    manifestRef: updateManifestRef,
+    config: UPDATE_CONFIG,
+    currentVersion: APP_VERSION,
+    fallbackNotes: UPDATE_FALLBACK_NOTES,
+    fetch,
+    fetchManifestUpdateInfo,
+    localUpdateFallback,
+    fetchLatestYmlUpdateInfo,
+    uniqueDownloadCandidates,
+  });
 }
 function activeUpdateJobFor(version) {
   return activeUpdateJobForService(updateDownloadJobs, version);

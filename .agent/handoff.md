@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `9e5c8c7 refactor: extract update fetch helpers`; current uncommitted slice extracts update manifest source helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `40ad4f8 refactor: extract update manifest source helpers`; current uncommitted slice extracts update check orchestration helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -34,7 +34,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 eleventh slice is complete: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
 - Stage 3 twelfth slice is complete: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
 - Stage 3 thirteenth slice is complete: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
-- Stage 3 fourteenth slice is QA-passed and ready to commit: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
+- Stage 3 fourteenth slice is complete: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
+- Stage 3 fifteenth slice is QA-passed and ready to commit: `server/services/update-check.ts` owns latest update check orchestration across mac preview fallback, manifest override, GitHub API release metadata, latest.yml fallback, and local fallback.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -406,6 +407,21 @@ Stage 3 update manifest source service slice:
 - `npm test`: passed, 309 tests.
 - `npm run coverage`: passed, 309 tests; production-code line coverage `100.00%`, branch coverage `72.24%`, function coverage `95.70%`; `server-dist/server/services/update-manifest-source.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified manifest read behavior, wrapper injection, fallback reason/configured behavior, absence of stale `fileURLToPath` require, targeted tests, and generated artifact tracking.
+
+Stage 3 update check service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-check-service.test.js` failed because `server-dist/server/services/update-check` did not exist.
+- Added `server/services/update-check.ts` for `fetchLatestYmlUpdateInfo` and `fetchLatestUpdateInfo` orchestration.
+- `server.js` now imports the compiled check helpers and injects platform override, manifest ref, update config, app version, fallback notes, fetch, manifest fetch, local fallback, latest.yml fallback, and download-candidate helpers through wrappers.
+- Added `tests/update-check-service.test.js` for latest.yml URL/candidate fetch, unconfigured latest.yml rejection, mac preview fallback, manifest override priority, successful GitHub release mapping, HTTP non-ok latest.yml fallback, HTTP non-ok local fallback, and fetch-exception local fallback.
+- `npm run build:ts && node --test tests/update-check-service.test.js tests/update-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 42 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 314 tests.
+- First `npm run coverage` failed at `99.97%` line coverage because `server-dist/server/services/update-check.js` lines 50-51 were uncovered; added a direct HTTP non-ok + latest.yml failure test.
+- Final `npm run coverage`: passed, 314 tests; production-code line coverage `100.00%`, branch coverage `72.18%`, function coverage `95.72%`; `server-dist/server/services/update-check.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified legacy behavior parity, wrapper dependency injection, removed-import safety, test coverage, generated artifact tracking, `node --test tests/update-check-service.test.js`, `node --check server.js`, `npm run typecheck`, and `git diff --check`.
 
 ## Decisions
 
