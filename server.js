@@ -250,6 +250,9 @@ const {
   createNeteaseMediaRouteContext,
 } = require('./server-dist/server/composition/netease-media-context');
 const {
+  createPodcastRouteContext,
+} = require('./server-dist/server/composition/podcast-context');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1256,6 +1259,28 @@ function createNeteaseMediaRouteDependencies() {
   };
 }
 
+function createPodcastRouteDependencies() {
+  return {
+    sendJSON,
+    cloudsearch,
+    djHot: dj_hot,
+    djDetail: dj_detail,
+    djProgram: dj_program,
+    mapPodcastRadio,
+    mapPodcastProgram,
+    getLoginInfo,
+    fetchMyPodcastItems,
+    podcastCollectionMeta,
+    analyzePodcastDjStream,
+    analyzePodcastDjIntro,
+    userAgent: UA,
+    getUserCookie: () => currentUserCookie(),
+    timestamp: Date.now,
+    now: Date.now,
+    logger: console,
+  };
+}
+
 // ====================================================================
 //  HTTP Server
 // ====================================================================
@@ -1352,48 +1377,15 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (await handlePodcastPublicRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    cloudsearch,
-    djHot: dj_hot,
-    djDetail: dj_detail,
-    djProgram: dj_program,
-    mapPodcastRadio,
-    mapPodcastProgram,
-    analyzePodcastDjStream,
-    analyzePodcastDjIntro,
-    userAgent: UA,
-    userCookie: currentUserCookie(),
-    timestamp: Date.now,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handlePodcastPublicRoutes(createPodcastRouteContext(
+    createPodcastRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
-  if (await handlePodcastAuthenticatedRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    cloudsearch,
-    djHot: dj_hot,
-    djDetail: dj_detail,
-    djProgram: dj_program,
-    mapPodcastRadio,
-    mapPodcastProgram,
-    getLoginInfo,
-    fetchMyPodcastItems,
-    podcastCollectionMeta,
-    analyzePodcastDjStream,
-    analyzePodcastDjIntro,
-    userAgent: UA,
-    userCookie: currentUserCookie(),
-    timestamp: Date.now,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handlePodcastAuthenticatedRoutes(createPodcastRouteContext(
+    createPodcastRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
   if (pn === NETEASE_SONG_URL_ROUTE && await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
     createNeteaseMediaRouteDependencies(),
@@ -1423,28 +1415,10 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (await handlePodcastBeatmapRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    cloudsearch,
-    djHot: dj_hot,
-    djDetail: dj_detail,
-    djProgram: dj_program,
-    mapPodcastRadio,
-    mapPodcastProgram,
-    getLoginInfo,
-    fetchMyPodcastItems,
-    podcastCollectionMeta,
-    analyzePodcastDjStream,
-    analyzePodcastDjIntro,
-    userAgent: UA,
-    userCookie: currentUserCookie(),
-    timestamp: Date.now,
-    now: Date.now,
-    logger: console,
-  })) return;
+  if (await handlePodcastBeatmapRoutes(createPodcastRouteContext(
+    createPodcastRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
   if (await handleNeteaseLibraryRoutes({
     pathname: pn,
