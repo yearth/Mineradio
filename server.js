@@ -170,10 +170,10 @@ const {
 } = require('./server-dist/server/services/playback-restriction');
 const {
   NETEASE_QUALITY_CANDIDATES,
-  QQ_QUALITY_CANDIDATE_TEMPLATES,
   hasNeteaseSvip,
   normalizeQualityPreference,
   qualityCandidatesFrom,
+  qqVkeyFileCandidates,
 } = require('./server-dist/server/services/playback-quality');
 const {
   firstArrayFrom,
@@ -934,16 +934,7 @@ async function handleQQSongUrl(mid, mediaMid, qualityPreference) {
   const uin = qqCookieUin(cookieObj) || '0';
   const musicKey = qqCookieMusicKey(cookieObj);
   const playbackKey = qqCookiePlaybackKey(cookieObj);
-  const fileMediaMid = String(mediaMid || '').trim();
-  const requestedQuality = normalizeQualityPreference(qualityPreference);
-  const mediaIds = [];
-  if (fileMediaMid) mediaIds.push(fileMediaMid);
-  if (songmid && !mediaIds.includes(songmid)) mediaIds.push(songmid);
-  const fileCandidates = mediaIds.flatMap(mediaId =>
-    qualityCandidatesFrom(requestedQuality, QQ_QUALITY_CANDIDATE_TEMPLATES)
-      .map(item => ({ ...item, mediaId, filename: item.prefix + mediaId + item.ext }))
-  );
-  const filenames = fileCandidates.map(item => item.filename);
+  const { requestedQuality, fileCandidates, filenames } = qqVkeyFileCandidates(songmid, mediaMid, qualityPreference);
   const param = {
     guid,
     songmid: filenames.length ? filenames.map(() => songmid) : [songmid],

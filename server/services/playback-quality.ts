@@ -34,3 +34,21 @@ export function qualityCandidatesFrom<T extends { level: string }>(target: unkno
 export function hasNeteaseSvip(loginInfo: any): boolean {
   return !!(loginInfo && loginInfo.loggedIn && (loginInfo.vipLevel === 'svip' || loginInfo.isSvip || Number(loginInfo.vipType || 0) >= 10));
 }
+
+export function qqVkeyFileCandidates(songmid: unknown, mediaMid: unknown, qualityPreference: unknown): Record<string, unknown> {
+  const requestedQuality = normalizeQualityPreference(qualityPreference);
+  const fileMediaMid = String(mediaMid || '').trim();
+  const normalizedSongMid = String(songmid || '').trim();
+  const mediaIds: string[] = [];
+  if (fileMediaMid) mediaIds.push(fileMediaMid);
+  if (normalizedSongMid && !mediaIds.includes(normalizedSongMid)) mediaIds.push(normalizedSongMid);
+  const fileCandidates = mediaIds.flatMap(mediaId =>
+    qualityCandidatesFrom(requestedQuality, QQ_QUALITY_CANDIDATE_TEMPLATES)
+      .map(item => ({ ...item, mediaId, filename: item.prefix + mediaId + item.ext }))
+  );
+  return {
+    requestedQuality,
+    fileCandidates,
+    filenames: fileCandidates.map(item => item.filename),
+  };
+}

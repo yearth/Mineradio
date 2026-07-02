@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is QQ smartbox search helper extraction; commit after QA/pass verification should be `refactor: extract qq smartbox search helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is QQ vkey file candidate helper extraction; commit after QA/pass verification should be `refactor: extract qq vkey candidate helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -67,9 +67,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-third slice is complete: `server/services/qq-utils.ts` now owns QQ profile homepage URL construction through `buildQQProfileUrl`; `server.js` uses it inside QQ login profile checking while keeping fallback/error orchestration local.
 - Stage 3 forty-fourth slice is complete: `server/services/netease-session.ts` now owns Netease login readiness and `LOGIN_REQUIRED` payload helpers; `server.js` `requireLogin` delegates pure login requirement decisions while keeping HTTP response orchestration local.
 - Stage 3 forty-fifth slice is complete: `server/services/qq-utils.ts` now owns QQ smartbox search URL construction, callback JSON parsing, limit clamping/defaulting, and smart-song mapping through `requestQQSmartboxSearch`; `server.js` keeps a thin runtime wrapper.
+- Stage 3 forty-sixth slice is complete: `server/services/playback-quality.ts` now owns QQ vkey file candidate construction through `qqVkeyFileCandidates`; `server.js` keeps QQ vkey request/session/restriction response orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ vkey file candidate helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/playback-quality-service.test.js` failed with `qqVkeyFileCandidates is not a function`.
+- `npm run build:ts && node --test tests/playback-quality-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 148 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 384 tests.
+- `npm run coverage`: passed, 384 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/playback-quality.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified normalized quality, mediaMid-first ordering, songmid dedupe, QQ template fallback, filename expansion, scoped `server.js` replacement, unused import removal, and validation evidence.
 
 QQ smartbox search helper extraction:
 
