@@ -267,6 +267,9 @@ const {
   handleNeteaseLibraryRoutes,
 } = require('./server-dist/server/controllers/netease-library-controller');
 const {
+  handleNeteaseMediaRoutes,
+} = require('./server-dist/server/controllers/netease-media-controller');
+const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
 
@@ -279,6 +282,7 @@ const UPDATE_WORK_DIR = process.env.MINERADIO_UPDATE_DIR || path.join(__dirname,
 const UPDATE_DOWNLOAD_DIR = process.env.MINERADIO_UPDATE_DOWNLOAD_DIR || path.join(UPDATE_WORK_DIR, 'downloads');
 const UPDATE_PATCH_BACKUP_DIR = process.env.MINERADIO_PATCH_BACKUP_DIR || path.join(UPDATE_WORK_DIR, 'backups', 'patches');
 const BEATMAP_CACHE_DIR = process.env.MINERADIO_BEAT_CACHE_DIR || defaultBeatMapCacheDir();
+const NETEASE_SONG_URL_ROUTE = '/api/song/url';
 const APP_PACKAGE = readPackageInfo();
 const APP_VERSION = process.env.MINERADIO_VERSION || APP_PACKAGE.version || '0.9.11';
 const UPDATE_CONFIG = readUpdateConfig(APP_PACKAGE);
@@ -1354,24 +1358,27 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  if (pn === '/api/song/url') {
-    try {
-      const sid = url.searchParams.get('id');
-      const quality = url.searchParams.get('quality') || '';
-      const loginInfo = await getLoginInfo();
-      const info = await handleSongUrl(sid, loginInfo, quality);
-      sendJSON(res, {
-        ...info,
-        loggedIn: loginInfo.loggedIn,
-        vipType: loginInfo.vipType || 0,
-        vipLevel: loginInfo.vipLevel || 'none',
-        isVip: !!loginInfo.isVip,
-        isSvip: !!loginInfo.isSvip,
-        vipLabel: loginInfo.vipLabel || '无VIP',
-      });
-    } catch (err) { console.error('[SongUrl]', err); sendJSON(res, { error: err.message }, 500); }
-    return;
-  }
+  if (pn === NETEASE_SONG_URL_ROUTE && await handleNeteaseMediaRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    getUserCookie: () => userCookie,
+    getLoginInfo,
+    handleSongUrl,
+    lyricNew: lyric_new,
+    lyric,
+    commentMusic: comment_music,
+    buildNeteaseSongCommentsPayload,
+    artistDetail: artist_detail,
+    artistSongs: artist_songs,
+    artistTopSong: artist_top_song,
+    playlistTrackAll: playlist_track_all,
+    playlistDetail: playlist_detail,
+    mapSongRecord,
+    now: Date.now,
+    logger: console,
+  })) return;
 
   if (await handleNeteaseAuthRoutes({
     pathname: pn,
@@ -1442,141 +1449,27 @@ const server = createHttpServer({
     logger: console,
   })) return;
 
-  // ---------- 歌词 ----------
-  if (pn === '/api/lyric') {
-    try {
-      const id = url.searchParams.get('id');
-      if (!id) { sendJSON(res, { error: 'Missing song id', lyric: '' }, 400); return; }
-      let body = {};
-      let source = 'lyric';
-      try {
-        if (typeof lyric_new === 'function') {
-          const nr = await lyric_new({ id, cookie: userCookie, timestamp: Date.now() });
-          body = nr.body || {};
-          source = 'lyric_new';
-        }
-      } catch (errNew) {
-        console.warn('[LyricNew]', errNew.message);
-      }
-      if (!((body.lrc && body.lrc.lyric) || (body.yrc && body.yrc.lyric))) {
-        const r = await lyric({ id, cookie: userCookie, timestamp: Date.now() });
-        body = r.body || body || {};
-        source = 'lyric';
-      }
-      sendJSON(res, {
-        lyric: (body.lrc && body.lrc.lyric) || '',
-        tlyric: (body.tlyric && body.tlyric.lyric) || '',
-        yrc: (body.yrc && body.yrc.lyric) || '',
-        source,
-      });
-    } catch (err) {
-      console.error('[Lyric]', err);
-      sendJSON(res, { error: err.message, lyric: '' }, 500);
-    }
-    return;
-  }
-
-  // ---------- 歌曲评论 ----------
-  if (pn === '/api/song/comments') {
-    try {
-      const id = url.searchParams.get('id');
-      const limit = Math.max(6, Math.min(50, parseInt(url.searchParams.get('limit') || '20', 10) || 20));
-      const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
-      if (!id) { sendJSON(res, { error: 'Missing song id', comments: [] }, 400); return; }
-      const r = await comment_music({ id, limit, offset, cookie: userCookie, timestamp: Date.now() });
-      const body = r.body || r || {};
-      sendJSON(res, buildNeteaseSongCommentsPayload(body, id, offset));
-    } catch (err) {
-      console.error('[SongComments]', err);
-      sendJSON(res, { error: err.message, comments: [] }, 500);
-    }
-    return;
-  }
-
-  // ---------- 歌手主页 / 热门歌曲 ----------
-  if (pn === '/api/artist/detail') {
-    try {
-      const id = url.searchParams.get('id');
-      const limit = Math.max(10, Math.min(80, parseInt(url.searchParams.get('limit') || '30', 10) || 30));
-      if (!id) { sendJSON(res, { error: 'Missing artist id', songs: [] }, 400); return; }
-      let detailBody = {};
-      try {
-        const detail = await artist_detail({ id, cookie: userCookie, timestamp: Date.now() });
-        detailBody = detail.body || detail || {};
-      } catch (e) {
-        console.warn('[ArtistDetail] detail failed:', e.message);
-      }
-      let rawSongs = [];
-      try {
-        const list = await artist_songs({ id, order: 'hot', limit, offset: 0, cookie: userCookie, timestamp: Date.now() });
-        const b = list.body || list || {};
-        rawSongs = (b.songs || (b.data && b.data.songs) || []);
-      } catch (e) {
-        console.warn('[ArtistSongs] hot failed:', e.message);
-      }
-      if (!rawSongs.length) {
-        const top = await artist_top_song({ id, cookie: userCookie, timestamp: Date.now() });
-        const b = top.body || top || {};
-        rawSongs = b.songs || [];
-      }
-      const artist = detailBody.artist || (detailBody.data && (detailBody.data.artist || detailBody.data)) || {};
-      const songs = rawSongs.map(mapSongRecord).filter(s => s.id).slice(0, limit);
-      sendJSON(res, {
-        id,
-        artist: {
-          id: artist.id || id,
-          name: artist.name || artist.artistName || '',
-          avatar: artist.avatar || artist.cover || artist.picUrl || artist.img1v1Url || '',
-          brief: artist.briefDesc || artist.description || artist.desc || '',
-          musicSize: artist.musicSize || artist.songSize || 0,
-          albumSize: artist.albumSize || 0,
-        },
-        songs,
-        body: detailBody,
-      });
-    } catch (err) {
-      console.error('[ArtistDetail]', err);
-      sendJSON(res, { error: err.message, songs: [] }, 500);
-    }
-    return;
-  }
-
-  // ---------- 歌单曲目详情 ----------
-  if (pn === '/api/playlist/tracks') {
-    try {
-      const id = url.searchParams.get('id');
-      if (!id) { sendJSON(res, { error: 'Missing playlist id', tracks: [] }, 400); return; }
-
-      let playlistMeta = { id, name: '', cover: '', trackCount: 0 };
-      let rawTracks = [];
-
-      // 新版本 NeteaseCloudMusicApi 通常提供 playlist_track_all；旧版本退回 playlist_detail。
-      if (typeof playlist_track_all === 'function') {
-        try {
-          const all = await playlist_track_all({ id, limit: 500, offset: 0, cookie: userCookie, timestamp: Date.now() });
-          rawTracks = (all.body && (all.body.songs || all.body.tracks)) || [];
-        } catch (err) {
-          console.warn('[PlaylistTracks] playlist_track_all failed, fallback to detail:', err.message);
-        }
-      }
-
-      if (!rawTracks.length && typeof playlist_detail === 'function') {
-        const detail = await playlist_detail({ id, s: 0, cookie: userCookie, timestamp: Date.now() });
-        const pl = (detail.body && detail.body.playlist) || {};
-        playlistMeta = { id: pl.id || id, name: pl.name || '', cover: pl.coverImgUrl || '', trackCount: pl.trackCount || 0 };
-        rawTracks = pl.tracks || [];
-      }
-
-      const tracks = rawTracks.map(mapSongRecord).filter(t => t.id);
-
-      if (!playlistMeta.trackCount) playlistMeta.trackCount = tracks.length;
-      sendJSON(res, { playlist: playlistMeta, tracks });
-    } catch (err) {
-      console.error('[PlaylistTracks]', err);
-      sendJSON(res, { error: err.message, tracks: [] }, 500);
-    }
-    return;
-  }
+  if (await handleNeteaseMediaRoutes({
+    pathname: pn,
+    url,
+    res,
+    sendJSON,
+    getUserCookie: () => userCookie,
+    getLoginInfo,
+    handleSongUrl,
+    lyricNew: lyric_new,
+    lyric,
+    commentMusic: comment_music,
+    buildNeteaseSongCommentsPayload,
+    artistDetail: artist_detail,
+    artistSongs: artist_songs,
+    artistTopSong: artist_top_song,
+    playlistTrackAll: playlist_track_all,
+    playlistDetail: playlist_detail,
+    mapSongRecord,
+    now: Date.now,
+    logger: console,
+  })) return;
 
   if (await handleMediaRoutes({
     pathname: pn,

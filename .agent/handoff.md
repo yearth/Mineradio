@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is Netease library route extraction into `server/controllers/netease-library-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is Netease media/read route extraction into `server/controllers/netease-media-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -88,9 +88,20 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split eleventh slice is complete: `server/controllers/search-controller.ts` now owns `/api/search` through `handleSearchRoutes`; `server.js` keeps the root compatibility entry and injects `handleSearch`, `sendJSON`, and logger while preserving legacy query parsing and fallback response behavior.
 - Controller/router TS split twelfth slice is complete: `server/controllers/netease-auth-controller.ts` now owns Netease auth/session routes (`/api/login/cookie`, `/api/login/qr/key`, `/api/login/qr/create`, `/api/login/qr/check`, `/api/login/status`, `/api/logout`) through `handleNeteaseAuthRoutes`; `server.js` keeps the root compatibility entry and injects cookie/session helpers, QR APIs, login normalization helpers, logout, clock, `sendJSON`, and logger.
 - Controller/router TS split thirteenth slice is complete: `server/controllers/netease-library-controller.ts` now owns Netease library/write routes (`/api/user/playlists`, `/api/song/like/check`, `/api/song/like`, `/api/playlist/create`, `/api/playlist/add-song`) through `handleNeteaseLibraryRoutes`; `server.js` keeps the root compatibility entry and injects login helpers, current cookie getter, Netease write APIs, provider response normalizers, request-body reader, clock, `sendJSON`, and logger.
+- Controller/router TS split fourteenth slice is complete: `server/controllers/netease-media-controller.ts` now owns Netease media/read routes (`/api/song/url`, `/api/lyric`, `/api/song/comments`, `/api/artist/detail`, `/api/playlist/tracks`) through `handleNeteaseMediaRoutes`; `server.js` keeps the root compatibility entry, preserves the early `/api/song/url` dispatch position, and injects current cookie getter, login helpers, Netease media APIs, mappers, comment payload builder, clock, `sendJSON`, and logger.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease media/read controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-media-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/netease-media-controller'`.
+- `npm run build:ts && node --test tests/netease-media-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 152 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 468 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/netease-media-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior-equivalent migration of `/api/song/url`, `/api/lyric`, `/api/song/comments`, `/api/artist/detail`, and `/api/playlist/tracks`; confirmed `/api/song/url` remains at its original early dispatch point while the remaining read routes stay after Netease library and before media proxy; checked controller coverage for success, validation, fallback, provider-error, and unrelated-path behavior; and confirmed no generated files are staged.
 
 Netease library controller route extraction:
 
