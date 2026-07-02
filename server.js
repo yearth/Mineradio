@@ -178,6 +178,7 @@ const {
 const {
   firstArrayFrom,
   isLowSignalPodcastItem,
+  buildQQPlaylistTracksPayload,
   mapArtists,
   mapDiscoverPlaylist,
   mapPodcastCollectionRadios,
@@ -185,7 +186,6 @@ const {
   mapPodcastRadio,
   mapPodcastVoiceItems,
   mapQQArtists,
-  mapQQPlaylistTrack,
   mapQQTrack,
   mapSongRecord,
   podcastCollectionMeta,
@@ -819,15 +819,7 @@ async function handleQQPlaylistTracks(id) {
     needNewCode: 0,
   }, { headers: { Referer: 'https://y.qq.com/n/yqq/playlist' } });
   const detail = result && result.cdlist && result.cdlist[0] ? result.cdlist[0] : {};
-  const rawTracks = Array.isArray(detail.songlist) ? detail.songlist : [];
-  const tracks = rawTracks.map(mapQQPlaylistTrack).filter(s => s.name && (s.mid || s.id));
-  const playlist = {
-    provider: 'qq',
-    id: pid,
-    name: detail.dissname || detail.diss_name || detail.name || '',
-    cover: detail.logo || detail.diss_cover || '',
-    trackCount: tracks.length,
-  };
+  const { playlist, tracks } = buildQQPlaylistTracksPayload(pid, detail);
   return { loggedIn: true, provider: 'qq', playlist, tracks };
 }
 

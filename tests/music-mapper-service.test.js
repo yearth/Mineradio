@@ -7,6 +7,7 @@ const {
   isQzoneBackgroundPlaylist,
   firstArrayFrom,
   lowSignalText,
+  buildQQPlaylistTracksPayload,
   mapArtists,
   mapDiscoverPlaylist,
   mapPodcastCollectionRadio,
@@ -385,5 +386,74 @@ test('mapQQPlaylistTrack preserves raw and nested playlist track mapping', () =>
     duration: 201000,
     fee: 0,
     playable: false,
+  });
+});
+
+test('buildQQPlaylistTracksPayload preserves QQ playlist metadata and track filtering', () => {
+  assert.deepEqual(buildQQPlaylistTracksPayload('playlist001', {
+    diss_name: 'QQ Mix',
+    logo: 'https://img.example/qq-mix.jpg',
+    songlist: [
+      { songid: 22001, songmid: 'trackmid001', songname: 'QQ Track', singername: 'Plain Artist' },
+      { songid: 22002, songmid: '', songname: 'Missing Mid' },
+      { songid: 22003, songmid: 'empty-name', songname: '' },
+    ],
+  }), {
+    playlist: {
+      provider: 'qq',
+      id: 'playlist001',
+      name: 'QQ Mix',
+      cover: 'https://img.example/qq-mix.jpg',
+      trackCount: 2,
+    },
+    tracks: [
+      {
+        provider: 'qq',
+        source: 'qq',
+        type: 'qq',
+        id: 'trackmid001',
+        qqId: 22001,
+        mid: 'trackmid001',
+        songmid: 'trackmid001',
+        mediaMid: '',
+        name: 'QQ Track',
+        artist: 'Plain Artist',
+        artists: [],
+        artistId: undefined,
+        artistMid: undefined,
+        album: '',
+        albumMid: '',
+        cover: '',
+        duration: 0,
+        fee: 0,
+        playable: false,
+      },
+      {
+        provider: 'qq',
+        source: 'qq',
+        type: 'qq',
+        id: '22002',
+        qqId: 22002,
+        mid: '',
+        songmid: '',
+        mediaMid: '',
+        name: 'Missing Mid',
+        artist: '',
+        artists: [],
+        artistId: undefined,
+        artistMid: undefined,
+        album: '',
+        albumMid: '',
+        cover: '',
+        duration: 0,
+        fee: 0,
+        playable: false,
+      },
+    ],
+  });
+
+  assert.deepEqual(buildQQPlaylistTracksPayload('playlist002', null), {
+    playlist: { provider: 'qq', id: 'playlist002', name: '', cover: '', trackCount: 0 },
+    tracks: [],
   });
 });

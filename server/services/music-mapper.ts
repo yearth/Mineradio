@@ -300,3 +300,20 @@ export function mapQQPlaylistTrack(raw: any): Record<string, unknown> {
     playable: false,
   };
 }
+
+export function buildQQPlaylistTracksPayload(pid: unknown, detail: any): {
+  playlist: Record<string, unknown>;
+  tracks: Record<string, unknown>[];
+} {
+  detail = detail || {};
+  const rawTracks = Array.isArray(detail.songlist) ? detail.songlist : [];
+  const tracks = rawTracks.map(mapQQPlaylistTrack).filter((s: Record<string, unknown>) => s.name && (s.mid || s.id));
+  const playlist = {
+    provider: 'qq',
+    id: pid,
+    name: detail.dissname || detail.diss_name || detail.name || '',
+    cover: detail.logo || detail.diss_cover || '',
+    trackCount: tracks.length,
+  };
+  return { playlist, tracks };
+}
