@@ -107,6 +107,13 @@ const {
   setUpdateJobError,
   trimUpdateJobs: trimUpdateJobsService,
 } = require('./server-dist/server/services/update-job-runtime');
+const {
+  moveInvalidUpdateFile: moveInvalidUpdateFileService,
+  reuseVerifiedInstallerJob: reuseVerifiedInstallerJobService,
+  sha256Hex,
+  verifyUpdateBuffer,
+  verifyUpdateFile: verifyUpdateFileService,
+} = require('./server-dist/server/services/update-file-cache');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -476,88 +483,20 @@ function activeUpdateJobFor(version) {
 function trimUpdateJobs() {
   trimUpdateJobsService(updateDownloadJobs);
 }
-function sha512Base64(buffer) {
-  return crypto.createHash('sha512').update(buffer).digest('base64');
-}
-function sha512Hex(buffer) {
-  return crypto.createHash('sha512').update(buffer).digest('hex');
-}
-function verifyUpdateBuffer(buffer, job) {
-  const expectedSize = Number(job.expectedSize || job.total || 0) || 0;
-  if (expectedSize > 0 && buffer.length !== expectedSize) {
-    throw updateError('UPDATE_SIZE_MISMATCH', `Expected ${expectedSize} bytes, got ${buffer.length}`);
-  }
-  const expectedSha256 = normalizeDigest(job.sha256 || '', 'sha256').toLowerCase();
-  if (expectedSha256 && sha256Hex(buffer) !== expectedSha256) {
-    throw updateError('UPDATE_SHA256_MISMATCH', 'Downloaded sha256 mismatch');
-  }
-  const expectedSha512 = normalizeDigest(job.sha512 || '', 'sha512');
-  if (expectedSha512) {
-    const actualBase64 = sha512Base64(buffer);
-    const actualHex = sha512Hex(buffer).toLowerCase();
-    if (actualBase64 !== expectedSha512 && actualHex !== expectedSha512.toLowerCase()) {
-      throw updateError('UPDATE_SHA512_MISMATCH', 'Downloaded sha512 mismatch');
-    }
-  }
-}
 function verifyUpdateFile(filePath, job) {
-  verifyUpdateBuffer(fs.readFileSync(filePath), job);
+  return verifyUpdateFileService(filePath, job, { fs });
 }
 function moveInvalidUpdateFile(filePath, reason) {
-  try {
-    if (!filePath || !fs.existsSync(filePath)) return;
-    const dir = path.dirname(filePath);
-    const ext = path.extname(filePath);
-    const base = path.basename(filePath, ext);
-    const invalidPath = path.join(dir, `${base}.invalid-${Date.now()}${ext || '.bin'}`);
-    fs.renameSync(filePath, invalidPath);
-    console.warn('[UpdateDownload] cached installer moved aside:', reason || 'invalid', invalidPath);
-  } catch (e) {
-    console.warn('[UpdateDownload] failed to move invalid cached installer:', e.message);
-  }
+  return moveInvalidUpdateFileService(filePath, reason, { fs, path, logger: console });
 }
 function reuseVerifiedInstallerJob(opts) {
-  if (!opts || !opts.filePath || !fs.existsSync(opts.filePath)) return null;
-  if (!opts.expectedSize && !opts.sha256 && !opts.sha512) return null;
-  const now = Date.now();
-  const stat = fs.statSync(opts.filePath);
-  const job = {
-    id: 'cached-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 8),
-    status: 'ready',
-    progress: 100,
-    received: stat.size || 0,
-    total: opts.expectedSize || stat.size || 0,
-    speedBps: 0,
-    etaSeconds: 0,
-    sourceLabel: '本地缓存',
-    attempt: 0,
-    attempts: opts.attempts || 0,
-    mode: 'installer',
-    message: '安装包已下载，可直接打开安装',
-    fileName: opts.fileName || path.basename(opts.filePath),
-    filePath: opts.filePath,
-    version: opts.version || '',
-    downloadUrl: opts.downloadUrl || '',
-    downloadCandidates: opts.downloadCandidates || [],
-    expectedSize: opts.expectedSize || 0,
-    sha256: opts.sha256 || '',
-    sha512: opts.sha512 || '',
-    releaseUrl: opts.releaseUrl || '',
-    failedAttempts: [],
-    cached: true,
-    createdAt: now,
-    updatedAt: now,
-    error: '',
-  };
-  try {
-    verifyUpdateFile(opts.filePath, job);
-    updateDownloadJobs.set(job.id, job);
-    trimUpdateJobs();
-    return job;
-  } catch (err) {
-    moveInvalidUpdateFile(opts.filePath, (err && err.message) || 'cache verification failed');
-    return null;
-  }
+  return reuseVerifiedInstallerJobService(opts, {
+    fs,
+    path,
+    jobs: updateDownloadJobs,
+    trimJobs: trimUpdateJobs,
+    moveInvalid: moveInvalidUpdateFile,
+  });
 }
 async function downloadUpdateAssetWithMirrors(job) {
   const tmpPath = job.filePath + '.download';
@@ -698,9 +637,6 @@ function startUpdateDownloadJob(info) {
   trimUpdateJobs();
   if (updateRuntimeOverrides.autoDownload !== false) downloadUpdateAssetWithMirrors(job);
   return publicUpdateJob(job);
-}
-function sha256Hex(buffer) {
-  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 function patchTargetPath(rel) {
   return patchTargetPathService(rel, __dirname);
