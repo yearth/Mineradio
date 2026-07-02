@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is in progress; latest safe slice is QQ route dependency composition extraction into `server/composition/qq-context.ts`.
+- Worktree: server composition/runtime cleanup is in progress; latest safe slice is simple route dependency composition extraction into `server/composition/simple-route-contexts.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -97,9 +97,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup fifth slice is complete: `server/composition/netease-media-context.ts` now owns Netease media route context assembly; `server.js` keeps a single `createNeteaseMediaRouteDependencies()` factory so test-rebound Netease API functions are read lazily and both media controller call sites share the same dependency shape.
 - Server composition/runtime cleanup sixth slice is complete: `server/composition/podcast-context.ts` now owns podcast route context assembly; `server.js` keeps a single `createPodcastRouteDependencies()` factory so test-rebound podcast APIs are read lazily while public/authenticated/beatmap podcast call sites share the same dependency shape.
 - Server composition/runtime cleanup seventh slice is complete: `server/composition/qq-context.ts` now owns QQ route context assembly; `server.js` keeps `createQQRouteDependencies()` as a per-request pass-through dependency factory and the QQ route branch remains in the same position.
+- Server composition/runtime cleanup eighth slice is complete: `server/composition/simple-route-contexts.ts` now owns app/discover/weather/search/media proxy route context assembly; `server.js` keeps per-request factories where runtime-overridable dependencies such as `fetch` must not be frozen.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Simple route dependency composition extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/simple-route-composition.test.js` failed with `Cannot find module '../server-dist/server/composition/simple-route-contexts'`.
+- First focused run caught a real regression: a module-level media dependency object froze `fetch`, causing `/api/audio` and `/api/cover` integration tests to call real network instead of test stubs. Fixed by changing media assembly to `createMediaRouteDependencies()` and invoking it inside the request branch.
+- `npm run build:ts && node --test tests/simple-route-composition.test.js tests/app-controller.test.js tests/discover-controller.test.js tests/weather-controller.test.js tests/search-controller.test.js tests/media-controller.test.js tests/music-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 167 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 479 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/composition/simple-route-contexts.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified app/discover/weather/search/media branch order, per-request `fetch` assembly through `createMediaRouteDependencies()`, composition-only behavior/key order in `simple-route-contexts.ts`, focused/static validation, and no generated-file staging risk.
 
 QQ route dependency composition extraction:
 

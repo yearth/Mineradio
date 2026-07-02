@@ -256,6 +256,13 @@ const {
   createQQRouteContext,
 } = require('./server-dist/server/composition/qq-context');
 const {
+  createAppRouteContext,
+  createDiscoverRouteContext,
+  createWeatherRouteContext,
+  createSearchRouteContext,
+  createMediaRouteContext,
+} = require('./server-dist/server/composition/simple-route-contexts');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1305,6 +1312,49 @@ function createQQRouteDependencies() {
   };
 }
 
+const appRouteDependencies = {
+  sendJSON,
+  packageInfo: APP_PACKAGE,
+  appVersion: APP_VERSION,
+  updateConfig: UPDATE_CONFIG,
+  buildAppVersionPayload,
+};
+
+function createDiscoverRouteDependencies() {
+  return {
+    sendJSON,
+    handleDiscoverHome,
+    logger: console,
+  };
+}
+
+function createWeatherRouteDependencies() {
+  return {
+    sendJSON,
+    buildWeatherRadio,
+    fetchIpWeatherLocation,
+    logger: console,
+  };
+}
+
+function createSearchRouteDependencies() {
+  return {
+    sendJSON,
+    handleSearch,
+    logger: console,
+  };
+}
+
+function createMediaRouteDependencies() {
+  return {
+    fetch,
+    audioProxyHeadersFor,
+    audioContentTypeForUrl,
+    userAgent: UA,
+    logger: console,
+  };
+}
+
 // ====================================================================
 //  HTTP Server
 // ====================================================================
@@ -1314,15 +1364,10 @@ const server = createHttpServer({
     port: PORT,
     handleRequest: async ({ req, res, url, pathname: pn }) => {
 
-  if (await handleAppRoutes({
-    pathname: pn,
-    res,
-    sendJSON,
-    packageInfo: APP_PACKAGE,
-    appVersion: APP_VERSION,
-    updateConfig: UPDATE_CONFIG,
-    buildAppVersionPayload,
-  })) return;
+  if (await handleAppRoutes(createAppRouteContext(
+    appRouteDependencies,
+    { pathname: pn, res }
+  ))) return;
 
   if (await handleUpdateRoutes({
     pathname: pn,
@@ -1351,32 +1396,20 @@ const server = createHttpServer({
     writeBeatMapCache,
   })) return;
 
-  if (await handleDiscoverRoutes({
-    pathname: pn,
-    res,
-    sendJSON,
-    handleDiscoverHome,
-    logger: console,
-  })) return;
+  if (await handleDiscoverRoutes(createDiscoverRouteContext(
+    createDiscoverRouteDependencies(),
+    { pathname: pn, res }
+  ))) return;
 
-  if (await handleWeatherRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    buildWeatherRadio,
-    fetchIpWeatherLocation,
-    logger: console,
-  })) return;
+  if (await handleWeatherRoutes(createWeatherRouteContext(
+    createWeatherRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
-  if (await handleSearchRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    handleSearch,
-    logger: console,
-  })) return;
+  if (await handleSearchRoutes(createSearchRouteContext(
+    createSearchRouteDependencies(),
+    { pathname: pn, url, res }
+  ))) return;
 
   if (await handleQQRoutes(createQQRouteContext(
     createQQRouteDependencies(),
@@ -1454,17 +1487,10 @@ const server = createHttpServer({
     { pathname: pn, url, res }
   ))) return;
 
-  if (await handleMediaRoutes({
-    pathname: pn,
-    url,
-    req,
-    res,
-    fetch,
-    audioProxyHeadersFor,
-    audioContentTypeForUrl,
-    userAgent: UA,
-    logger: console,
-  })) return;
+  if (await handleMediaRoutes(createMediaRouteContext(
+    createMediaRouteDependencies(),
+    { pathname: pn, url, req, res }
+  ))) return;
 
   // ---------- 静态资源 ----------
   serveStatic(res, resolveStaticFilePath(pn, __dirname));
