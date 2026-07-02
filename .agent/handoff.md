@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is beatmap cache route extraction into `server/controllers/beatmap-controller.ts`.
+- Worktree: controller/router TS split is in progress; latest safe slice is update route extraction into `server/controllers/update-controller.ts`.
 - Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -83,9 +83,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split sixth slice is complete: `server/controllers/media-controller.ts` now owns `/api/cover` and `/api/audio` streaming proxy route handling through `handleMediaRoutes`; `server.js` keeps the root compatibility entry and injects fetch, UA, audio header/content-type helpers, and logger.
 - Controller/router TS split seventh slice is complete: `server/controllers/discover-controller.ts` now owns `/api/discover/home` route handling through `handleDiscoverRoutes`; `server.js` keeps the root compatibility entry and injects the existing discover orchestration helper, `sendJSON`, and logger.
 - Controller/router TS split eighth slice is complete: `server/controllers/beatmap-controller.ts` now owns `/api/beatmap/cache/status` and `/api/beatmap/cache` route handling through `handleBeatmapRoutes`; `server.js` keeps the root compatibility entry and injects cache helpers, request-body reader, and `sendJSON`.
+- Controller/router TS split ninth slice is complete: `server/controllers/update-controller.ts` now owns `/api/update/latest`, `/api/update/download`, `/api/update/download/status`, `/api/update/patch`, and `/api/update/patch/status` through `handleUpdateRoutes`; `server.js` keeps the root compatibility entry and injects update orchestration helpers, job map, `publicUpdateJob`, fallback builder, and logger.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Update controller route extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/update-controller.test.js` failed with `Cannot find module '../server-dist/server/controllers/update-controller'`.
+- `npm run build:ts && node --test tests/update-controller.test.js tests/update-routes.test.js tests/project-structure.test.js tests/server-router.test.js`: passed, 39 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 432 tests.
+- `npm run coverage`: passed, 432 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/controllers/update-controller.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified route order, latest fallback behavior, download/patch start semantics, installer and patch status lookup semantics, missing-job 404 behavior, ignored-path behavior, route descriptor coverage, and independently reran targeted/static validation with 39 passing tests.
 
 Beatmap cache controller route extraction:
 
