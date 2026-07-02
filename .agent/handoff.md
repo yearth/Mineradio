@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract playback restriction helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract music mapper helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -42,11 +42,23 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Update domain extraction is complete at the service layer: `server.js` keeps thin update wrappers and route handlers, while update config/check/fetch/manifest/download/cache/job/patch/progress behavior lives under `server/services/update-*.ts`.
 - Stage 3 nineteenth slice is complete: `server/services/cookie-session.ts` owns cookie normalization, raw cookie fallback, parse/serialize helpers, QQ UIN/key/profile helpers, and QQ cookie input normalization; `server.js` keeps thin wrappers for helpers that need the current in-memory `qqCookie`.
 - Stage 3 twentieth slice is complete: `server/services/playback-restriction.ts` owns Netease/QQ playback restriction payload creation and classification; `server.js` imports the compiled service and route call sites keep the same function names.
+- Stage 3 twenty-first slice is complete: `server/services/music-mapper.ts` owns pure Netease/QQ song mapping helpers (`mapArtists`, `mapSongRecord`, `qqAlbumCover`, `mapQQArtists`, `mapQQSmartSong`, `mapQQTrack`, `mapQQPlaylistTrack`); `server.js` keeps request flow, route handlers, and `qqSingerAvatar`.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
 
-Playback restriction helper extraction:
+Music mapper helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/music-mapper-service.test.js` failed because `server-dist/server/services/music-mapper` did not exist.
+- `npm run build:ts && node --test tests/music-mapper-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 149 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 337 tests.
+- `npm run coverage`: passed, 337 tests; production-code line coverage `100.00%`, including `server-dist/server/services/music-mapper.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified Netease/QQ mapper parity, server.js call sites, `qqSingerAvatar` staying local, direct service tests, route-level coverage, TS build import path, and generated artifact tracking.
+
+Previous playback restriction helper extraction:
 
 - Initial RED: `npm run build:ts && node --test tests/playback-restriction-service.test.js` failed because `server-dist/server/services/playback-restriction` did not exist.
 - `npm run build:ts && node --test tests/playback-restriction-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 148 tests.

@@ -1,0 +1,143 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const {
+  mapArtists,
+  mapQQArtists,
+  mapQQPlaylistTrack,
+  mapQQSmartSong,
+  mapQQTrack,
+  mapSongRecord,
+  qqAlbumCover,
+} = require('../server-dist/server/services/music-mapper');
+
+test('mapSongRecord preserves Netease song shape and artist filtering', () => {
+  assert.deepEqual(mapArtists([{ id: 1, name: 'A' }, { id: 2 }, null, { id: 3, name: 'B' }]), [
+    { id: 1, name: 'A' },
+    { id: 3, name: 'B' },
+  ]);
+
+  assert.deepEqual(mapSongRecord({
+    id: 101,
+    name: 'Rain',
+    ar: [{ id: 11, name: 'Singer A' }, { id: 12, name: 'Singer B' }],
+    al: { name: 'Album A', picUrl: 'https://img.example/a.jpg' },
+    dt: 188000,
+    fee: 1,
+  }), {
+    provider: 'netease',
+    source: 'netease',
+    type: 'song',
+    id: 101,
+    name: 'Rain',
+    artist: 'Singer A / Singer B',
+    artists: [{ id: 11, name: 'Singer A' }, { id: 12, name: 'Singer B' }],
+    artistId: 11,
+    album: 'Album A',
+    cover: 'https://img.example/a.jpg',
+    duration: 188000,
+    fee: 1,
+  });
+
+  assert.equal(mapSongRecord({ album: { coverUrl: 'https://img.example/fallback.jpg' }, duration: 123 }).cover, 'https://img.example/fallback.jpg');
+});
+
+test('QQ artist and album helpers preserve legacy URL and filtering behavior', () => {
+  assert.deepEqual(mapQQArtists([{ id: 1, mid: 'm1', title: 'Title Name' }, {}, { id: 2, name: 'Named' }]), [
+    { id: 1, mid: 'm1', name: 'Title Name' },
+    { id: 2, mid: undefined, name: 'Named' },
+  ]);
+  assert.equal(qqAlbumCover('', 300), '');
+  assert.equal(qqAlbumCover('album001'), 'https://y.qq.com/music/photo_new/T002R300x300M000album001.jpg?max_age=2592000');
+  assert.equal(qqAlbumCover('album001', 500), 'https://y.qq.com/music/photo_new/T002R500x500M000album001.jpg?max_age=2592000');
+});
+
+test('mapQQSmartSong preserves smartbox fallback song shape', () => {
+  assert.deepEqual(mapQQSmartSong({ id: 'doc001', mid: 'mid001', name: 'QQ Rain', singer: 'QQ Artist' }), {
+    provider: 'qq',
+    source: 'qq',
+    type: 'qq',
+    id: 'mid001',
+    qqId: 'doc001',
+    mid: 'mid001',
+    songmid: 'mid001',
+    name: 'QQ Rain',
+    artist: 'QQ Artist',
+    artists: [{ name: 'QQ Artist' }],
+    album: '',
+    cover: '',
+    duration: 0,
+    fee: 0,
+    playable: false,
+  });
+});
+
+test('mapQQTrack preserves detailed QQ track mapping and fallback fields', () => {
+  assert.deepEqual(mapQQTrack({
+    id: 12001,
+    mid: 'qqmid001',
+    title: 'QQ Detail',
+    singer: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+    album: { pmid: 'album001', title: 'QQ Album' },
+    interval: 188,
+    file: { media_mid: 'media001' },
+    pay: { pay_play: 1 },
+  }, { id: 'fallback-id', name: 'Fallback', artist: 'Fallback Artist', cover: 'https://img.example/fallback.jpg' }), {
+    provider: 'qq',
+    source: 'qq',
+    type: 'qq',
+    id: 'qqmid001',
+    qqId: 12001,
+    mid: 'qqmid001',
+    songmid: 'qqmid001',
+    mediaMid: 'media001',
+    name: 'QQ Detail',
+    artist: 'QQ Artist',
+    artists: [{ id: 66, mid: 'singer001', name: 'QQ Artist' }],
+    artistId: 66,
+    artistMid: 'singer001',
+    album: 'QQ Album',
+    albumMid: 'album001',
+    cover: 'https://y.qq.com/music/photo_new/T002R300x300M000album001.jpg?max_age=2592000',
+    duration: 188000,
+    fee: 1,
+    playable: false,
+  });
+
+  assert.equal(mapQQTrack({}, { songmid: 'fallback-mid', cover: 'https://img.example/fallback.jpg' }).cover, 'https://img.example/fallback.jpg');
+});
+
+test('mapQQPlaylistTrack preserves raw and nested playlist track mapping', () => {
+  assert.deepEqual(mapQQPlaylistTrack({
+    track_info: {
+      songid: 22001,
+      songmid: 'trackmid001',
+      songname: 'QQ Track',
+      singername: 'Plain Artist',
+      albumname: 'Plain Album',
+      albummid: 'albummid001',
+      strMediaMid: 'media-track-001',
+      interval: 201,
+    },
+  }), {
+    provider: 'qq',
+    source: 'qq',
+    type: 'qq',
+    id: 'trackmid001',
+    qqId: 22001,
+    mid: 'trackmid001',
+    songmid: 'trackmid001',
+    mediaMid: 'media-track-001',
+    name: 'QQ Track',
+    artist: 'Plain Artist',
+    artists: [],
+    artistId: undefined,
+    artistMid: undefined,
+    album: 'Plain Album',
+    albumMid: 'albummid001',
+    cover: 'https://y.qq.com/music/photo_new/T002R300x300M000albummid001.jpg?max_age=2592000',
+    duration: 201000,
+    fee: 0,
+    playable: false,
+  });
+});
