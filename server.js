@@ -263,6 +263,10 @@ const {
   createMediaRouteContext,
 } = require('./server-dist/server/composition/simple-route-contexts');
 const {
+  createUpdateRouteContext,
+  createBeatmapRouteContext,
+} = require('./server-dist/server/composition/ops-route-contexts');
+const {
   handleAppRoutes,
 } = require('./server-dist/server/controllers/app-controller');
 const {
@@ -1320,6 +1324,26 @@ const appRouteDependencies = {
   buildAppVersionPayload,
 };
 
+const updateRouteDependencies = {
+  sendJSON,
+  fetchLatestUpdateInfo,
+  localUpdateFallback,
+  updateConfig: UPDATE_CONFIG,
+  startUpdateDownloadJob,
+  startUpdatePatchJob,
+  updateDownloadJobs,
+  publicUpdateJob,
+  logger: console,
+};
+
+const beatmapRouteDependencies = {
+  sendJSON,
+  readRequestBody,
+  beatCacheRootInfo,
+  readBeatMapCache,
+  writeBeatMapCache,
+};
+
 function createDiscoverRouteDependencies() {
   return {
     sendJSON,
@@ -1369,32 +1393,15 @@ const server = createHttpServer({
     { pathname: pn, res }
   ))) return;
 
-  if (await handleUpdateRoutes({
-    pathname: pn,
-    url,
-    res,
-    sendJSON,
-    fetchLatestUpdateInfo,
-    localUpdateFallback,
-    updateConfig: UPDATE_CONFIG,
-    startUpdateDownloadJob,
-    startUpdatePatchJob,
-    updateDownloadJobs,
-    publicUpdateJob,
-    logger: console,
-  })) return;
+  if (await handleUpdateRoutes(createUpdateRouteContext(
+    updateRouteDependencies,
+    { pathname: pn, url, res }
+  ))) return;
 
-  if (await handleBeatmapRoutes({
-    pathname: pn,
-    url,
-    req,
-    res,
-    sendJSON,
-    readRequestBody,
-    beatCacheRootInfo,
-    readBeatMapCache,
-    writeBeatMapCache,
-  })) return;
+  if (await handleBeatmapRoutes(createBeatmapRouteContext(
+    beatmapRouteDependencies,
+    { pathname: pn, url, req, res }
+  ))) return;
 
   if (await handleDiscoverRoutes(createDiscoverRouteContext(
     createDiscoverRouteDependencies(),
