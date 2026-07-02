@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: latest in-progress slice is Netease login requirement helper extraction; commit after QA/pass verification should be `refactor: extract netease login requirement helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: latest in-progress slice is QQ smartbox search helper extraction; commit after QA/pass verification should be `refactor: extract qq smartbox search helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -66,9 +66,24 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 forty-second slice is complete: `server/services/qq-utils.ts` now owns QQ GET JSON request URL/header/cookie construction and parsing through `requestQQGetJson`; `server.js` keeps a thin runtime-state wrapper around current QQ headers/cookie/requestText.
 - Stage 3 forty-third slice is complete: `server/services/qq-utils.ts` now owns QQ profile homepage URL construction through `buildQQProfileUrl`; `server.js` uses it inside QQ login profile checking while keeping fallback/error orchestration local.
 - Stage 3 forty-fourth slice is complete: `server/services/netease-session.ts` now owns Netease login readiness and `LOGIN_REQUIRED` payload helpers; `server.js` `requireLogin` delegates pure login requirement decisions while keeping HTTP response orchestration local.
+- Stage 3 forty-fifth slice is complete: `server/services/qq-utils.ts` now owns QQ smartbox search URL construction, callback JSON parsing, limit clamping/defaulting, and smart-song mapping through `requestQQSmartboxSearch`; `server.js` keeps a thin runtime wrapper.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ smartbox search helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `requestQQSmartboxSearch is not a function`.
+- First targeted run exposed a test fixture mismatch: the new test used `songname`/`singername`, but existing `mapQQSmartSong` only preserves `name`/`title` and `singer`; fixed the fixture without changing production logic.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 153 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 383 tests.
+- `npm run coverage`: passed, 383 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent first review: `NEEDS WORK`. Production behavior was accepted, but QA correctly noted the test did not actually prove max/min limit clamping because the fixture had too few items.
+- Follow-up test-only fix: expanded smartbox fixture to 12 items and asserted `limit: 99 -> 10`, `limit: 0 -> legacy default 6`, `limit: -1 -> 1`, and empty list fallback.
+- QA subagent second review: `PASS`. Read-only QA verified the test gap was closed, diff stayed scoped to `server.js`, `server/services/qq-utils.ts`, and `tests/qq-utils-service.test.js`, targeted tests/static checks/full tests/coverage all passed.
 
 Netease login requirement helper extraction:
 

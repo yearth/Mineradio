@@ -1,5 +1,7 @@
 declare const Buffer: any;
 
+import { mapQQSmartSong } from './music-mapper';
+
 export function parseJSONText(text: unknown): any {
   const raw = String(text || '').trim();
   const json = raw.replace(/^callback\(([\s\S]*)\);?$/, '$1');
@@ -46,6 +48,32 @@ export async function requestQQGetJson(opts: {
   if (opts.includeCookie && opts.cookie) headers.Cookie = opts.cookie;
   const text = await opts.requestText(url.toString(), { headers });
   return parseJSONText(text);
+}
+
+export async function requestQQSmartboxSearch(opts: {
+  keywords: unknown;
+  limit?: unknown;
+  url: string;
+  headers?: Record<string, string>;
+  requestText: (targetUrl: string, requestOpts: Record<string, unknown>) => Promise<string>;
+}): Promise<Record<string, unknown>[]> {
+  const url = new URL(opts.url);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('key', String(opts.keywords || ''));
+  url.searchParams.set('g_tk', '5381');
+  url.searchParams.set('loginUin', '0');
+  url.searchParams.set('hostUin', '0');
+  url.searchParams.set('inCharset', 'utf8');
+  url.searchParams.set('outCharset', 'utf-8');
+  url.searchParams.set('notice', '0');
+  url.searchParams.set('platform', 'yqq.json');
+  url.searchParams.set('needNewCode', '0');
+  const text = await opts.requestText(url.toString(), { headers: opts.headers || {} });
+  const json = parseJSONText(text);
+  const items = json && json.data && json.data.song && json.data.song.itemlist;
+  return (Array.isArray(items) ? items : [])
+    .slice(0, Math.max(1, Math.min(Number(opts.limit) || 6, 10)))
+    .map(mapQQSmartSong);
 }
 
 export function buildQQProfileUrl(uin: unknown): string {

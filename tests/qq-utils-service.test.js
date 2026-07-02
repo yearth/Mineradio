@@ -10,6 +10,7 @@ const {
   parseJSONText,
   requestQQGetJson,
   requestQQMusicJson,
+  requestQQSmartboxSearch,
   qqSingerAvatar,
 } = require('../server-dist/server/services/qq-utils');
 
@@ -175,4 +176,66 @@ test('requestQQGetJson preserves query params, headers, cookie gating, and JSON 
       return '{"code":0}';
     },
   });
+});
+
+test('requestQQSmartboxSearch preserves URL params, limit clamping, and song mapping', async () => {
+  const calls = [];
+  const itemlist = Array.from({ length: 12 }, (_, index) => ({
+    mid: 'm' + (index + 1),
+    name: 'Song ' + (index + 1),
+    singer: 'Artist ' + (index + 1),
+  }));
+  const songs = await requestQQSmartboxSearch({
+    keywords: 'rain',
+    limit: 99,
+    url: 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+    headers: { Referer: 'https://y.qq.com/' },
+    requestText: async (url, opts) => {
+      calls.push({ url, opts });
+      return 'callback(' + JSON.stringify({ data: { song: { itemlist } } }) + ');';
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg?format=json&key=rain&g_tk=5381&loginUin=0&hostUin=0&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0');
+  assert.deepEqual(calls[0].opts, { headers: { Referer: 'https://y.qq.com/' } });
+  assert.equal(songs.length, 10);
+  assert.deepEqual(songs.map(song => ({ provider: song.provider, mid: song.mid, name: song.name, artist: song.artist })), [
+    { provider: 'qq', mid: 'm1', name: 'Song 1', artist: 'Artist 1' },
+    { provider: 'qq', mid: 'm2', name: 'Song 2', artist: 'Artist 2' },
+    { provider: 'qq', mid: 'm3', name: 'Song 3', artist: 'Artist 3' },
+    { provider: 'qq', mid: 'm4', name: 'Song 4', artist: 'Artist 4' },
+    { provider: 'qq', mid: 'm5', name: 'Song 5', artist: 'Artist 5' },
+    { provider: 'qq', mid: 'm6', name: 'Song 6', artist: 'Artist 6' },
+    { provider: 'qq', mid: 'm7', name: 'Song 7', artist: 'Artist 7' },
+    { provider: 'qq', mid: 'm8', name: 'Song 8', artist: 'Artist 8' },
+    { provider: 'qq', mid: 'm9', name: 'Song 9', artist: 'Artist 9' },
+    { provider: 'qq', mid: 'm10', name: 'Song 10', artist: 'Artist 10' },
+  ]);
+
+  const defaulted = await requestQQSmartboxSearch({
+    keywords: 'none',
+    limit: 0,
+    url: 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+    headers: {},
+    requestText: async () => JSON.stringify({ data: { song: { itemlist } } }),
+  });
+  assert.deepEqual(defaulted.map(song => song.mid), ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']);
+
+  const minimum = await requestQQSmartboxSearch({
+    keywords: 'none',
+    limit: -1,
+    url: 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+    headers: {},
+    requestText: async () => JSON.stringify({ data: { song: { itemlist } } }),
+  });
+  assert.deepEqual(minimum.map(song => song.mid), ['m1']);
+
+  const empty = await requestQQSmartboxSearch({
+    keywords: 'none',
+    url: 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+    headers: {},
+    requestText: async () => '{"data":{"song":{"itemlist":[]}}}',
+  });
+  assert.deepEqual(empty, []);
 });

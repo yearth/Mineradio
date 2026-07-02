@@ -188,7 +188,6 @@ const {
   mapPodcastVoice,
   mapQQArtists,
   mapQQPlaylistTrack,
-  mapQQSmartSong,
   mapQQTrack,
   mapSongRecord,
   podcastCollectionMeta,
@@ -218,6 +217,7 @@ const {
   parseJSONText,
   requestQQGetJson,
   requestQQMusicJson,
+  requestQQSmartboxSearch,
   qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
 const {
@@ -838,21 +838,13 @@ async function handleQQPlaylistTracks(id) {
 }
 
 async function qqSmartboxSearch(keywords, limit) {
-  const u = new URL(QQ_SMARTBOX_URL);
-  u.searchParams.set('format', 'json');
-  u.searchParams.set('key', keywords);
-  u.searchParams.set('g_tk', '5381');
-  u.searchParams.set('loginUin', '0');
-  u.searchParams.set('hostUin', '0');
-  u.searchParams.set('inCharset', 'utf8');
-  u.searchParams.set('outCharset', 'utf-8');
-  u.searchParams.set('notice', '0');
-  u.searchParams.set('platform', 'yqq.json');
-  u.searchParams.set('needNewCode', '0');
-  const text = await requestText(u.toString(), { headers: QQ_HEADERS });
-  const json = parseJSONText(text);
-  const items = json && json.data && json.data.song && json.data.song.itemlist;
-  return (Array.isArray(items) ? items : []).slice(0, Math.max(1, Math.min(limit || 6, 10))).map(mapQQSmartSong);
+  return requestQQSmartboxSearch({
+    keywords,
+    limit,
+    url: QQ_SMARTBOX_URL,
+    headers: QQ_HEADERS,
+    requestText,
+  });
 }
 
 async function qqSongDetail(mid, fallback) {
