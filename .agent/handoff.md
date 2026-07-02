@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `e8ed241 refactor: extract update patch apply helpers`; current uncommitted slice extracts update progress helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `7ed199b refactor: extract update progress helpers`; current uncommitted slice extracts update fetch helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -32,7 +32,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 ninth slice is complete: `server/services/update-file-cache.ts` owns update hash helpers, downloaded buffer/file verification, invalid cache renaming, and verified cached installer job construction; `server.js` injects fs/path/job-map wrappers.
 - Stage 3 tenth slice is complete: `server/services/update-job-factory.ts` owns installer/patch update job validation, active job reuse, cache reuse, job object construction, registration/trim, and auto-start runner hooks; `server.js` keeps thin dependency-injection wrappers.
 - Stage 3 eleventh slice is complete: `server/services/update-patch-apply.ts` owns patch file backup and atomic write/verify behavior; `server.js` injects fs/path/root helpers through a thin `writePatchFile` wrapper.
-- Stage 3 twelfth slice is QA-passed and ready to commit: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
+- Stage 3 twelfth slice is complete: `server/services/update-progress.ts` owns installer/patch download speed, progress, and ETA math; `server.js` download loops now delegate pure math while preserving timing windows and state/message flow.
+- Stage 3 thirteenth slice is QA-passed and ready to commit: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -376,6 +377,20 @@ Stage 3 update progress service slice:
 - `npm test`: passed, 300 tests.
 - `npm run coverage`: passed, 300 tests; production-code line coverage `100.00%`, branch coverage `71.95%`, function coverage `95.89%`; `server-dist/server/services/update-progress.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified formula parity, `server.js` timing/state/message preservation, service test boundaries, no generated artifact tracking, `node --test tests/update-progress-service.test.js`, and `node --check server.js`.
+
+Stage 3 update fetch service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-fetch-service.test.js` failed because `server-dist/server/services/update-fetch` did not exist.
+- Added `server/services/update-fetch.ts` for `localUpdateFallback` and `fetchTextFromCandidates`.
+- `server.js` now imports the compiled fetch helpers and injects `UPDATE_CONFIG.preview`, `APP_VERSION`, `UPDATE_FALLBACK_NOTES`, `fetchWithTimeout`, and `classifyUpdateError` through wrappers.
+- Added `tests/update-fetch-service.test.js` for fallback response shape/default `configured`, first successful candidate with User-Agent and timeout, all-lines-failed detail joining, and empty candidate fallback message.
+- `npm run build:ts && node --test tests/update-fetch-service.test.js tests/update-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 41 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 304 tests.
+- `npm run coverage`: passed, 304 tests; production-code line coverage `100.00%`, branch coverage `72.18%`, function coverage `95.91%`; `server-dist/server/services/update-fetch.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified fallback shape, candidate fetch behavior, wrapper injection, service tests, generated artifact tracking, and `git diff --check`.
 
 ## Decisions
 

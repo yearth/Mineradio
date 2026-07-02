@@ -126,6 +126,10 @@ const {
   patchProgress,
   speedBps: updateSpeedBps,
 } = require('./server-dist/server/services/update-progress');
+const {
+  fetchTextFromCandidates: fetchTextFromCandidatesService,
+  localUpdateFallback: localUpdateFallbackService,
+} = require('./server-dist/server/services/update-fetch');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -373,24 +377,12 @@ function writeBeatMapCache(body) {
 }
 function localUpdateFallback(reason, opts) {
   opts = opts || {};
-  const configured = !!(opts.configured != null ? opts.configured : false);
-  return {
-    configured,
+  return localUpdateFallbackService(reason, {
+    configured: opts.configured,
     preview: UPDATE_CONFIG.preview,
-    updateAvailable: false,
     currentVersion: APP_VERSION,
-    latestVersion: APP_VERSION,
-    release: {
-      tagName: 'v' + APP_VERSION,
-      name: 'Mineradio v' + APP_VERSION,
-      version: APP_VERSION,
-      htmlUrl: '',
-      downloadUrl: '',
-      summary: '当前版本，更新检测已就绪。',
-      notes: UPDATE_FALLBACK_NOTES,
-    },
-    reason: reason || '',
-  };
+    fallbackNotes: UPDATE_FALLBACK_NOTES,
+  });
 }
 async function fetchWithTimeout(url, opts, timeoutMs) {
   const controller = new AbortController();
@@ -402,22 +394,12 @@ async function fetchWithTimeout(url, opts, timeoutMs) {
   }
 }
 async function fetchTextFromCandidates(candidates, timeoutMs) {
-  const list = Array.isArray(candidates) && candidates.length ? candidates : [];
-  const failures = [];
-  for (let i = 0; i < list.length; i++) {
-    const candidate = list[i];
-    try {
-      const resp = await fetchWithTimeout(candidate.url, {
-        headers: { 'User-Agent': `Mineradio/${APP_VERSION}` },
-      }, timeoutMs || 6500);
-      if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status);
-      return { text: await resp.text(), candidate };
-    } catch (err) {
-      const info = classifyUpdateError(err);
-      failures.push(candidate.label + ': ' + info.reason);
-    }
-  }
-  throw updateError('UPDATE_ALL_LINES_FAILED', failures.join('；') || 'All update lines failed');
+  return fetchTextFromCandidatesService(candidates, {
+    timeoutMs,
+    userAgent: `Mineradio/${APP_VERSION}`,
+    fetchWithTimeout,
+    classifyUpdateError,
+  });
 }
 function parseLatestYmlUpdateInfo(text, reason) {
   return parseLatestYmlUpdateInfoService(text, reason, {
