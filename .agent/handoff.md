@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease pending login helper` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq singer avatar helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -59,9 +59,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-fifth slice is complete: `server/services/netease-session.ts` now also owns `readCookieFromResponse`; `server.js` imports the helper for QR login cookie extraction while keeping login/session orchestration local.
 - Stage 3 thirty-sixth slice is complete: `server/services/netease-session.ts` now owns `getNeteaseLoginInfo` login-status/account fallback orchestration; `server.js` keeps a thin wrapper that injects current cookies, Netease API functions, cookie persistence, and logging.
 - Stage 3 thirty-seventh slice is complete: `server/services/netease-session.ts` now owns pending Netease login profile fallback construction; `server.js` reuses it for cookie and QR login pending-profile responses.
+- Stage 3 thirty-eighth slice is complete: `server/services/qq-utils.ts` now owns QQ singer avatar URL construction; `server.js` imports it for `/api/qq/artist/detail` fallback avatars.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ singer avatar helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-utils-service.test.js` failed with `qqSingerAvatar is not a function`.
+- `npm run build:ts && node --test tests/qq-utils-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 149 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 376 tests.
+- `npm run coverage`: passed, 376 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-utils.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified old helper body parity, import/call-site preservation, empty/default/explicit-size URL tests, targeted test pass (`149/149`), full `npm test` pass (`376/376`), and scoped static/diff checks. Residual note: QA observed `.agent/handoff.md` was modified outside the code/test diff; that documentation update is intentional for handoff continuity.
 
 Netease pending login helper extraction:
 

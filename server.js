@@ -213,6 +213,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
 const {
   beatCacheRootInfo: beatCacheRootInfoService,
@@ -846,12 +847,6 @@ async function handleQQPlaylistTracks(id) {
     trackCount: tracks.length,
   };
   return { loggedIn: true, provider: 'qq', playlist, tracks };
-}
-
-function qqSingerAvatar(singerMid, size) {
-  if (!singerMid) return '';
-  const px = size || 300;
-  return 'https://y.qq.com/music/photo_new/T001R' + px + 'x' + px + 'M000' + singerMid + '.jpg?max_age=2592000';
 }
 
 async function qqSmartboxSearch(keywords, limit) {

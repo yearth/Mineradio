@@ -25,6 +25,12 @@ export function audioContentTypeForUrl(audioUrl: unknown, upstreamType: unknown)
   return upstreamType ? String(upstreamType) : 'audio/mpeg';
 }
 
+export function qqSingerAvatar(singerMid: unknown, size?: number): string {
+  if (!singerMid) return '';
+  const px = size || 300;
+  return 'https://y.qq.com/music/photo_new/T001R' + px + 'x' + px + 'M000' + singerMid + '.jpg?max_age=2592000';
+}
+
 export function mapQQPlaylist(pl: any, kind: string): Record<string, unknown> {
   pl = pl || {};
   const id = pl.dissid || pl.tid || pl.dirid || pl.id || pl.diss_id;

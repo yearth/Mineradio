@@ -7,6 +7,7 @@ const {
   mapQQComment,
   mapQQPlaylist,
   parseJSONText,
+  qqSingerAvatar,
 } = require('../server-dist/server/services/qq-utils');
 
 test('parseJSONText preserves JSON and callback wrapper parsing', () => {
@@ -69,4 +70,16 @@ test('mapQQComment preserves content, user, likes, and timestamp mapping', () =>
       avatar: 'nested.jpg',
     },
   });
+});
+
+test('qqSingerAvatar preserves legacy QQ singer avatar URL construction', () => {
+  assert.equal(qqSingerAvatar(''), '');
+  assert.equal(
+    qqSingerAvatar('singer001'),
+    'https://y.qq.com/music/photo_new/T001R300x300M000singer001.jpg?max_age=2592000',
+  );
+  assert.equal(
+    qqSingerAvatar('singer001', 500),
+    'https://y.qq.com/music/photo_new/T001R500x500M000singer001.jpg?max_age=2592000',
+  );
 });
