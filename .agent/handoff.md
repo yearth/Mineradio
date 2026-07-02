@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract qq profile normalization` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract request client service` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -54,9 +54,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirtieth slice is complete: `server/services/qq-utils.ts` owns pure QQ JSON/audio/playlist/comment helpers (`parseJSONText`, `audioProxyHeadersFor`, `audioContentTypeForUrl`, `mapQQPlaylist`, `mapQQComment`); `server.js` keeps QQ request/session/route orchestration, with `UA` explicitly injected into the audio proxy helper.
 - Stage 3 thirty-first slice is complete: `server/services/beatmap-cache.ts` owns beatmap cache root checks, directory creation, safe cache filenames, compact payload serialization, cache reads, and atomic writes; `server.js` keeps the beatmap cache API routes and memory-only fallback response shapes.
 - Stage 3 thirty-second slice is complete: `server/services/cookie-session.ts` now also owns QQ profile normalization; `server.js` keeps a thin wrapper that injects the current cookie object and `hasCookie` state for QQ login/session orchestration.
+- Stage 3 thirty-third slice is complete: `server/services/request-client.ts` owns `requestText`/`requestJson` HTTP text/JSON helpers; `server.js` keeps the `requestTextOverride` hook and injects its wrapper into `requestJson` for unchanged test/runtime orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Request client service extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/request-client-service.test.js` failed because `../server-dist/server/services/request-client` did not exist.
+- `npm run build:ts && node --test tests/request-client-service.test.js tests/server-helpers.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 151 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 368 tests.
+- `npm run coverage`: passed, 368 tests; production-code line coverage `100.00%`, including `server-dist/server/services/request-client.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified HTTP/HTTPS selection parity, method/header/body/chunk/error metadata/timeout/error-event/truthy-body behavior, JSON parse and invalid-JSON wrapping, `requestTextOverride` propagation through `requestJson`, and real local HTTP-server service tests. Residual note: focused tests do not explicitly exercise HTTPS, timeout, request error event, or falsy body non-write paths; QA confirmed these are direct behavioral extractions and full tests pass.
 
 QQ profile normalization extraction:
 

@@ -215,6 +215,10 @@ const {
   readBeatMapCache: readBeatMapCacheService,
   writeBeatMapCache: writeBeatMapCacheService,
 } = require('./server-dist/server/services/beatmap-cache');
+const {
+  requestJson: requestJsonService,
+  requestText: requestTextService,
+} = require('./server-dist/server/services/request-client');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -642,44 +646,11 @@ const QQ_HEADERS = {
 let requestTextOverride = null;
 function requestText(targetUrl, opts, body) {
   if (requestTextOverride) return requestTextOverride(targetUrl, opts || {}, body);
-  opts = opts || {};
-  return new Promise((resolve, reject) => {
-    const u = new URL(targetUrl);
-    const lib = u.protocol === 'https:' ? https : http;
-    const req = lib.request(u, {
-      method: opts.method || 'GET',
-      headers: opts.headers || {},
-    }, response => {
-      const chunks = [];
-      response.on('data', chunk => chunks.push(chunk));
-      response.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8');
-        if (response.statusCode >= 400) {
-          const err = new Error('HTTP ' + response.statusCode);
-          err.statusCode = response.statusCode;
-          err.body = text;
-          reject(err);
-          return;
-        }
-        resolve(text);
-      });
-    });
-    req.setTimeout(10000, () => req.destroy(new Error('Request timeout')));
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
+  return requestTextService(targetUrl, opts, body, { http, https });
 }
 
 async function requestJson(targetUrl, opts, body) {
-  const text = await requestText(targetUrl, opts, body);
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    const err = new Error('Invalid JSON from ' + targetUrl);
-    err.cause = e;
-    throw err;
-  }
+  return requestJsonService(targetUrl, opts, body, { requestText });
 }
 
 async function resolveOpenMeteoLocation(query) {
