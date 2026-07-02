@@ -7,8 +7,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: controller/router TS split is in progress; latest safe slice is Netease media/read route extraction into `server/controllers/netease-media-controller.ts`.
-- Current phase: route/controller TS split, keeping root `server.js` as the compatibility entry.
+- Worktree: server composition/runtime cleanup is in progress; latest safe slice is update runtime state extraction into `server/runtime/update-runtime.ts`.
+- Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
@@ -89,9 +89,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Controller/router TS split twelfth slice is complete: `server/controllers/netease-auth-controller.ts` now owns Netease auth/session routes (`/api/login/cookie`, `/api/login/qr/key`, `/api/login/qr/create`, `/api/login/qr/check`, `/api/login/status`, `/api/logout`) through `handleNeteaseAuthRoutes`; `server.js` keeps the root compatibility entry and injects cookie/session helpers, QR APIs, login normalization helpers, logout, clock, `sendJSON`, and logger.
 - Controller/router TS split thirteenth slice is complete: `server/controllers/netease-library-controller.ts` now owns Netease library/write routes (`/api/user/playlists`, `/api/song/like/check`, `/api/song/like`, `/api/playlist/create`, `/api/playlist/add-song`) through `handleNeteaseLibraryRoutes`; `server.js` keeps the root compatibility entry and injects login helpers, current cookie getter, Netease write APIs, provider response normalizers, request-body reader, clock, `sendJSON`, and logger.
 - Controller/router TS split fourteenth slice is complete: `server/controllers/netease-media-controller.ts` now owns Netease media/read routes (`/api/song/url`, `/api/lyric`, `/api/song/comments`, `/api/artist/detail`, `/api/playlist/tracks`) through `handleNeteaseMediaRoutes`; `server.js` keeps the root compatibility entry, preserves the early `/api/song/url` dispatch position, and injects current cookie getter, login helpers, Netease media APIs, mappers, comment payload builder, clock, `sendJSON`, and logger.
+- Controller/router TS split is complete: API route business branches now live under `server/controllers/*.ts`; root `server.js` keeps controller ordering, dependency injection, runtime state, compatibility wrappers, and static fallback.
+- Server composition/runtime cleanup first slice is complete: `server/runtime/update-runtime.ts` now owns update job Map state plus update platform/manifest/autoDownload/autoPatch test overrides; `server.js` keeps the original wrapper names and injects the runtime job Map into existing update services/controllers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Update runtime state extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/update-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/update-runtime'`.
+- `npm run build:ts && node --test tests/update-runtime.test.js tests/update-routes.test.js tests/update-controller.test.js tests/server-test-runtime.test.js`: passed, 39 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test && npm run coverage`: passed, 470 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/runtime/update-runtime.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior-equivalent replacement of `updateRuntimeOverrides` and `updateDownloadJobs`, legacy `value !== false` semantics for auto flags, unchanged job Map injection into update services/controllers, reset clearing overrides plus jobs, and no generated-file staging risk.
 
 Netease media/read controller route extraction:
 

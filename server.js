@@ -64,6 +64,9 @@ const {
   sendJson: sendJSON,
 } = require('./server-dist/server/http-utils');
 const {
+  createUpdateRuntime,
+} = require('./server-dist/server/runtime/update-runtime');
+const {
   resolveStaticFilePath,
   serveStatic: serveStaticFile,
 } = require('./server-dist/server/static-utils');
@@ -303,13 +306,8 @@ const WEATHER_DEFAULT_LOCATION = {
   timezone: 'Asia/Shanghai',
 };
 
-const updateDownloadJobs = new Map();
-const updateRuntimeOverrides = {
-  platform: '',
-  manifest: '',
-  autoDownload: true,
-  autoPatch: true,
-};
+const updateRuntime = createUpdateRuntime();
+const updateDownloadJobs = updateRuntime.jobs;
 
 function applySystemCertificateAuthorities() {
   try {
@@ -357,10 +355,10 @@ function readPackageInfo() {
   return readPackageInfoService(path.join(__dirname, 'package.json'), { fs });
 }
 function updateRuntimePlatform() {
-  return updateRuntimeOverrides.platform || process.platform;
+  return updateRuntime.platform(process.platform);
 }
 function updateManifestRef() {
-  return updateRuntimeOverrides.manifest || UPDATE_CONFIG.manifest;
+  return updateRuntime.manifest(UPDATE_CONFIG.manifest);
 }
 function uniqueDownloadCandidates(urls, opts) {
   opts = opts || {};
@@ -509,7 +507,7 @@ function startUpdateDownloadJob(info) {
     trimUpdateJobs,
     reuseVerifiedInstallerJob,
     runDownload: downloadUpdateAssetWithMirrors,
-    autoDownload: updateRuntimeOverrides.autoDownload,
+    autoDownload: updateRuntime.autoDownload(),
   });
 }
 function patchTargetPath(rel) {
@@ -565,7 +563,7 @@ function startUpdatePatchJob(info) {
     publicUpdateJob,
     trimUpdateJobs,
     runPatch: downloadAndApplyPatchWithMirrors,
-    autoPatch: updateRuntimeOverrides.autoPatch,
+    autoPatch: updateRuntime.autoPatch(),
   });
 }
 function qqCookieObject() {
@@ -1560,23 +1558,19 @@ if (process.env.NODE_ENV === 'test') {
       requestTextOverride = null;
     },
     setUpdatePlatform(value) {
-      updateRuntimeOverrides.platform = String(value || '');
+      updateRuntime.setPlatform(value);
     },
     setUpdateManifest(value) {
-      updateRuntimeOverrides.manifest = String(value || '');
+      updateRuntime.setManifest(value);
     },
     setUpdateAutoDownload(value) {
-      updateRuntimeOverrides.autoDownload = value !== false;
+      updateRuntime.setAutoDownload(value);
     },
     setUpdateAutoPatch(value) {
-      updateRuntimeOverrides.autoPatch = value !== false;
+      updateRuntime.setAutoPatch(value);
     },
     resetUpdateRuntime() {
-      updateRuntimeOverrides.platform = '';
-      updateRuntimeOverrides.manifest = '';
-      updateRuntimeOverrides.autoDownload = true;
-      updateRuntimeOverrides.autoPatch = true;
-      updateDownloadJobs.clear();
+      updateRuntime.reset();
     },
   };
 }
