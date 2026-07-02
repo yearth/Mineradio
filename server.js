@@ -134,6 +134,9 @@ const {
 const {
   downloadPatchBufferFromCandidate: downloadPatchBufferFromCandidateService,
 } = require('./server-dist/server/services/update-patch-download');
+const {
+  downloadUpdateAssetWithMirrors: downloadUpdateAssetWithMirrorsService,
+} = require('./server-dist/server/services/update-installer-download');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -452,76 +455,22 @@ function reuseVerifiedInstallerJob(opts) {
   });
 }
 async function downloadUpdateAssetWithMirrors(job) {
-  const tmpPath = job.filePath + '.download';
-  const candidates = Array.isArray(job.downloadCandidates) && job.downloadCandidates.length
-    ? job.downloadCandidates
-    : uniqueDownloadCandidates(job.downloadUrl || '');
-  const failures = [];
-  fs.mkdirSync(UPDATE_DOWNLOAD_DIR, { recursive: true });
-  for (let i = 0; i < candidates.length; i++) {
-    const candidate = candidates[i];
-    try {
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) {}
-      ensureMirrorCanBeVerified(job, candidate);
-      prepareUpdateJobAttempt(job, candidate, i, candidates.length);
-      job.message = job.total ? '正在下载完整安装包' : '正在下载完整安装包，等待服务器返回大小';
-
-      const resp = await fetchWithTimeout(candidate.url, {
-        headers: { 'User-Agent': `Mineradio/${APP_VERSION}` },
-      }, 14000);
-      if (!resp.ok) throw updateError('HTTP_' + resp.status, 'HTTP ' + resp.status);
-
-      const totalHeader = parseInt(resp.headers.get('content-length') || '0', 10) || 0;
-      job.total = totalHeader || job.expectedSize || job.total || 0;
-      job.progress = 0;
-      job.updatedAt = Date.now();
-      let speedWindowAt = Date.now();
-      let speedWindowBytes = 0;
-
-      const writer = fs.createWriteStream(tmpPath);
-      const reader = resp.body.getReader();
-      try {
-        while (true) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          const buf = Buffer.from(chunk.value);
-          job.received += buf.length;
-          speedWindowBytes += buf.length;
-          const now = Date.now();
-          if (now - speedWindowAt >= 900) {
-            job.speedBps = updateSpeedBps(speedWindowBytes, now - speedWindowAt);
-            speedWindowAt = now;
-            speedWindowBytes = 0;
-          }
-          Object.assign(job, installerProgress({ received: job.received, total: job.total, speedBps: job.speedBps }));
-          job.message = job.total > 0 ? '正在下载完整安装包' : '正在下载完整安装包，服务器未提供总大小';
-          job.updatedAt = Date.now();
-          if (!writer.write(buf)) await once(writer, 'drain');
-        }
-      } finally {
-        writer.end();
-        await once(writer, 'finish').catch(() => {});
-      }
-
-      verifyUpdateFile(tmpPath, job);
-      if (fs.existsSync(job.filePath)) fs.unlinkSync(job.filePath);
-      fs.renameSync(tmpPath, job.filePath);
-      job.status = 'ready';
-      job.progress = 100;
-      job.etaSeconds = 0;
-      job.message = '安装包已下载';
-      job.updatedAt = Date.now();
-      return;
-    } catch (err) {
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) {}
-      const info = classifyUpdateError(err);
-      failures.push({ source: candidate.label || '下载线路', reason: info.reason, detail: info.detail });
-      job.failedAttempts = failures.slice(-6);
-      job.message = i < candidates.length - 1 ? ((candidate.label || '当前线路') + '失败，正在切换线路') : info.reason;
-      job.updatedAt = Date.now();
-      if (i >= candidates.length - 1) setUpdateJobError(job, err, '下载失败：' + info.reason);
-    }
-  }
+  return downloadUpdateAssetWithMirrorsService(job, {
+    fs,
+    once,
+    downloadDir: UPDATE_DOWNLOAD_DIR,
+    userAgent: `Mineradio/${APP_VERSION}`,
+    uniqueDownloadCandidates,
+    ensureMirrorCanBeVerified,
+    prepareUpdateJobAttempt,
+    fetchWithTimeout,
+    updateError,
+    updateSpeedBps,
+    installerProgress,
+    verifyUpdateFile,
+    classifyUpdateError,
+    setUpdateJobError,
+  });
 }
 function startUpdateDownloadJob(info) {
   return startUpdateDownloadJobService(info, {

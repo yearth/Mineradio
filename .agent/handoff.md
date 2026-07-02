@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: check `git status --short --branch`; latest committed slice is `4532f0c refactor: extract update check helpers`; current uncommitted slice extracts update patch buffer download helpers.
+- Worktree: check `git status --short --branch`; latest committed slice is `cc07e38 refactor: extract update patch download helpers`; current uncommitted slice extracts update installer download helpers.
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -36,7 +36,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirteenth slice is complete: `server/services/update-fetch.ts` owns local update fallback response construction and latest.yml text candidate fetching; `server.js` injects version/config/fetch/error-classifier dependencies through thin wrappers.
 - Stage 3 fourteenth slice is complete: `server/services/update-manifest-source.ts` owns external update manifest reading and manifest fetch normalization/fallback orchestration; `server.js` injects fs/path/fetch/User-Agent/normalizer/fallback wrappers.
 - Stage 3 fifteenth slice is complete: `server/services/update-check.ts` owns latest update check orchestration across mac preview fallback, manifest override, GitHub API release metadata, latest.yml fallback, and local fallback.
-- Stage 3 sixteenth slice is QA-passed and ready to commit: `server/services/update-patch-download.ts` owns single-candidate patch package download, patch progress, max-size guard, and buffer verification.
+- Stage 3 sixteenth slice is complete: `server/services/update-patch-download.ts` owns single-candidate patch package download, patch progress, max-size guard, and buffer verification.
+- Stage 3 seventeenth slice is QA-passed and ready to commit: `server/services/update-installer-download.ts` owns complete installer download runner behavior across candidates, stream writes, verification, final ready state, and failure aggregation.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Committed Work
@@ -438,6 +439,20 @@ Stage 3 update patch download service slice:
 - `npm test`: passed, 317 tests.
 - `npm run coverage`: passed, 317 tests; production-code line coverage `100.00%`, branch coverage `72.31%`, function coverage `95.73%`; `server-dist/server/services/update-patch-download.js` line coverage `100.00%`.
 - QA subagent review: `PASS`. Read-only QA verified behavior parity, wrapper injection completeness, service tests, full tests, coverage, and generated artifact tracking.
+
+Stage 3 update installer download service slice:
+
+- Initial RED: `npm run build:ts && node --test tests/update-installer-download-service.test.js` failed because `server-dist/server/services/update-installer-download` did not exist.
+- Added `server/services/update-installer-download.ts` for `downloadUpdateAssetWithMirrors`.
+- `server.js` now imports the compiled installer download helper and injects `fs`, `once`, update download dir, User-Agent, candidate builder, mirror guard, attempt preparation, fetch timeout helper, update error helper, speed/progress helpers, file verifier, error classifier, and job error setter.
+- Added `tests/update-installer-download-service.test.js` for first-candidate success, fallback candidate construction, User-Agent and 14000ms timeout, verify/rename, writer backpressure/drain/finish path, speed windows, candidate switching, HTTP classification, final failure, and failedAttempts projection.
+- `npm run build:ts && node --test tests/update-installer-download-service.test.js tests/update-routes.test.js tests/project-structure.test.js`: passed, 35 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 320 tests.
+- `npm run coverage`: passed, 320 tests; production-code line coverage `100.00%`, branch coverage `72.46%`, function coverage `95.74%`; `server-dist/server/services/update-installer-download.js` line coverage `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified old runner behavior parity, wrapper injection completeness, service tests, generated artifact tracking, and validation commands. Non-blocking note: fake writer exercises drain/finish but does not strongly assert wait ordering.
 
 ## Decisions
 
