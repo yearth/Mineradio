@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract provider response helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease session helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -46,9 +46,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twenty-second slice is complete: `server/services/music-mapper.ts` also owns discover playlist, podcast radio, low-signal podcast filtering, and QQ playlist predicate helpers; `server.js` keeps request flow and route handlers.
 - Stage 3 twenty-third slice is complete: `server/services/playback-quality.ts` owns Netease/QQ quality candidate tables, quality preference alias normalization, fallback candidate ordering, and Netease SVIP detection; `server.js` keeps playback URL orchestration.
 - Stage 3 twenty-fourth slice is complete: `server/services/provider-response.ts` owns provider API code/message normalization helpers; `server.js` keeps login invalidation and playlist add-song orchestration.
+- Stage 3 twenty-fifth slice is complete: `server/services/netease-session.ts` owns Netease VIP detection, login profile normalization, and auth-invalid payload detection; `server.js` keeps session fetch/orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease session helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-session-service.test.js` failed because `server-dist/server/services/netease-session` did not exist.
+- During GREEN, the new service test caught a mistaken expectation about zero ids; the test was corrected to preserve legacy `userId || ...` behavior: numeric `0` is swallowed by the chain, while string `"0"` remains a logged-in id.
+- `npm run build:ts && node --test tests/netease-session-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 147 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 347 tests.
+- `npm run coverage`: passed, 347 tests; production-code line coverage `100.00%`, including `server-dist/server/services/netease-session.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified VIP source/key/text/flag parity, login info `userId ||` legacy behavior, auth invalid rules, unchanged server.js call sites, direct service tests, route coverage, and generated artifact tracking. Note: QA briefly ran test/coverage concurrently and saw the known update temp-file false failure; serial reruns passed.
 
 Provider response helper extraction:
 
