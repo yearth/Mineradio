@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract request client service` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract weather provider service` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -55,9 +55,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-first slice is complete: `server/services/beatmap-cache.ts` owns beatmap cache root checks, directory creation, safe cache filenames, compact payload serialization, cache reads, and atomic writes; `server.js` keeps the beatmap cache API routes and memory-only fallback response shapes.
 - Stage 3 thirty-second slice is complete: `server/services/cookie-session.ts` now also owns QQ profile normalization; `server.js` keeps a thin wrapper that injects the current cookie object and `hasCookie` state for QQ login/session orchestration.
 - Stage 3 thirty-third slice is complete: `server/services/request-client.ts` owns `requestText`/`requestJson` HTTP text/JSON helpers; `server.js` keeps the `requestTextOverride` hook and injects its wrapper into `requestJson` for unchanged test/runtime orchestration.
+- Stage 3 thirty-fourth slice is complete: `server/services/weather-provider.ts` owns Open-Meteo geocoding/forecast and IP location provider mapping; `server.js` keeps thin URL/UA/default-location/requestJson wrappers while weather-radio song orchestration remains local.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Weather provider service extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/weather-provider-service.test.js` failed because `../server-dist/server/services/weather-provider` did not exist.
+- `npm run build:ts && node --test tests/weather-provider-service.test.js tests/weather-utils-service.test.js tests/weather-mood.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 156 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 371 tests.
+- First coverage run failed at `99.87%` because the migrated `resolveOpenMeteoLocation` wrapper in `server.js` was no longer called; verified no call sites remained and removed the dead wrapper/import instead of testing dead code.
+- `npm run coverage`: passed, 371 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/weather-provider.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified blank/geocode/fallback location behavior, forecast coordinate/geocode branches, exact URL parameters and User-Agent headers, weather field mapping, precipitation fallback, deterministic `updatedAt`, mood construction, IP success/error metadata, `requestTextOverride` propagation through `requestJson`, and removal of only the unused `resolveOpenMeteoLocation` wrapper. Residual note: QA did not rerun coverage itself; main agent reran coverage serially and it passed.
 
 Request client service extraction:
 

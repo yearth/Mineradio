@@ -197,12 +197,14 @@ const {
 } = require('./server-dist/server/services/lyric-utils');
 const {
   buildWeatherMood,
-  clampNumber,
   fallbackWeatherForRadio,
-  openMeteoWeatherLabel,
   orderWeatherSongs,
   weatherRadioSeedQueries,
 } = require('./server-dist/server/services/weather-utils');
+const {
+  fetchIpWeatherLocation: fetchIpWeatherLocationService,
+  fetchOpenMeteoWeather: fetchOpenMeteoWeatherService,
+} = require('./server-dist/server/services/weather-provider');
 const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
@@ -653,100 +655,23 @@ async function requestJson(targetUrl, opts, body) {
   return requestJsonService(targetUrl, opts, body, { requestText });
 }
 
-async function resolveOpenMeteoLocation(query) {
-  const raw = String(query || '').trim();
-  if (!raw) return WEATHER_DEFAULT_LOCATION;
-  const u = new URL(OPEN_METEO_GEOCODE_URL);
-  u.searchParams.set('name', raw);
-  u.searchParams.set('count', '1');
-  u.searchParams.set('language', 'zh');
-  u.searchParams.set('format', 'json');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
-  const first = body && Array.isArray(body.results) && body.results[0];
-  if (!first) return { ...WEATHER_DEFAULT_LOCATION, query: raw, fallback: true };
-  return {
-    name: first.name || raw,
-    country: first.country || '',
-    admin1: first.admin1 || '',
-    latitude: first.latitude,
-    longitude: first.longitude,
-    timezone: first.timezone || 'auto',
-  };
-}
-
 async function fetchOpenMeteoWeather(params) {
-  params = params || {};
-  let location;
-  const lat = clampNumber(params.lat, -90, 90, NaN);
-  const lon = clampNumber(params.lon, -180, 180, NaN);
-  if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    location = {
-      name: String(params.city || params.name || '当前位置').trim() || '当前位置',
-      country: '',
-      latitude: lat,
-      longitude: lon,
-      timezone: params.timezone || 'auto',
-    };
-  } else {
-    location = await resolveOpenMeteoLocation(params.city || params.q || params.location);
-  }
-  const u = new URL(OPEN_METEO_FORECAST_URL);
-  u.searchParams.set('latitude', String(location.latitude));
-  u.searchParams.set('longitude', String(location.longitude));
-  u.searchParams.set('current', 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m');
-  u.searchParams.set('hourly', 'precipitation_probability,weather_code,temperature_2m');
-  u.searchParams.set('forecast_days', '1');
-  u.searchParams.set('timezone', location.timezone || 'auto');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
-  const cur = body && body.current || {};
-  const weather = {
-    provider: 'open-meteo',
-    location: {
-      name: location.name,
-      country: location.country || '',
-      admin1: location.admin1 || '',
-      latitude: location.latitude,
-      longitude: location.longitude,
-      timezone: body.timezone || location.timezone || '',
-      fallback: !!location.fallback,
-    },
-    label: openMeteoWeatherLabel(cur.weather_code),
-    weatherCode: Number(cur.weather_code),
-    temperature: Number(cur.temperature_2m),
-    apparentTemperature: Number(cur.apparent_temperature),
-    humidity: Number(cur.relative_humidity_2m),
-    precipitation: Number(cur.precipitation || cur.rain || cur.showers || cur.snowfall || 0),
-    cloudCover: Number(cur.cloud_cover),
-    windSpeed: Number(cur.wind_speed_10m),
-    windGusts: Number(cur.wind_gusts_10m),
-    isDay: Number(cur.is_day),
-    time: cur.time || '',
-    updatedAt: Date.now(),
-  };
-  weather.mood = buildWeatherMood(weather);
-  return weather;
+  return fetchOpenMeteoWeatherService(params, {
+    defaultLocation: WEATHER_DEFAULT_LOCATION,
+    forecastUrl: OPEN_METEO_FORECAST_URL,
+    geocodeUrl: OPEN_METEO_GEOCODE_URL,
+    requestJson,
+    userAgent: UA,
+  });
 }
 
 async function fetchIpWeatherLocation() {
-  const u = new URL(WEATHER_IP_LOCATION_URL);
-  u.searchParams.set('fields', 'status,message,country,regionName,city,lat,lon,timezone,query');
-  u.searchParams.set('lang', 'zh-CN');
-  const body = await requestJson(u.toString(), { headers: { 'User-Agent': UA } });
-  if (!body || body.status !== 'success' || !Number.isFinite(Number(body.lat)) || !Number.isFinite(Number(body.lon))) {
-    const err = new Error(body && body.message || 'IP_LOCATION_FAILED');
-    err.body = body;
-    throw err;
-  }
-  return {
-    provider: 'ip-api',
-    city: body.city || WEATHER_DEFAULT_LOCATION.name,
-    region: body.regionName || '',
-    country: body.country || '',
-    latitude: Number(body.lat),
-    longitude: Number(body.lon),
-    timezone: body.timezone || 'auto',
-    ip: body.query || '',
-  };
+  return fetchIpWeatherLocationService({
+    defaultLocation: WEATHER_DEFAULT_LOCATION,
+    ipLocationUrl: WEATHER_IP_LOCATION_URL,
+    requestJson,
+    userAgent: UA,
+  });
 }
 
 async function buildWeatherRadio(params) {
