@@ -5,6 +5,7 @@ const {
   isNeteaseAuthInvalidPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
+  readCookieFromResponse,
 } = require('../server-dist/server/services/netease-session');
 
 test('normalizeNeteaseVip preserves numeric, boolean, and text VIP detection', () => {
@@ -78,4 +79,21 @@ test('isNeteaseAuthInvalidPayload preserves auth failure rules', () => {
   assert.equal(isNeteaseAuthInvalidPayload({ body: { code: 401 } }), true);
   assert.equal(isNeteaseAuthInvalidPayload({ body: { code: 403, message: '请先登录后再访问' } }), true);
   assert.equal(isNeteaseAuthInvalidPayload({ status: 500, body: { msg: 'server unavailable' } }), false);
+});
+
+test('readCookieFromResponse preserves Netease cookie extraction precedence', () => {
+  assert.equal(readCookieFromResponse({
+    cookie: ['MUSIC_U=direct;', 'NMTID=direct-token;'],
+    body: { cookie: 'MUSIC_U=body;' },
+  }), 'MUSIC_U=direct; NMTID=direct-token');
+
+  assert.equal(readCookieFromResponse({
+    body: { data: { cookies: [{ name: 'MUSIC_U', value: 'nested' }, { name: 'os', value: 'pc' }] } },
+  }), 'MUSIC_U=nested; os=pc');
+
+  assert.equal(readCookieFromResponse({
+    body: { cookie: { MUSIC_U: 'object-cookie', __csrf: 'csrf-token' } },
+  }), 'MUSIC_U=object-cookie; __csrf=csrf-token');
+
+  assert.equal(readCookieFromResponse({ body: { data: {} } }), '');
 });

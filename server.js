@@ -147,6 +147,7 @@ const {
   isNeteaseAuthInvalidPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
+  readCookieFromResponse,
 } = require('./server-dist/server/services/netease-session');
 const {
   normalizeCookieHeader,
@@ -1239,19 +1240,6 @@ async function handleSongUrl(id, loginInfo, qualityPreference) {
 }
 
 // ---------- 业务: 登录态/用户信息 ----------
-function readCookieFromResponse(resp) {
-  const candidates = [
-    resp && resp.cookie,
-    resp && resp.body && resp.body.cookie,
-    resp && resp.body && resp.body.data && resp.body.data.cookie,
-    resp && resp.body && resp.body.data && resp.body.data.cookies,
-  ];
-  for (const candidate of candidates) {
-    const cookie = normalizeCookieHeader(candidate);
-    if (cookie) return cookie;
-  }
-  return '';
-}
 async function getLoginInfo() {
   if (!userCookie) return { loggedIn: false, vipType: 0, vipLevel: 'none', isVip: false, isSvip: false, vipLabel: '无VIP' };
 

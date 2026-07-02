@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract weather provider service` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract netease cookie response helper` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -56,9 +56,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 thirty-second slice is complete: `server/services/cookie-session.ts` now also owns QQ profile normalization; `server.js` keeps a thin wrapper that injects the current cookie object and `hasCookie` state for QQ login/session orchestration.
 - Stage 3 thirty-third slice is complete: `server/services/request-client.ts` owns `requestText`/`requestJson` HTTP text/JSON helpers; `server.js` keeps the `requestTextOverride` hook and injects its wrapper into `requestJson` for unchanged test/runtime orchestration.
 - Stage 3 thirty-fourth slice is complete: `server/services/weather-provider.ts` owns Open-Meteo geocoding/forecast and IP location provider mapping; `server.js` keeps thin URL/UA/default-location/requestJson wrappers while weather-radio song orchestration remains local.
+- Stage 3 thirty-fifth slice is complete: `server/services/netease-session.ts` now also owns `readCookieFromResponse`; `server.js` imports the helper for QR login cookie extraction while keeping login/session orchestration local.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease cookie response helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/netease-session-service.test.js` failed with `readCookieFromResponse is not a function`.
+- `npm run build:ts && node --test tests/netease-session-service.test.js tests/music-routes.test.js tests/server-helpers.test.js tests/project-structure.test.js`: passed, 153 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 372 tests.
+- `npm run coverage`: passed, 372 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-session.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified candidate precedence (`resp.cookie`, `resp.body.cookie`, `resp.body.data.cookie`, `resp.body.data.cookies`), `normalizeCookieHeader` usage for each candidate, unchanged QR login success/retry call sites, direct/nested/object/empty service test coverage, compiled export, and no TS/circular-import risk. Residual note: QA did not rerun full `npm test`; main agent ran it serially and it passed.
 
 Weather provider service extraction:
 

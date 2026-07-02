@@ -1,4 +1,5 @@
 import { normalizeApiCode, normalizeApiMessage } from './provider-response';
+import { normalizeCookieHeader } from './cookie-session';
 
 function firstPositiveNumberFrom(objects: any[], keys: string[]): number {
   for (const obj of objects) {
@@ -98,4 +99,18 @@ export function isNeteaseAuthInvalidPayload(payload: any): boolean {
   if (code === 301 || code === 401) return true;
   const msg = normalizeApiMessage(payload);
   return /未登录|需要登录|请先登录|login/i.test(msg) && code >= 300;
+}
+
+export function readCookieFromResponse(resp: any): string {
+  const candidates = [
+    resp && resp.cookie,
+    resp && resp.body && resp.body.cookie,
+    resp && resp.body && resp.body.data && resp.body.data.cookie,
+    resp && resp.body && resp.body.data && resp.body.data.cookies,
+  ];
+  for (const candidate of candidates) {
+    const cookie = normalizeCookieHeader(candidate);
+    if (cookie) return cookie;
+  }
+  return '';
 }
