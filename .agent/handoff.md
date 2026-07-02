@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extend music mapper helpers` (check `git log -1 --oneline` for the current hash).
+- Worktree: clean as of the latest committed handoff; latest committed slice is `refactor: extract playback quality helpers` (check `git log -1 --oneline` for the current hash).
 - Current phase: Stage 3, "server 领域拆分".
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -44,9 +44,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Stage 3 twentieth slice is complete: `server/services/playback-restriction.ts` owns Netease/QQ playback restriction payload creation and classification; `server.js` imports the compiled service and route call sites keep the same function names.
 - Stage 3 twenty-first slice is complete: `server/services/music-mapper.ts` owns pure Netease/QQ song mapping helpers (`mapArtists`, `mapSongRecord`, `qqAlbumCover`, `mapQQArtists`, `mapQQSmartSong`, `mapQQTrack`, `mapQQPlaylistTrack`); `server.js` keeps request flow, route handlers, and `qqSingerAvatar`.
 - Stage 3 twenty-second slice is complete: `server/services/music-mapper.ts` also owns discover playlist, podcast radio, low-signal podcast filtering, and QQ playlist predicate helpers; `server.js` keeps request flow and route handlers.
+- Stage 3 twenty-third slice is complete: `server/services/playback-quality.ts` owns Netease/QQ quality candidate tables, quality preference alias normalization, fallback candidate ordering, and Netease SVIP detection; `server.js` keeps playback URL orchestration.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Playback quality helper extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/playback-quality-service.test.js` failed because `server-dist/server/services/playback-quality` did not exist.
+- `npm run build:ts && node --test tests/playback-quality-service.test.js tests/music-routes.test.js tests/project-structure.test.js`: passed, 147 tests.
+- `node --check server.js`: passed.
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+- `npm test`: passed, 342 tests.
+- `npm run coverage`: passed, 342 tests; production-code line coverage `100.00%`, including `server-dist/server/services/playback-quality.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified candidate table parity, alias/default behavior, fallback slicing, SVIP rules, unchanged server.js call sites, service tests, route coverage, and generated artifact tracking.
 
 Music mapper list/filter helper extension:
 
