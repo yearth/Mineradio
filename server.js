@@ -234,6 +234,9 @@ const {
   createRootRouteDispatcherDependencies,
 } = require('./server-dist/server/root-dependencies');
 const {
+  createRootRouteRuntimeFactories,
+} = require('./server-dist/server/root-runtime-factories');
+const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
 
@@ -889,55 +892,81 @@ async function getLoginInfo() {
   });
 }
 
-function createNeteaseMediaRouteDependencies() {
-  return {
-    sendJSON,
-    getUserCookie: () => currentUserCookie(),
-    getLoginInfo,
-    handleSongUrl,
+const rootRouteRuntimeFactories = createRootRouteRuntimeFactories({
+  sendJSON,
+  readRequestBody,
+  normalizeCookieHeader,
+  parseCookieString,
+  saveCookie,
+  getUserCookie: () => currentUserCookie(),
+  getLoginInfo,
+  pendingNeteaseLoginInfo,
+  readCookieFromResponse,
+  normalizeLoginInfo,
+  requireLogin,
+  normalizeApiCode,
+  normalizeApiMessage,
+  mapSongRecord,
+  buildNeteaseSongCommentsPayload,
+  handleSongUrl,
+  mapPodcastRadio,
+  mapPodcastProgram,
+  fetchMyPodcastItems,
+  podcastCollectionMeta,
+  analyzePodcastDjStream,
+  analyzePodcastDjIntro,
+  normalizeQQCookieInput,
+  qqCookieUin,
+  qqCookieMusicKey,
+  saveQQCookie,
+  getQQLoginInfo,
+  handleQQSearch,
+  handleQQSongUrl,
+  handleQQLyric,
+  handleQQUserPlaylists,
+  handleQQPlaylistTracks,
+  handleQQArtistDetail,
+  handleQQSongComments,
+  packageInfo: APP_PACKAGE,
+  appVersion: APP_VERSION,
+  updateConfig: UPDATE_CONFIG,
+  buildAppVersionPayload,
+  fetchLatestUpdateInfo,
+  localUpdateFallback,
+  startUpdateDownloadJob,
+  startUpdatePatchJob,
+  updateDownloadJobs,
+  publicUpdateJob,
+  beatCacheRootInfo,
+  readBeatMapCache,
+  writeBeatMapCache,
+  handleDiscoverHome,
+  buildWeatherRadio,
+  fetchIpWeatherLocation,
+  handleSearch,
+  audioProxyHeadersFor,
+  audioContentTypeForUrl,
+  userAgent: UA,
+  now: Date.now,
+  logger: console,
+  getFetch: () => fetch,
+  getNeteaseApi: () => ({
+    cloudsearch,
+    djHot: dj_hot,
+    djDetail: dj_detail,
+    djProgram: dj_program,
     lyricNew: lyric_new,
     lyric,
     commentMusic: comment_music,
-    buildNeteaseSongCommentsPayload,
     artistDetail: artist_detail,
     artistSongs: artist_songs,
     artistTopSong: artist_top_song,
     playlistTrackAll: playlist_track_all,
     playlistDetail: playlist_detail,
-    mapSongRecord,
-    now: Date.now,
-    logger: console,
-  };
-}
-
-function createNeteaseAuthRouteDependencies() {
-  return {
-    sendJSON,
-    readRequestBody,
-    normalizeCookieHeader,
-    parseCookieString,
-    saveCookie,
-    getUserCookie: () => currentUserCookie(),
-    getLoginInfo,
-    pendingNeteaseLoginInfo,
     loginQrKey: login_qr_key,
     loginQrCreate: login_qr_create,
     loginQrCheck: login_qr_check,
-    readCookieFromResponse,
-    normalizeLoginInfo,
     logout,
-    now: Date.now,
-    logger: console,
-  };
-}
-
-function createNeteaseLibraryRouteDependencies() {
-  return {
-    sendJSON,
-    readRequestBody,
-    getLoginInfo,
-    requireLogin,
-    getUserCookie: () => currentUserCookie(),
     userPlaylist: user_playlist,
     songLikeCheck: song_like_check,
     likelist,
@@ -945,134 +974,24 @@ function createNeteaseLibraryRouteDependencies() {
     playlistCreate: playlist_create,
     playlistTracks: playlist_tracks,
     playlistTrackAdd: playlist_track_add,
-    normalizeApiCode,
-    normalizeApiMessage,
-    now: Date.now,
-    logger: console,
-  };
-}
-
-function createPodcastRouteDependencies() {
-  return {
-    sendJSON,
-    cloudsearch,
-    djHot: dj_hot,
-    djDetail: dj_detail,
-    djProgram: dj_program,
-    mapPodcastRadio,
-    mapPodcastProgram,
-    getLoginInfo,
-    fetchMyPodcastItems,
-    podcastCollectionMeta,
-    analyzePodcastDjStream,
-    analyzePodcastDjIntro,
-    userAgent: UA,
-    getUserCookie: () => currentUserCookie(),
-    timestamp: Date.now,
-    now: Date.now,
-    logger: console,
-  };
-}
-
-function createQQRouteDependencies() {
-  return {
-    sendJSON,
-    readRequestBody,
-    parseCookieString,
-    normalizeQQCookieInput,
-    qqCookieUin,
-    qqCookieMusicKey,
-    saveQQCookie,
-    getQQLoginInfo,
-    handleQQSearch,
-    handleQQSongUrl,
-    handleQQLyric,
-    handleQQUserPlaylists,
-    handleQQPlaylistTracks,
-    handleQQArtistDetail,
-    handleQQSongComments,
-    logger: console,
-  };
-}
-
-const appRouteDependencies = {
-  sendJSON,
-  packageInfo: APP_PACKAGE,
-  appVersion: APP_VERSION,
-  updateConfig: UPDATE_CONFIG,
-  buildAppVersionPayload,
-};
-
-const updateRouteDependencies = {
-  sendJSON,
-  fetchLatestUpdateInfo,
-  localUpdateFallback,
-  updateConfig: UPDATE_CONFIG,
-  startUpdateDownloadJob,
-  startUpdatePatchJob,
-  updateDownloadJobs,
-  publicUpdateJob,
-  logger: console,
-};
-
-const beatmapRouteDependencies = {
-  sendJSON,
-  readRequestBody,
-  beatCacheRootInfo,
-  readBeatMapCache,
-  writeBeatMapCache,
-};
-
-function createDiscoverRouteDependencies() {
-  return {
-    sendJSON,
-    handleDiscoverHome,
-    logger: console,
-  };
-}
-
-function createWeatherRouteDependencies() {
-  return {
-    sendJSON,
-    buildWeatherRadio,
-    fetchIpWeatherLocation,
-    logger: console,
-  };
-}
-
-function createSearchRouteDependencies() {
-  return {
-    sendJSON,
-    handleSearch,
-    logger: console,
-  };
-}
-
-function createMediaRouteDependencies() {
-  return {
-    fetch,
-    audioProxyHeadersFor,
-    audioContentTypeForUrl,
-    userAgent: UA,
-    logger: console,
-  };
-}
+  }),
+});
 
 const rootRouteDependencies = createRootRouteDispatcherDependencies({
   neteaseSongUrlRoute: NETEASE_SONG_URL_ROUTE,
   rootDir: __dirname,
-  appRouteDependencies,
-  updateRouteDependencies,
-  beatmapRouteDependencies,
-  createDiscoverRouteDependencies,
-  createWeatherRouteDependencies,
-  createSearchRouteDependencies,
-  createQQRouteDependencies,
-  createPodcastRouteDependencies,
-  createNeteaseMediaRouteDependencies,
-  createNeteaseAuthRouteDependencies,
-  createNeteaseLibraryRouteDependencies,
-  createMediaRouteDependencies,
+  appRouteDependencies: rootRouteRuntimeFactories.appRouteDependencies,
+  updateRouteDependencies: rootRouteRuntimeFactories.updateRouteDependencies,
+  beatmapRouteDependencies: rootRouteRuntimeFactories.beatmapRouteDependencies,
+  createDiscoverRouteDependencies: rootRouteRuntimeFactories.createDiscoverRouteDependencies,
+  createWeatherRouteDependencies: rootRouteRuntimeFactories.createWeatherRouteDependencies,
+  createSearchRouteDependencies: rootRouteRuntimeFactories.createSearchRouteDependencies,
+  createQQRouteDependencies: rootRouteRuntimeFactories.createQQRouteDependencies,
+  createPodcastRouteDependencies: rootRouteRuntimeFactories.createPodcastRouteDependencies,
+  createNeteaseMediaRouteDependencies: rootRouteRuntimeFactories.createNeteaseMediaRouteDependencies,
+  createNeteaseAuthRouteDependencies: rootRouteRuntimeFactories.createNeteaseAuthRouteDependencies,
+  createNeteaseLibraryRouteDependencies: rootRouteRuntimeFactories.createNeteaseLibraryRouteDependencies,
+  createMediaRouteDependencies: rootRouteRuntimeFactories.createMediaRouteDependencies,
   serveStatic,
 });
 
