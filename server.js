@@ -40,7 +40,6 @@ const {
   createNeteaseApiRuntime,
 } = require('./server-dist/server/runtime/netease-api-runtime');
 const {
-  resolveStaticFilePath,
   serveStatic: serveStaticFile,
 } = require('./server-dist/server/static-utils');
 const {
@@ -232,69 +231,8 @@ const {
   buildServerTestRuntime,
 } = require('./server-dist/server/test-support/runtime');
 const {
-  createNeteaseMediaRouteContext,
-} = require('./server-dist/server/composition/netease-media-context');
-const {
-  createNeteaseAuthRouteContext,
-} = require('./server-dist/server/composition/netease-auth-context');
-const {
-  createNeteaseLibraryRouteContext,
-} = require('./server-dist/server/composition/netease-library-context');
-const {
-  createPodcastRouteContext,
-} = require('./server-dist/server/composition/podcast-context');
-const {
-  createQQRouteContext,
-} = require('./server-dist/server/composition/qq-context');
-const {
-  createAppRouteContext,
-  createDiscoverRouteContext,
-  createWeatherRouteContext,
-  createSearchRouteContext,
-  createMediaRouteContext,
-} = require('./server-dist/server/composition/simple-route-contexts');
-const {
-  createUpdateRouteContext,
-  createBeatmapRouteContext,
-} = require('./server-dist/server/composition/ops-route-contexts');
-const {
-  handleAppRoutes,
-} = require('./server-dist/server/controllers/app-controller');
-const {
-  handleUpdateRoutes,
-} = require('./server-dist/server/controllers/update-controller');
-const {
-  handleWeatherRoutes,
-} = require('./server-dist/server/controllers/weather-controller');
-const {
-  handleDiscoverRoutes,
-} = require('./server-dist/server/controllers/discover-controller');
-const {
-  handleBeatmapRoutes,
-} = require('./server-dist/server/controllers/beatmap-controller');
-const {
-  handlePodcastAuthenticatedRoutes,
-  handlePodcastBeatmapRoutes,
-  handlePodcastPublicRoutes,
-} = require('./server-dist/server/controllers/podcast-controller');
-const {
-  handleQQRoutes,
-} = require('./server-dist/server/controllers/qq-controller');
-const {
-  handleSearchRoutes,
-} = require('./server-dist/server/controllers/search-controller');
-const {
-  handleNeteaseAuthRoutes,
-} = require('./server-dist/server/controllers/netease-auth-controller');
-const {
-  handleNeteaseLibraryRoutes,
-} = require('./server-dist/server/controllers/netease-library-controller');
-const {
-  handleNeteaseMediaRoutes,
-} = require('./server-dist/server/controllers/netease-media-controller');
-const {
-  handleMediaRoutes,
-} = require('./server-dist/server/controllers/media-controller');
+  createRootRouteDispatcherDependencies,
+} = require('./server-dist/server/root-dependencies');
 const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
@@ -1120,6 +1058,24 @@ function createMediaRouteDependencies() {
   };
 }
 
+const rootRouteDependencies = createRootRouteDispatcherDependencies({
+  neteaseSongUrlRoute: NETEASE_SONG_URL_ROUTE,
+  rootDir: __dirname,
+  appRouteDependencies,
+  updateRouteDependencies,
+  beatmapRouteDependencies,
+  createDiscoverRouteDependencies,
+  createWeatherRouteDependencies,
+  createSearchRouteDependencies,
+  createQQRouteDependencies,
+  createPodcastRouteDependencies,
+  createNeteaseMediaRouteDependencies,
+  createNeteaseAuthRouteDependencies,
+  createNeteaseLibraryRouteDependencies,
+  createMediaRouteDependencies,
+  serveStatic,
+});
+
 // ====================================================================
 //  HTTP Server
 // ====================================================================
@@ -1128,50 +1084,7 @@ const server = createHttpServer({
   requestHandler: createRequestHandler({
     port: PORT,
     handleRequest: async ({ req, res, url, pathname: pn }) => {
-      await dispatchRootRoute({ pathname: pn, url, req, res }, {
-        neteaseSongUrlRoute: NETEASE_SONG_URL_ROUTE,
-        rootDir: __dirname,
-        appRouteDependencies,
-        updateRouteDependencies,
-        beatmapRouteDependencies,
-        createDiscoverRouteDependencies,
-        createWeatherRouteDependencies,
-        createSearchRouteDependencies,
-        createQQRouteDependencies,
-        createPodcastRouteDependencies,
-        createNeteaseMediaRouteDependencies,
-        createNeteaseAuthRouteDependencies,
-        createNeteaseLibraryRouteDependencies,
-        createMediaRouteDependencies,
-        createAppRouteContext,
-        createUpdateRouteContext,
-        createBeatmapRouteContext,
-        createDiscoverRouteContext,
-        createWeatherRouteContext,
-        createSearchRouteContext,
-        createQQRouteContext,
-        createPodcastRouteContext,
-        createNeteaseMediaRouteContext,
-        createNeteaseAuthRouteContext,
-        createNeteaseLibraryRouteContext,
-        createMediaRouteContext,
-        handleAppRoutes,
-        handleUpdateRoutes,
-        handleBeatmapRoutes,
-        handleDiscoverRoutes,
-        handleWeatherRoutes,
-        handleSearchRoutes,
-        handleQQRoutes,
-        handlePodcastPublicRoutes,
-        handlePodcastAuthenticatedRoutes,
-        handleNeteaseMediaRoutes,
-        handleNeteaseAuthRoutes,
-        handlePodcastBeatmapRoutes,
-        handleNeteaseLibraryRoutes,
-        handleMediaRoutes,
-        resolveStaticFilePath,
-        serveStatic,
-      });
+      await dispatchRootRoute({ pathname: pn, url, req, res }, rootRouteDependencies);
     }
   })
 });
