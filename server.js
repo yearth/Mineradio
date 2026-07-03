@@ -239,6 +239,9 @@ const {
 const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
+const {
+  createServerBootstrap,
+} = require('./server-dist/server/server-bootstrap');
 
 const APP_PACKAGE = readPackageInfo();
 const APP_CONFIG = buildAppConfig({
@@ -995,21 +998,13 @@ const rootRouteDependencies = createRootRouteDispatcherDependencies({
   serveStatic,
 });
 
-// ====================================================================
-//  HTTP Server
-// ====================================================================
-const server = createHttpServer({
+const server = createServerBootstrap({
   createServer: http.createServer.bind(http),
-  requestHandler: createRequestHandler({
-    port: PORT,
-    handleRequest: async ({ req, res, url, pathname: pn }) => {
-      await dispatchRootRoute({ pathname: pn, url, req, res }, rootRouteDependencies);
-    }
-  })
-});
-
-listenIfNeeded({ /* node:coverage ignore next 7 */
-  server,
+  createHttpServer,
+  createRequestHandler,
+  dispatchRootRoute,
+  listenIfNeeded,
+  routeDependencies: rootRouteDependencies,
   env: process.env,
   port: PORT,
   host: HOST,
