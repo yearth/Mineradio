@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server composition/runtime cleanup is complete through controller route context composition; latest safe slice is Netease auth/library route dependency composition extraction into `server/composition/netease-auth-context.ts` and `server/composition/netease-library-context.ts`.
+- Worktree: server runtime cleanup is in progress; latest verified slice extracts app configuration and Netease API mutable state into `server/runtime/app-config.ts` and `server/runtime/netease-api-runtime.ts`.
 - Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -100,9 +100,26 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup eighth slice is complete: `server/composition/simple-route-contexts.ts` now owns app/discover/weather/search/media proxy route context assembly; `server.js` keeps per-request factories where runtime-overridable dependencies such as `fetch` must not be frozen.
 - Server composition/runtime cleanup ninth slice is complete: `server/composition/ops-route-contexts.ts` now owns update/beatmap route context assembly; `server.js` injects the stable update job Map and beatmap cache dependencies through thin route context builders.
 - Server composition/runtime cleanup tenth slice is complete: `server/composition/netease-auth-context.ts` and `server/composition/netease-library-context.ts` now own Netease auth/library route context assembly; `server.js` keeps per-request dependency factories so test-rebound Netease API functions are read lazily.
+- Server runtime cleanup eleventh slice is complete: `server/runtime/app-config.ts` now owns app/server/path/update/weather/default-version configuration; `server.js` keeps the existing constant names by reading from `APP_CONFIG`.
+- Server runtime cleanup twelfth slice is complete: `server/runtime/netease-api-runtime.ts` now owns the mutable NeteaseCloudMusicApi table used by `__test.setNeteaseApi`; `server.js` uses stable proxy functions so route/service dependencies read the latest overridden API without freezing references.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+App config and Netease API runtime extraction:
+
+- Initial RED for app config: `npm run build:ts && node --test tests/app-config-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/app-config'`.
+- App config focused/static verification: `npm run build:ts && node --test tests/app-config-runtime.test.js tests/app-info-service.test.js tests/server-helpers.test.js tests/update-routes.test.js tests/weather-controller.test.js tests/weather-provider-service.test.js tests/project-structure.test.js tests/server-router.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 52 tests.
+- Initial RED for Netease API runtime: `npm run build:ts && node --test tests/netease-api-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/netease-api-runtime'`.
+- First Netease focused run caught a real regression: the proxy changed a legacy missing-provider error from `personalized is not a function` to `neteaseApiRuntime.current(...)[name] is not a function`. Fixed by making the proxy boundary throw `TypeError(`${name} is not a function`)` before invocation.
+- Netease focused/static verification after the fix: `npm run build:ts && node --test tests/netease-api-runtime.test.js tests/music-routes.test.js tests/server-test-runtime.test.js tests/netease-user-composition.test.js tests/netease-media-composition.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 150 tests.
+- `npm test && npm run coverage`: passed, 487 tests; production-code line coverage `100.00%`, including `server.js`, `server-dist/server/runtime/app-config.js`, and `server-dist/server/runtime/netease-api-runtime.js` at `100.00%`.
+- First QA subagent review: `NEEDS WORK`. Positive checks passed for app config parity and runtime `Object.assign({}, defaults, overrides || {})` semantics, but QA found a compatibility regression in the `like` -> `like_song` alias path: missing `like` returned `like is not a function` instead of legacy `like_song is not a function`.
+- Follow-up RED: `npm run build:ts && node --test tests/music-routes.test.js --test-name-pattern "legacy like_song missing-provider"` failed with actual `{ error: 'like is not a function' }` vs expected `{ error: 'like_song is not a function' }`.
+- Follow-up fix: `callNeteaseApi(name, args, displayName)` keeps lookup key `like` while allowing `like_song` as the legacy error display name; `tests/music-routes.test.js` now covers `server.__test.setNeteaseApi({ like: undefined })` for `/api/song/like`.
+- Follow-up focused/static verification: `npm run build:ts && node --test tests/music-routes.test.js --test-name-pattern "legacy like_song missing-provider" && node --test tests/netease-api-runtime.test.js tests/music-routes.test.js tests/server-test-runtime.test.js tests/netease-user-composition.test.js tests/netease-media-composition.test.js && node --check server.js && npm run typecheck && git diff --check` passed, including 151 focused tests.
+- Follow-up full verification: `npm test && npm run coverage` passed, 488 tests; production-code line coverage stayed `100.00%`.
+- QA subagent re-review: `PASS`. Read-only QA verified the new regression test targets `setNeteaseApi({ like: undefined })`, `like_song` still looks up runtime key `like`, other missing provider names such as `personalized` keep their old function-name error path, focused/static validation passed with 154 tests, and no coverage run was needed in the subagent because main verification already ran full coverage.
 
 Netease auth/library route dependency composition extraction:
 

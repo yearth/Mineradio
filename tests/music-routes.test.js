@@ -2705,6 +2705,26 @@ test('/api/song/like validates song id and reports provider errors', async () =>
   }
 });
 
+test('/api/song/like preserves the legacy like_song missing-provider error', async () => {
+  const originalError = console.error;
+  console.error = () => {};
+  await loginAs({
+    profile: { userId: 9502, nickname: 'Toggle Missing Provider User' },
+    api: {
+      like: undefined,
+    },
+  });
+
+  try {
+    const failed = await postJson('/api/song/like', { id: '101', like: true });
+
+    assert.equal(failed.status, 500);
+    assert.deepEqual(failed.body, { error: 'like_song is not a function' });
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test('/api/playlist/create creates a playlist for logged-in users', async () => {
   const calls = [];
   await loginAs({

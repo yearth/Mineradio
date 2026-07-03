@@ -6,45 +6,6 @@
 //  - 所有受保护 API 都会带上已登录用户的 cookie
 // ====================================================================
 const neteaseApiDefaults = require('NeteaseCloudMusicApi');
-let {
-  search,
-  cloudsearch,
-  song_detail,
-  song_url,
-  song_url_v1,
-  login_qr_key,
-  login_qr_create,
-  login_qr_check,
-  login_status,
-  logout,
-  user_account,
-  user_playlist,
-  comment_music,
-  artist_detail,
-  artist_top_song,
-  artist_songs,
-  like: like_song,
-  likelist,
-  song_like_check,
-  playlist_tracks,
-  playlist_track_add,
-  playlist_create,
-  playlist_detail,
-  playlist_track_all,
-  personalized,
-  recommend_resource,
-  recommend_songs,
-  dj_detail,
-  dj_program,
-  dj_hot,
-  dj_sublist,
-  user_audio,
-  dj_paygift,
-  record_recent_voice,
-  sati_resource_sub_list,
-  lyric,
-  lyric_new,
-} = neteaseApiDefaults;
 const http = require('http');
 const https = require('https');
 const fs   = require('fs');
@@ -72,6 +33,12 @@ const {
 const {
   createUpdateRuntime,
 } = require('./server-dist/server/runtime/update-runtime');
+const {
+  buildAppConfig,
+} = require('./server-dist/server/runtime/app-config');
+const {
+  createNeteaseApiRuntime,
+} = require('./server-dist/server/runtime/netease-api-runtime');
 const {
   resolveStaticFilePath,
   serveStatic: serveStaticFile,
@@ -311,35 +278,75 @@ const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
 
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const COOKIE_FILE = process.env.COOKIE_FILE || path.join(__dirname, '.cookie');
-const QQ_COOKIE_FILE = process.env.QQ_COOKIE_FILE || path.join(__dirname, '.qq-cookie');
-const UPDATE_WORK_DIR = process.env.MINERADIO_UPDATE_DIR || path.join(__dirname, 'updates');
-const UPDATE_DOWNLOAD_DIR = process.env.MINERADIO_UPDATE_DOWNLOAD_DIR || path.join(UPDATE_WORK_DIR, 'downloads');
-const UPDATE_PATCH_BACKUP_DIR = process.env.MINERADIO_PATCH_BACKUP_DIR || path.join(UPDATE_WORK_DIR, 'backups', 'patches');
-const BEATMAP_CACHE_DIR = process.env.MINERADIO_BEAT_CACHE_DIR || defaultBeatMapCacheDir();
-const NETEASE_SONG_URL_ROUTE = '/api/song/url';
 const APP_PACKAGE = readPackageInfo();
-const APP_VERSION = process.env.MINERADIO_VERSION || APP_PACKAGE.version || '0.9.11';
+const APP_CONFIG = buildAppConfig({
+  env: process.env,
+  rootDir: __dirname,
+  packageInfo: APP_PACKAGE,
+  defaultBeatMapCacheDir,
+});
+const PORT = APP_CONFIG.port;
+const HOST = APP_CONFIG.host;
+const UA = APP_CONFIG.userAgent;
+const COOKIE_FILE = APP_CONFIG.cookieFile;
+const QQ_COOKIE_FILE = APP_CONFIG.qqCookieFile;
+const UPDATE_WORK_DIR = APP_CONFIG.updateWorkDir;
+const UPDATE_DOWNLOAD_DIR = APP_CONFIG.updateDownloadDir;
+const UPDATE_PATCH_BACKUP_DIR = APP_CONFIG.updatePatchBackupDir;
+const BEATMAP_CACHE_DIR = APP_CONFIG.beatmapCacheDir;
+const NETEASE_SONG_URL_ROUTE = APP_CONFIG.neteaseSongUrlRoute;
+const APP_VERSION = APP_CONFIG.appVersion;
 const UPDATE_CONFIG = readUpdateConfig(APP_PACKAGE);
-const PATCH_MAX_BYTES = 12 * 1024 * 1024;
-const UPDATE_FALLBACK_NOTES = [
-  '电影镜头节奏更松',
-  '音源失败自动换源',
-  '右上角更新提示',
-];
-const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
-const OPEN_METEO_GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
-const WEATHER_IP_LOCATION_URL = 'http://ip-api.com/json/';
-const WEATHER_DEFAULT_LOCATION = {
-  name: '上海',
-  country: 'China',
-  latitude: 31.2304,
-  longitude: 121.4737,
-  timezone: 'Asia/Shanghai',
-};
+const PATCH_MAX_BYTES = APP_CONFIG.patchMaxBytes;
+const UPDATE_FALLBACK_NOTES = APP_CONFIG.updateFallbackNotes;
+const OPEN_METEO_FORECAST_URL = APP_CONFIG.openMeteoForecastUrl;
+const OPEN_METEO_GEOCODE_URL = APP_CONFIG.openMeteoGeocodeUrl;
+const WEATHER_IP_LOCATION_URL = APP_CONFIG.weatherIpLocationUrl;
+const WEATHER_DEFAULT_LOCATION = APP_CONFIG.weatherDefaultLocation;
+
+const neteaseApiRuntime = createNeteaseApiRuntime(neteaseApiDefaults);
+function callNeteaseApi(name, args, displayName) {
+  const fn = neteaseApiRuntime.current()[name];
+  if (typeof fn !== 'function') throw new TypeError(`${displayName || name} is not a function`);
+  return fn(...args);
+}
+const search = (...args) => callNeteaseApi('search', args);
+const cloudsearch = (...args) => callNeteaseApi('cloudsearch', args);
+const song_detail = (...args) => callNeteaseApi('song_detail', args);
+const song_url = (...args) => callNeteaseApi('song_url', args);
+const song_url_v1 = (...args) => callNeteaseApi('song_url_v1', args);
+const login_qr_key = (...args) => callNeteaseApi('login_qr_key', args);
+const login_qr_create = (...args) => callNeteaseApi('login_qr_create', args);
+const login_qr_check = (...args) => callNeteaseApi('login_qr_check', args);
+const login_status = (...args) => callNeteaseApi('login_status', args);
+const logout = (...args) => callNeteaseApi('logout', args);
+const user_account = (...args) => callNeteaseApi('user_account', args);
+const user_playlist = (...args) => callNeteaseApi('user_playlist', args);
+const comment_music = (...args) => callNeteaseApi('comment_music', args);
+const artist_detail = (...args) => callNeteaseApi('artist_detail', args);
+const artist_top_song = (...args) => callNeteaseApi('artist_top_song', args);
+const artist_songs = (...args) => callNeteaseApi('artist_songs', args);
+const like_song = (...args) => callNeteaseApi('like', args, 'like_song');
+const likelist = (...args) => callNeteaseApi('likelist', args);
+const song_like_check = (...args) => callNeteaseApi('song_like_check', args);
+const playlist_tracks = (...args) => callNeteaseApi('playlist_tracks', args);
+const playlist_track_add = (...args) => callNeteaseApi('playlist_track_add', args);
+const playlist_create = (...args) => callNeteaseApi('playlist_create', args);
+const playlist_detail = (...args) => callNeteaseApi('playlist_detail', args);
+const playlist_track_all = (...args) => callNeteaseApi('playlist_track_all', args);
+const personalized = (...args) => callNeteaseApi('personalized', args);
+const recommend_resource = (...args) => callNeteaseApi('recommend_resource', args);
+const recommend_songs = (...args) => callNeteaseApi('recommend_songs', args);
+const dj_detail = (...args) => callNeteaseApi('dj_detail', args);
+const dj_program = (...args) => callNeteaseApi('dj_program', args);
+const dj_hot = (...args) => callNeteaseApi('dj_hot', args);
+const dj_sublist = (...args) => callNeteaseApi('dj_sublist', args);
+const user_audio = (...args) => callNeteaseApi('user_audio', args);
+const dj_paygift = (...args) => callNeteaseApi('dj_paygift', args);
+const record_recent_voice = (...args) => callNeteaseApi('record_recent_voice', args);
+const sati_resource_sub_list = (...args) => callNeteaseApi('sati_resource_sub_list', args);
+const lyric = (...args) => callNeteaseApi('lyric', args);
+const lyric_new = (...args) => callNeteaseApi('lyric_new', args);
 
 const updateRuntime = createUpdateRuntime();
 const updateDownloadJobs = updateRuntime.jobs;
@@ -1528,44 +1535,7 @@ listenIfNeeded({ /* node:coverage ignore next 7 */
 module.exports = server;
 if (process.env.NODE_ENV === 'test') {
   const applyNeteaseApi = overrides => {
-    const api = Object.assign({}, neteaseApiDefaults, overrides || {});
-    search = api.search;
-    cloudsearch = api.cloudsearch;
-    song_detail = api.song_detail;
-    song_url = api.song_url;
-    song_url_v1 = api.song_url_v1;
-    login_qr_key = api.login_qr_key;
-    login_qr_create = api.login_qr_create;
-    login_qr_check = api.login_qr_check;
-    login_status = api.login_status;
-    logout = api.logout;
-    user_account = api.user_account;
-    user_playlist = api.user_playlist;
-    comment_music = api.comment_music;
-    artist_detail = api.artist_detail;
-    artist_top_song = api.artist_top_song;
-    artist_songs = api.artist_songs;
-    like_song = api.like;
-    likelist = api.likelist;
-    song_like_check = api.song_like_check;
-    playlist_tracks = api.playlist_tracks;
-    playlist_track_add = api.playlist_track_add;
-    playlist_create = api.playlist_create;
-    playlist_detail = api.playlist_detail;
-    playlist_track_all = api.playlist_track_all;
-    personalized = api.personalized;
-    recommend_resource = api.recommend_resource;
-    recommend_songs = api.recommend_songs;
-    dj_detail = api.dj_detail;
-    dj_program = api.dj_program;
-    dj_hot = api.dj_hot;
-    dj_sublist = api.dj_sublist;
-    user_audio = api.user_audio;
-    dj_paygift = api.dj_paygift;
-    record_recent_voice = api.record_recent_voice;
-    sati_resource_sub_list = api.sati_resource_sub_list;
-    lyric = api.lyric;
-    lyric_new = api.lyric_new;
+    neteaseApiRuntime.apply(overrides);
   };
   module.exports.__test = buildServerTestRuntime({
     setNeteaseApi: applyNeteaseApi,
