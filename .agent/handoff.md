@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts QQ search/user-playlist/playlist-track orchestration into `server/services/qq-orchestration.ts`.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts QQ artist detail, QQ song comments, and QQ lyric read orchestration into `server/services/qq-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -106,9 +106,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Provider orchestration second slice is complete: `server/services/netease-orchestration.ts` now owns authenticated podcast collection item orchestration for `collect`, `created`, `paid`, `liked`, and unknown keys; `server.js` keeps a thin `fetchMyPodcastItems` wrapper that injects current cookies, Netease API functions, mapper helpers, clock, and logger.
 - Provider orchestration third slice is complete: `server/services/weather-orchestration.ts` now owns weather-radio provider fallback, seed search fan-out, mood-keyword top-up, ordering, and response assembly; `server.js` keeps a thin `buildWeatherRadio` wrapper that injects weather provider/search/order/default-location/clock/logger dependencies.
 - Provider orchestration fourth slice is complete: `server/services/qq-orchestration.ts` now owns QQ search smartbox/detail enrichment, QQ user playlist created/collected fan-out and merge, and QQ playlist track detail payload orchestration; `server.js` keeps thin wrappers that inject current QQ login/request/mapping/dedupe helpers.
+- Provider orchestration fifth slice is complete: `server/services/qq-orchestration.ts` now also owns QQ artist detail, QQ song comments, and QQ lyric read orchestration; `server.js` keeps thin wrappers that inject current QQ request/session/mapping/comment/lyric helpers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ artist-detail/song-comments/lyric read orchestration extraction:
+
+- Initial REDs: artist service test failed with `fetchQQArtistDetail is not a function`; comments service test failed with `fetchQQSongComments is not a function`; lyric service test failed with `fetchQQLyric is not a function`.
+- New service functions: `server/services/qq-orchestration.ts` exports `fetchQQArtistDetail(...)`, `fetchQQSongComments(...)`, and `fetchQQLyric(...)`; root `server.js` keeps `handleQQArtistDetail(...)`, `handleQQSongComments(...)`, and `handleQQLyric(...)` as dependency-injection wrappers around current QQ request/session/mapping/comment/lyric helpers.
+- Service tests cover missing artist mid, artist limit clamp and song mapping, provider error and artist-name/avatar fallback, comment topid detail fallback failure, first-page hot comments, paged regular comments, lyric missing-id short circuit, decoded musicu lyric/trans/qrc/roma payloads, legacy lyric fallback, and double-failure `qq-empty` fallback.
+- Focused/static verification: `npm run build:ts && node --test tests/qq-orchestration-service.test.js tests/qq-controller.test.js tests/music-routes.test.js tests/lyric-utils-service.test.js tests/qq-utils-service.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 181 tests.
+- Wider focused/static verification: `npm run build:ts && node --test tests/qq-orchestration-service.test.js tests/qq-controller.test.js tests/qq-composition.test.js tests/music-routes.test.js tests/music-mapper-service.test.js tests/qq-utils-service.test.js tests/lyric-utils-service.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 195 tests.
+- Sandbox `npm test` failed only for three request-client tests that need to bind `127.0.0.1` (`listen EPERM: operation not permitted 127.0.0.1`).
+- Final full verification: `npm test && npm run coverage` passed in non-sandbox mode; 520 tests passed; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-orchestration.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified the thin `server.js` wrappers, untouched QQ playback URL/payment path, service-level behavior parity for artist/comments/lyric, route/controller fallback coverage, focused validation, and noted that `server-dist/` is intentionally ignored but requires `npm run build:ts` before runtime/package use.
 
 QQ search/user-playlist/playlist-track orchestration extraction:
 

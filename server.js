@@ -176,7 +176,10 @@ const {
   searchNeteaseSongs,
 } = require('./server-dist/server/services/netease-orchestration');
 const {
+  fetchQQArtistDetail,
   fetchQQPlaylistTracks: fetchQQPlaylistTracksService,
+  fetchQQLyric,
+  fetchQQSongComments,
   fetchQQUserPlaylists: fetchQQUserPlaylistsService,
   searchQQSongs,
 } = require('./server-dist/server/services/qq-orchestration');
@@ -819,47 +822,11 @@ async function qqSongDetail(mid, fallback) {
 }
 
 async function handleQQArtistDetail(mid, limit) {
-  const singerMid = String(mid || '').trim();
-  const num = Math.max(10, Math.min(80, parseInt(limit || '36', 10) || 36));
-  if (!singerMid) return { provider: 'qq', error: 'MISSING_SINGER_MID', artist: null, songs: [] };
-  const json = await qqMusicRequest({
-    comm: { ct: 24, cv: 0 },
-    singer: {
-      module: 'music.web_singer_info_svr',
-      method: 'get_singer_detail_info',
-      param: { sort: 5, singermid: singerMid, sin: 0, num },
-    },
-  }, { cookie: true });
-  const block = json && json.singer;
-  if (!block || Number(block.code || 0) !== 0) {
-    return { provider: 'qq', error: block && (block.message || block.msg || block.code) || 'QQ_ARTIST_DETAIL_FAILED', artist: null, songs: [] };
-  }
-  const data = block.data || {};
-  const info = data.singer_info || data.singerInfo || {};
-  const rawSongs = Array.isArray(data.songlist) ? data.songlist : [];
-  const songs = rawSongs
-    .map(raw => mapQQTrack(raw && (raw.track_info || raw.songInfo || raw.songinfo || raw.song) || raw, {}))
-    .filter(song => song && song.name && (song.mid || song.id));
-  const matchedSongArtist = songs[0] && (songs[0].artists || []).find(a => a && a.mid === singerMid);
-  const artistMid = info.mid || singerMid;
-  const artistName = info.name || info.title || (matchedSongArtist && matchedSongArtist.name) || '';
-  const totalSong = Number(data.total_song || data.song_count || 0) || songs.length;
-  return {
-    provider: 'qq',
-    artist: {
-      provider: 'qq',
-      id: info.id || '',
-      mid: artistMid,
-      name: artistName,
-      avatar: info.pic || info.avatar || qqSingerAvatar(artistMid, 300),
-      fans: Number(info.fans || 0) || 0,
-      musicSize: totalSong,
-      albumSize: Number(data.total_album || 0) || 0,
-      mvSize: Number(data.total_mv || 0) || 0,
-    },
-    total: totalSong,
-    songs,
-  };
+  return fetchQQArtistDetail(mid, limit, {
+    qqMusicRequest,
+    mapQQTrack,
+    qqSingerAvatar,
+  });
 }
 
 async function handleQQSearch(keywords, limit) {
@@ -927,107 +894,24 @@ async function handleQQSongUrl(mid, mediaMid, qualityPreference) {
 }
 
 async function handleQQSongComments(id, mid, limit, offset) {
-  let topid = String(id || '').replace(/\D/g, '');
-  if (!topid && mid) {
-    try {
-      const detail = await qqSongDetail(mid, { mid });
-      topid = String((detail && (detail.qqId || detail.id)) || '').replace(/\D/g, '');
-    } catch (e) {
-      console.warn('[QQComments] detail fallback failed:', e.message);
-    }
-  }
-  if (!topid) return { provider: 'qq', error: 'Missing QQ song id', comments: [] };
-  const commentsPayload = buildQQSongCommentsPayload({}, topid, limit, offset);
-  const uin = qqCookieUin() || '0';
-  const body = await qqGetJSON('https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg', {
-    g_tk: '5381',
-    loginUin: uin,
-    hostUin: '0',
-    format: 'json',
-    inCharset: 'utf8',
-    outCharset: 'utf-8',
-    notice: '0',
-    platform: 'yqq.json',
-    needNewCode: '0',
-    cid: '205360772',
-    reqtype: '2',
-    biztype: '1',
-    topid,
-    cmd: '8',
-    needmusiccrit: '0',
-    pagenum: String(commentsPayload.page),
-    pagesize: String(limit || 20),
-  }, { headers: { Referer: 'https://y.qq.com/n/ryqq/songDetail/' + encodeURIComponent(mid || topid) } });
-  return buildQQSongCommentsPayload(body, topid, limit, offset).response;
+  return fetchQQSongComments(id, mid, limit, offset, {
+    qqSongDetail,
+    qqGetJSON,
+    qqCookieUin,
+    buildQQSongCommentsPayload,
+    logger: console,
+  });
 }
 
 async function handleQQLyric(mid, id) {
-  const songMID = String(mid || '').trim();
-  const songID = normalizeQQSongId(id);
-  if (!songMID && !songID) return { provider: 'qq', error: 'Missing QQ song mid or id', lyric: '' };
-
-  let lyricText = '';
-  let transText = '';
-  let qrcText = '';
-  let romaText = '';
-  let source = 'qq-musicu';
-
-  try {
-    const param = {};
-    if (songMID) param.songMID = songMID;
-    if (songID) param.songID = songID;
-    const json = await qqMusicRequest({
-      comm: { ct: 24, cv: 0 },
-      lyric: {
-        module: 'music.musichallSong.PlayLyricInfo',
-        method: 'GetPlayLyricInfo',
-        param,
-      },
-    }, { cookie: true });
-    const data = json && json.lyric && json.lyric.data;
-    lyricText = decodeQQLyricText(data && data.lyric);
-    transText = decodeQQLyricText(data && data.trans);
-    qrcText = decodeQQLyricText(data && data.qrc);
-    romaText = decodeQQLyricText(data && data.roma);
-  } catch (e) {
-    console.warn('[QQLyric] musicu failed:', e.message);
-  }
-
-  if (!lyricText && songMID) {
-    try {
-      const body = await qqGetJSON('https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg', {
-        songmid: songMID,
-        songtype: '0',
-        format: 'json',
-        nobase64: '1',
-        g_tk: '5381',
-        loginUin: qqCookieUin() || '0',
-        hostUin: '0',
-        inCharset: 'utf8',
-        outCharset: 'utf-8',
-        notice: '0',
-        platform: 'yqq.json',
-        needNewCode: '0',
-      }, { headers: { Referer: 'https://y.qq.com/portal/player.html' } });
-      lyricText = decodeQQLyricText(body && body.lyric);
-      transText = decodeQQLyricText(body && (body.trans || body.tlyric)) || transText;
-      source = 'qq-legacy';
-    } catch (e) {
-      console.warn('[QQLyric] legacy failed:', e.message);
-    }
-  }
-
-  return {
-    provider: 'qq',
-    id: songID || '',
-    mid: songMID,
-    lyric: lyricText,
-    tlyric: transText,
-    yrc: '',
-    qrc: qrcText,
-    roma: romaText,
-    source: lyricText ? source : 'qq-empty',
-  };
+  return fetchQQLyric(mid, id, {
+    qqMusicRequest,
+    qqGetJSON,
+    qqCookieUin,
+    normalizeQQSongId,
+    decodeQQLyricText,
+    logger: console,
+  });
 }
 
 async function fetchMyPodcastItems(key, info, limit, offset) {
