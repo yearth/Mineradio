@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease authenticated podcast collection orchestration into `server/services/netease-orchestration.ts`.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts weather radio orchestration into `server/services/weather-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -104,18 +104,19 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server runtime cleanup twelfth slice is complete: `server/runtime/netease-api-runtime.ts` now owns the mutable NeteaseCloudMusicApi table used by `__test.setNeteaseApi`; `server.js` uses stable proxy functions so route/service dependencies read the latest overridden API without freezing references.
 - Provider orchestration first slice is complete: `server/services/netease-orchestration.ts` now owns Netease search result mapping/cover-backfill orchestration and discover-home aggregation; `server.js` keeps thin `handleSearch`/`handleDiscoverHome` wrappers that inject current cookies, Netease API functions, mappers, clock, and logger.
 - Provider orchestration second slice is complete: `server/services/netease-orchestration.ts` now owns authenticated podcast collection item orchestration for `collect`, `created`, `paid`, `liked`, and unknown keys; `server.js` keeps a thin `fetchMyPodcastItems` wrapper that injects current cookies, Netease API functions, mapper helpers, clock, and logger.
+- Provider orchestration third slice is complete: `server/services/weather-orchestration.ts` now owns weather-radio provider fallback, seed search fan-out, mood-keyword top-up, ordering, and response assembly; `server.js` keeps a thin `buildWeatherRadio` wrapper that injects weather provider/search/order/default-location/clock/logger dependencies.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
 
-Netease authenticated podcast collection orchestration extraction:
+Weather radio orchestration extraction:
 
-- Initial RED: `npm run build:ts && node --test tests/netease-orchestration-service.test.js` failed with `TypeError: fetchNeteasePodcastCollectionItems is not a function`.
-- New service function: `fetchNeteasePodcastCollectionItems(...)` owns `collect`, `created`, `paid`, `liked`, and unknown collection key item orchestration; root `server.js` keeps `fetchMyPodcastItems(...)` as a dependency-injection wrapper.
-- Service tests cover collected radios with clamped `limit`/`offset`, created radio requests with `uid`, paid radio requests with max-limit clamp, liked voices from `sati_resource_sub_list`, liked fallback to `record_recent_voice`, all-liked-source failure logging/empty response, and unknown-key empty radio response.
-- Focused/static verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/podcast-controller.test.js tests/podcast-composition.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 171 tests.
-- Final full verification: `npm test && npm run coverage` passed, 499 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-orchestration.js` at `100.00%`.
-- QA subagent review: `PASS`. Read-only QA verified `fetchMyPodcastItems` is now a thin dependency-injection wrapper, service behavior preserves limit/offset clamp, branch behavior, `uid`, cookie/timestamp injection, `firstArrayFrom` key ordering, mapper usage, liked sati-to-recent fallback, warning messages, route wiring coverage, generated-file tracking, and compiled export availability. Non-blocking suggestions were to optionally assert liked-source cookie/timestamp opts and alternate fallback key ordering more tightly later.
+- Initial RED: `npm run build:ts && node --test tests/weather-orchestration-service.test.js` failed with `Cannot find module '../server-dist/server/services/weather-orchestration'`.
+- New service function: `server/services/weather-orchestration.ts` exports `buildWeatherRadio(...)`; root `server.js` keeps `buildWeatherRadio(...)` as a dependency-injection wrapper around weather provider, fallback helper, seed query helper, search, ordering, default location, clock, and logger.
+- Service tests cover successful weather playlist construction from seed queries and mood keywords, `orderWeatherSongs(songs, mood)` invocation, provider failure fallback with warning and failed-search filtering, and song capping to 18 results.
+- Focused/static verification: `npm run build:ts && node --test tests/weather-orchestration-service.test.js tests/weather-controller.test.js tests/weather-provider-service.test.js tests/weather-utils-service.test.js tests/music-routes.test.js tests/simple-route-composition.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 161 tests.
+- Final full verification: `npm run build:ts && node --test tests/weather-orchestration-service.test.js tests/weather-controller.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check && npm test && npm run coverage` passed, 502 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/weather-orchestration.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified provider fallback/warn behavior, first-four seed queries, failed-search filtering via `Promise.allSettled`, mood-keyword top-up, ordering, 18-song cap, clock injection, root weather route wiring, and generated-file tracking. QA suggested an optional `orderWeatherSongs` spy assertion; that assertion was added before the final full verification.
 
 Netease auth/library route dependency composition extraction:
 

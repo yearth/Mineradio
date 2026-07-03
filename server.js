@@ -191,6 +191,9 @@ const {
   fetchOpenMeteoWeather: fetchOpenMeteoWeatherService,
 } = require('./server-dist/server/services/weather-provider');
 const {
+  buildWeatherRadio: buildWeatherRadioService,
+} = require('./server-dist/server/services/weather-orchestration');
+const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
   buildQQProfileUrl,
@@ -706,37 +709,16 @@ async function fetchIpWeatherLocation() {
 }
 
 async function buildWeatherRadio(params) {
-  let weather;
-  try {
-    weather = await fetchOpenMeteoWeather(params);
-  } catch (e) {
-    console.warn('[WeatherRadio] weather provider failed, using fallback radio:', e.message);
-    weather = fallbackWeatherForRadio(params, e, WEATHER_DEFAULT_LOCATION);
-  }
-  const queries = weatherRadioSeedQueries(weather.mood);
-  let songs = [];
-  const settled = await Promise.allSettled(queries.slice(0, 4).map(q => handleSearch(q, 6)));
-  settled.forEach(result => {
-    if (result.status === 'fulfilled' && Array.isArray(result.value)) songs = songs.concat(result.value);
+  return buildWeatherRadioService(params, {
+    fetchWeather: fetchOpenMeteoWeather,
+    fallbackWeatherForRadio,
+    weatherRadioSeedQueries,
+    searchSongs: handleSearch,
+    orderWeatherSongs,
+    defaultLocation: WEATHER_DEFAULT_LOCATION,
+    now: Date.now,
+    logger: console,
   });
-  if (songs.length < 10 && weather.mood && Array.isArray(weather.mood.keywords)) {
-    const more = await Promise.allSettled(weather.mood.keywords.slice(0, 2).map(q => handleSearch(q, 6)));
-    more.forEach(result => {
-      if (result.status === 'fulfilled' && Array.isArray(result.value)) songs = songs.concat(result.value);
-    });
-  }
-  songs = orderWeatherSongs(songs, weather.mood);
-  return {
-    ok: true,
-    weather,
-    radio: {
-      title: weather.mood.title,
-      subtitle: weather.mood.tagline,
-      seedQueries: queries.slice(0, 4),
-      songs: songs.slice(0, 18),
-      updatedAt: Date.now(),
-    },
-  };
 }
 
 async function qqMusicRequest(payload, opts) {
