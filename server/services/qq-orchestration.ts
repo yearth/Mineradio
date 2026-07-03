@@ -14,6 +14,28 @@ type LoginInfo = {
   userId?: string;
 };
 
+type FetchQQLoginInfoDeps = {
+  getQQCookie: () => string;
+  qqCookieObject: () => Record<string, any>;
+  qqCookieUin: (cookie: Record<string, any>) => unknown;
+  qqCookieMusicKey: (cookie: Record<string, any>) => unknown;
+  normalizeQQProfile: (body: any, cookieObj: Record<string, any>) => Record<string, unknown>;
+  buildQQProfileUrl: (uin: unknown) => string;
+  parseJSONText: (text: string) => any;
+  requestText: (url: string, opts?: Record<string, any>) => Promise<string>;
+  baseHeaders: Record<string, string>;
+  logger?: Pick<Logger, 'warn'>;
+};
+
+type LoginWithQQCookieDeps = {
+  normalizeQQCookieInput: (raw: unknown) => string;
+  parseCookieString: (raw: string) => Record<string, any>;
+  qqCookieUin: (cookie: Record<string, any>) => unknown;
+  qqCookieMusicKey: (cookie: Record<string, any>) => unknown;
+  saveQQCookie: (cookie: string) => void;
+  getQQLoginInfo: () => Promise<Record<string, unknown>>;
+};
+
 type SearchQQSongsDeps = {
   qqSmartboxSearch: (keywords: string, limit: unknown) => Promise<any[]>;
   qqSongDetail: (mid: unknown, fallback: any) => Promise<any>;
@@ -71,6 +93,44 @@ const QQ_LEGACY_LYRIC_URL = 'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_n
 const QQ_PROFILE_REFERER = 'https://y.qq.com/portal/profile.html';
 const QQ_PLAYLIST_REFERER = 'https://y.qq.com/n/yqq/playlist';
 const QQ_PLAYER_REFERER = 'https://y.qq.com/portal/player.html';
+
+export async function fetchQQLoginInfo(deps: FetchQQLoginInfoDeps): Promise<Record<string, unknown>> {
+  const cookieObj = deps.qqCookieObject();
+  const uin = deps.qqCookieUin(cookieObj);
+  const musicKey = deps.qqCookieMusicKey(cookieObj);
+  const cookie = deps.getQQCookie();
+  if (!uin || !musicKey) return { provider: 'qq', loggedIn: false, hasCookie: !!cookie };
+
+  const fallback = deps.normalizeQQProfile(null, cookieObj);
+  try {
+    const text = await deps.requestText(deps.buildQQProfileUrl(uin), {
+      headers: { ...deps.baseHeaders, Cookie: cookie },
+    });
+    const body = deps.parseJSONText(text);
+    const info = deps.normalizeQQProfile(body, cookieObj);
+    if (body && (body.code === 1000 || body.result === 301)) {
+      return { ...fallback, profileUnavailable: true };
+    }
+    return info;
+  } catch (e: any) {
+    const logger = deps.logger || console;
+    logger.warn('[QQLogin] profile check failed:', e.message);
+    return { ...fallback, profileUnavailable: true };
+  }
+}
+
+export async function loginWithQQCookie(rawCookie: unknown, deps: LoginWithQQCookieDeps): Promise<Record<string, unknown>> {
+  const normalized = deps.normalizeQQCookieInput(rawCookie);
+  const obj = deps.parseCookieString(normalized);
+  if (!deps.qqCookieUin(obj) || !deps.qqCookieMusicKey(obj)) {
+    const err: any = new Error('QQ cookie 缺少 uin 或有效登录票据');
+    err.code = 'INVALID_QQ_COOKIE';
+    err.status = 400;
+    throw err;
+  }
+  deps.saveQQCookie(normalized);
+  return { ...await deps.getQQLoginInfo(), saved: true };
+}
 
 export async function searchQQSongs(
   keywords: unknown,

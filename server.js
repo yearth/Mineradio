@@ -178,6 +178,7 @@ const {
 } = require('./server-dist/server/services/netease-orchestration');
 const {
   fetchQQArtistDetail,
+  fetchQQLoginInfo,
   fetchQQPlaylistTracks: fetchQQPlaylistTracksService,
   fetchQQLyric,
   fetchQQSongComments,
@@ -742,30 +743,19 @@ async function qqMusicRequest(payload, opts) {
   });
 }
 
-function normalizeQQProfile(body, cookieObj) {
-  return normalizeQQProfileService(body, cookieObj || qqCookieObject(), !!currentQQCookie());
-}
-
 async function getQQLoginInfo() {
-  const cookieObj = qqCookieObject();
-  const uin = qqCookieUin(cookieObj);
-  const musicKey = qqCookieMusicKey(cookieObj);
-  if (!uin || !musicKey) return { provider: 'qq', loggedIn: false, hasCookie: !!currentQQCookie() };
-  const fallback = normalizeQQProfile(null, cookieObj);
-  try {
-    const text = await requestText(buildQQProfileUrl(uin), {
-      headers: { ...QQ_HEADERS, Cookie: currentQQCookie() },
-    });
-    const body = parseJSONText(text);
-    const info = normalizeQQProfile(body, cookieObj);
-    if (body && (body.code === 1000 || body.result === 301)) {
-      return { ...fallback, profileUnavailable: true };
-    }
-    return info;
-  } catch (e) {
-    console.warn('[QQLogin] profile check failed:', e.message);
-    return { ...fallback, profileUnavailable: true };
-  }
+  return fetchQQLoginInfo({
+    getQQCookie: () => currentQQCookie(),
+    qqCookieObject,
+    qqCookieUin,
+    qqCookieMusicKey,
+    normalizeQQProfile: (body, cookieObj) => normalizeQQProfileService(body, cookieObj, !!currentQQCookie()),
+    buildQQProfileUrl,
+    parseJSONText,
+    requestText,
+    baseHeaders: QQ_HEADERS,
+    logger: console,
+  });
 }
 
 async function qqGetJSON(targetUrl, params, opts) {

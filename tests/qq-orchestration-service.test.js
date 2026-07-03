@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 
 const {
   fetchQQArtistDetail,
+  fetchQQLoginInfo,
   fetchQQPlaylistTracks,
   fetchQQLyric,
   fetchQQSongComments,
   fetchQQUserPlaylists,
+  loginWithQQCookie,
   searchQQSongs,
 } = require('../server-dist/server/services/qq-orchestration');
 const {
@@ -21,9 +23,151 @@ const {
 } = require('../server-dist/server/services/music-mapper');
 const {
   buildQQSongCommentsPayload,
+  buildQQProfileUrl,
   mapQQPlaylist,
   qqSingerAvatar,
 } = require('../server-dist/server/services/qq-utils');
+
+test('fetchQQLoginInfo returns logged-out defaults before profile lookup when cookie lacks auth', async () => {
+  let requested = false;
+
+  const result = await fetchQQLoginInfo({
+    getQQCookie: () => '',
+    qqCookieObject: () => ({}),
+    qqCookieUin: () => '',
+    qqCookieMusicKey: () => '',
+    normalizeQQProfile: () => ({ provider: 'qq', loggedIn: true }),
+    buildQQProfileUrl,
+    parseJSONText: () => ({}),
+    requestText: async () => {
+      requested = true;
+      return '{}';
+    },
+    baseHeaders: { Referer: 'https://y.qq.com/' },
+    logger: { warn() {} },
+  });
+
+  assert.deepEqual(result, { provider: 'qq', loggedIn: false, hasCookie: false });
+  assert.equal(requested, false);
+});
+
+test('fetchQQLoginInfo maps profile lookup success and auth-unavailable fallback', async () => {
+  const calls = [];
+  const deps = {
+    getQQCookie: () => 'uin=o123; qm_keyst=key',
+    qqCookieObject: () => ({ uin: 'o123', qm_keyst: 'key' }),
+    qqCookieUin: cookie => cookie.uin,
+    qqCookieMusicKey: cookie => cookie.qm_keyst,
+    normalizeQQProfile: (body, cookie) => ({
+      provider: 'qq',
+      loggedIn: true,
+      userId: cookie.uin,
+      nickname: body && body.nick || 'fallback',
+    }),
+    buildQQProfileUrl,
+    parseJSONText: text => JSON.parse(text),
+    requestText: async (url, opts) => {
+      calls.push({ url, opts });
+      return '{"nick":"Profile"}';
+    },
+    baseHeaders: { Referer: 'https://y.qq.com/' },
+    logger: { warn() {} },
+  };
+
+  assert.deepEqual(await fetchQQLoginInfo(deps), {
+    provider: 'qq',
+    loggedIn: true,
+    userId: 'o123',
+    nickname: 'Profile',
+  });
+  assert.match(calls[0].url, /userid=o123/);
+  assert.deepEqual(calls[0].opts.headers, {
+    Referer: 'https://y.qq.com/',
+    Cookie: 'uin=o123; qm_keyst=key',
+  });
+
+  const unavailable = await fetchQQLoginInfo({
+    ...deps,
+    requestText: async () => '{"code":1000}',
+  });
+  assert.deepEqual(unavailable, {
+    provider: 'qq',
+    loggedIn: true,
+    userId: 'o123',
+    nickname: 'fallback',
+    profileUnavailable: true,
+  });
+});
+
+test('fetchQQLoginInfo returns normalized fallback and warns when profile lookup fails', async () => {
+  const warnings = [];
+
+  const result = await fetchQQLoginInfo({
+    getQQCookie: () => 'uin=o123; qm_keyst=key',
+    qqCookieObject: () => ({ uin: 'o123', qm_keyst: 'key' }),
+    qqCookieUin: cookie => cookie.uin,
+    qqCookieMusicKey: cookie => cookie.qm_keyst,
+    normalizeQQProfile: (body, cookie) => ({
+      provider: 'qq',
+      loggedIn: true,
+      userId: cookie.uin,
+      nickname: body && body.nick || 'fallback',
+    }),
+    buildQQProfileUrl,
+    parseJSONText: text => JSON.parse(text),
+    requestText: async () => { throw new Error('profile offline'); },
+    baseHeaders: { Referer: 'https://y.qq.com/' },
+    logger: { warn: (...args) => warnings.push(args) },
+  });
+
+  assert.deepEqual(result, {
+    provider: 'qq',
+    loggedIn: true,
+    userId: 'o123',
+    nickname: 'fallback',
+    profileUnavailable: true,
+  });
+  assert.deepEqual(warnings, [['[QQLogin] profile check failed:', 'profile offline']]);
+});
+
+test('loginWithQQCookie validates required cookie fields before saving', async () => {
+  const calls = [];
+
+  const result = await loginWithQQCookie(' uin=o123; qm_keyst=key ', {
+    normalizeQQCookieInput: raw => String(raw).trim(),
+    parseCookieString: raw => Object.fromEntries(String(raw).split(';').map(part => part.trim().split('='))),
+    qqCookieUin: cookie => cookie.uin,
+    qqCookieMusicKey: cookie => cookie.qm_keyst,
+    saveQQCookie: cookie => calls.push(['saveQQCookie', cookie]),
+    getQQLoginInfo: async () => {
+      calls.push(['getQQLoginInfo']);
+      return { provider: 'qq', loggedIn: true, userId: 'o123' };
+    },
+  });
+
+  assert.deepEqual(result, { provider: 'qq', loggedIn: true, userId: 'o123', saved: true });
+  assert.deepEqual(calls, [
+    ['saveQQCookie', 'uin=o123; qm_keyst=key'],
+    ['getQQLoginInfo'],
+  ]);
+
+  await assert.rejects(
+    loginWithQQCookie('uin=o123', {
+      normalizeQQCookieInput: raw => String(raw).trim(),
+      parseCookieString: raw => Object.fromEntries(String(raw).split(';').map(part => part.trim().split('='))),
+      qqCookieUin: cookie => cookie.uin,
+      qqCookieMusicKey: cookie => cookie.qm_keyst,
+      saveQQCookie: () => {
+        throw new Error('saveQQCookie should not be called');
+      },
+      getQQLoginInfo: async () => ({ provider: 'qq', loggedIn: false }),
+    }),
+    Object.assign(new Error('QQ cookie 缺少 uin 或有效登录票据'), {
+      code: 'INVALID_QQ_COOKIE',
+      status: 400,
+    })
+  );
+});
 
 test('searchQQSongs returns empty results for blank keywords without provider calls', async () => {
   let called = false;

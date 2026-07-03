@@ -1,3 +1,5 @@
+import { loginWithQQCookie } from '../services/qq-orchestration';
+
 export type JsonSender = (res: unknown, data: unknown, status?: number) => void;
 
 export type QQRouteContext = {
@@ -12,7 +14,7 @@ export type QQRouteContext = {
   qqCookieUin: (cookie: Record<string, any>) => unknown;
   qqCookieMusicKey: (cookie: Record<string, any>) => unknown;
   saveQQCookie: (cookie: string) => void;
-  getQQLoginInfo: () => Promise<unknown>;
+  getQQLoginInfo: () => Promise<Record<string, unknown>>;
   handleQQSearch: (keywords: string, limit: number) => Promise<unknown>;
   handleQQSongUrl: (mid: string, mediaMid: string, quality: string) => Promise<unknown>;
   handleQQLyric: (mid: string, id: string) => Promise<unknown>;
@@ -84,15 +86,13 @@ export async function handleQQRoutes(ctx: QQRouteContext): Promise<boolean> {
     try {
       const body = await ctx.readRequestBody(ctx.req);
       const raw = body.cookie || body.data || body.text || '';
-      const normalized = ctx.normalizeQQCookieInput(raw);
-      const obj = ctx.parseCookieString(normalized);
-      if (!ctx.qqCookieUin(obj) || !ctx.qqCookieMusicKey(obj)) {
-        ctx.sendJSON(ctx.res, { provider: 'qq', loggedIn: false, error: 'INVALID_QQ_COOKIE', message: 'QQ cookie 缺少 uin 或有效登录票据' }, 400);
+      const payload = await loginWithQQCookie(raw, ctx);
+      ctx.sendJSON(ctx.res, payload);
+    } catch (err: any) {
+      if (err && err.code === 'INVALID_QQ_COOKIE') {
+        ctx.sendJSON(ctx.res, { provider: 'qq', loggedIn: false, error: err.code, message: err.message }, err.status || 400);
         return true;
       }
-      ctx.saveQQCookie(normalized);
-      ctx.sendJSON(ctx.res, { ...(await ctx.getQQLoginInfo() as Record<string, unknown>), saved: true });
-    } catch (err: any) {
       ctx.logger.error('[QQLoginCookie]', err);
       ctx.sendJSON(ctx.res, { provider: 'qq', loggedIn: false, error: err.message }, 500);
     }

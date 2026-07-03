@@ -7,12 +7,14 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease auth/library orchestration into typed services.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts QQ session/auth orchestration into `server/services/qq-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Active goal: Server Shell Finalization. Do not touch UI; preserve API response shapes/status codes; keep production-code line coverage at 100%.
 - Latest completed slice: Netease auth/library orchestration moved from controllers into `server/services/netease-auth-orchestration.ts` and `server/services/netease-library-orchestration.ts`; controllers now keep route matching, request parsing/validation, `sendJSON`, status mapping, and logging.
 - Latest verification: `npm run build:ts && node --test tests/netease-auth-controller.test.js tests/netease-library-controller.test.js tests/netease-auth-orchestration-service.test.js tests/netease-library-orchestration-service.test.js` passed, 28 tests. `npm test && npm run coverage` passed, 542 tests; all files line coverage `100.00%`, including the two new Netease orchestration services.
-- Next recommended slice: extract QQ session/auth orchestration from `server.js`/`server/controllers/qq-controller.ts` into a typed service, with RED service tests first. Keep QQ playback URL/payment path untouched unless dependency injection requires a thin wrapper change.
+- Latest completed slice: QQ session/auth orchestration moved into `server/services/qq-orchestration.ts` via `fetchQQLoginInfo(...)` and `loginWithQQCookie(...)`; `server.js` keeps `getQQLoginInfo()` as a lazy runtime DI wrapper and `server/controllers/qq-controller.ts` keeps `/api/qq/login/cookie` request parsing, invalid-cookie status mapping, and error fallback.
+- Latest verification: `npm run build:ts && node --test tests/qq-orchestration-service.test.js tests/qq-controller.test.js tests/qq-composition.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 173 tests. `npm test && npm run coverage` passed, 546 tests; all files line coverage `100.00%`, including `server-dist/server/services/qq-orchestration.js` and `server.js`.
+- Next recommended slice: extract remaining Podcast public/authenticated orchestration from `server/controllers/podcast-controller.ts` into a typed service while preserving route validation/error response shapes. Keep `/api/podcast/dj-beatmap` analysis path untouched unless only dependency wiring changes.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
