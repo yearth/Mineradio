@@ -1,3 +1,8 @@
+import {
+  checkNeteaseQrLogin,
+  loginWithNeteaseCookie,
+} from '../services/netease-auth-orchestration';
+
 export type JsonSender = (res: unknown, data: unknown, status?: number) => void;
 
 type NeteaseApiResult = {
@@ -34,19 +39,13 @@ export async function handleNeteaseAuthRoutes(ctx: NeteaseAuthRouteContext): Pro
     try {
       const body = await ctx.readRequestBody(ctx.req);
       const raw = body.cookie || body.data || body.text || '';
-      const normalized = ctx.normalizeCookieHeader(raw);
-      const obj = ctx.parseCookieString(normalized);
-      if (!obj.MUSIC_U) {
-        ctx.sendJSON(ctx.res, { loggedIn: false, error: 'INVALID_NETEASE_COOKIE', message: '网易云 cookie 缺少 MUSIC_U' }, 400);
+      const payload = await loginWithNeteaseCookie(raw, ctx);
+      ctx.sendJSON(ctx.res, payload);
+    } catch (err: any) {
+      if (err && err.code === 'INVALID_NETEASE_COOKIE') {
+        ctx.sendJSON(ctx.res, { loggedIn: false, error: err.code, message: err.message }, err.status || 400);
         return true;
       }
-      ctx.saveCookie(normalized);
-      let info = await ctx.getLoginInfo();
-      if (!info.loggedIn && ctx.getUserCookie()) {
-        info = ctx.pendingNeteaseLoginInfo();
-      }
-      ctx.sendJSON(ctx.res, { ...info, saved: true, hasCookie: !!ctx.getUserCookie() });
-    } catch (err: any) {
       ctx.logger.error('[LoginCookie]', err);
       ctx.sendJSON(ctx.res, { loggedIn: false, error: err.message }, 500);
     }
@@ -79,40 +78,8 @@ export async function handleNeteaseAuthRoutes(ctx: NeteaseAuthRouteContext): Pro
   if (ctx.pathname === '/api/login/qr/check') {
     try {
       const key = ctx.url.searchParams.get('key');
-      let r = await ctx.loginQrCheck({ key, noCookie: true, timestamp: ctx.now() });
-      let body = r.body || {};
-      let code = Number(body.code || r.code);
-      let msg = body.message || r.message || '';
-      let cookie = ctx.readCookieFromResponse(r);
-      if (code === 803 && !cookie) {
-        try {
-          const retry = await ctx.loginQrCheck({ key, timestamp: ctx.now() });
-          const retryCookie = ctx.readCookieFromResponse(retry);
-          if (retryCookie) {
-            r = retry;
-            body = retry.body || body;
-            code = Number(body.code || retry.code || code);
-            msg = body.message || retry.message || msg;
-            cookie = retryCookie;
-          }
-        } catch (retryErr: any) {
-          ctx.logger.warn('[Login] qr cookie retry failed:', retryErr.message);
-        }
-      }
-      if (code === 803) {
-        if (cookie) ctx.saveCookie(cookie);
-        let info = await ctx.getLoginInfo();
-        if (!info.loggedIn) {
-          const profile = body.profile || (body.data && body.data.profile) || {};
-          info = ctx.normalizeLoginInfo(profile, body.account || (body.data && body.data.account), body.data || body);
-        }
-        if (!info.loggedIn && cookie) {
-          info = ctx.pendingNeteaseLoginInfo(body);
-        }
-        ctx.sendJSON(ctx.res, { code, message: msg, ...info, hasCookie: !!cookie });
-        return true;
-      }
-      ctx.sendJSON(ctx.res, { code, message: msg, nickname: body.nickname, avatar: body.avatarUrl });
+      const payload = await checkNeteaseQrLogin(key, ctx);
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.sendJSON(ctx.res, { error: err.message }, 500);
     }
