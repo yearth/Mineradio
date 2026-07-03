@@ -171,6 +171,10 @@ const {
   uniqueQQPlaylists,
 } = require('./server-dist/server/services/music-mapper');
 const {
+  buildDiscoverHome: buildDiscoverHomeService,
+  searchNeteaseSongs,
+} = require('./server-dist/server/services/netease-orchestration');
+const {
   decodeHtmlEntities,
   decodeQQLyricText,
   normalizeQQSongId,
@@ -637,96 +641,29 @@ async function requireLogin(res) {
 //   优先用 cloudsearch (新接口, 字段更全, picUrl 更稳定)
 //   对于仍然缺失封面的歌曲, 用 song_detail 批量补齐
 async function handleSearch(keywords, limit) {
-  console.log('[Search]', keywords, 'limit:', limit);
-  const result = await cloudsearch({ keywords, limit, cookie: currentUserCookie() });
-  const songs = result.body && result.body.result && result.body.result.songs ? result.body.result.songs : [];
-
-  let mapped = songs.map(s => {
-    return mapSongRecord(s);
+  return searchNeteaseSongs(keywords, limit, {
+    cloudsearch,
+    songDetail: song_detail,
+    getUserCookie: () => currentUserCookie(),
+    mapSongRecord,
+    logger: console,
   });
-
-  // 兜底: 补齐缺失的封面
-  const missing = mapped.filter(s => !s.cover).map(s => s.id);
-  if (missing.length) {
-    try {
-      console.log('[Search] backfilling covers for', missing.length, 'songs');
-      const dd = await song_detail({ ids: missing.join(','), cookie: currentUserCookie() });
-      const songsArr = (dd.body && dd.body.songs) || [];
-      const idToPic = {};
-      songsArr.forEach(s => {
-        const pic = (s.al && s.al.picUrl) || (s.album && s.album.picUrl) || '';
-        if (pic) idToPic[s.id] = pic;
-      });
-      mapped = mapped.map(s => s.cover ? s : { ...s, cover: idToPic[s.id] || '' });
-    } catch (e) { console.warn('[Search] backfill failed:', e.message); }
-  }
-
-  return mapped;
 }
 
 async function handleDiscoverHome() {
-  const info = await getLoginInfo();
-  const loggedIn = !!(info && info.loggedIn);
-  if (!loggedIn) {
-    return {
-      loggedIn: false,
-      user: null,
-      dailySongs: [],
-      playlists: [],
-      podcasts: [],
-      mode: 'starter',
-      updatedAt: Date.now(),
-    };
-  }
-  const tasks = [
-    personalized({ limit: 8, cookie: currentUserCookie(), timestamp: Date.now() }),
-    dj_hot({ limit: 6, offset: 0, cookie: currentUserCookie(), timestamp: Date.now() }),
-    recommend_resource({ cookie: currentUserCookie(), timestamp: Date.now() }),
-    recommend_songs({ cookie: currentUserCookie(), timestamp: Date.now() }),
-  ];
-  const result = await Promise.allSettled(tasks);
-
-  const personalizedBody = result[0].status === 'fulfilled' && result[0].value && result[0].value.body || {};
-  const publicPlaylists = (personalizedBody.result || personalizedBody.data || [])
-    .map(pl => mapDiscoverPlaylist(pl, '推荐歌单'))
-    .filter(pl => pl.id && pl.name)
-    .slice(0, 8);
-
-  const podcastBody = result[1].status === 'fulfilled' && result[1].value && result[1].value.body || {};
-  const podcastRaw = podcastBody.djRadios || podcastBody.djradios || podcastBody.radios || podcastBody.data || [];
-  const podcasts = (Array.isArray(podcastRaw) ? podcastRaw : [])
-    .map(mapPodcastRadio)
-    .filter(p => p.id && !isLowSignalPodcastItem(p))
-    .slice(0, 6);
-
-  let privatePlaylists = [];
-  if (result[2].status === 'fulfilled' && result[2].value) {
-    const body = result[2].value.body || {};
-    const raw = body.recommend || body.data || [];
-    privatePlaylists = (Array.isArray(raw) ? raw : [])
-      .map(pl => mapDiscoverPlaylist(pl, '私人推荐'))
-      .filter(pl => pl.id && pl.name)
-      .slice(0, 6);
-  }
-
-  let dailySongs = [];
-  if (result[3].status === 'fulfilled' && result[3].value) {
-    const body = result[3].value.body || {};
-    const raw = body.data && (body.data.dailySongs || body.data.recommend) || body.recommend || [];
-    dailySongs = (Array.isArray(raw) ? raw : [])
-      .map(mapSongRecord)
-      .filter(song => song.id && song.name)
-      .slice(0, 12);
-  }
-
-  return {
-    loggedIn,
-    user: loggedIn ? { userId: info.userId, nickname: info.nickname || '', avatar: info.avatar || '' } : null,
-    dailySongs,
-    playlists: privatePlaylists.concat(publicPlaylists).slice(0, 10),
-    podcasts,
-    updatedAt: Date.now(),
-  };
+  return buildDiscoverHomeService({
+    getLoginInfo,
+    getUserCookie: () => currentUserCookie(),
+    personalized,
+    djHot: dj_hot,
+    recommendResource: recommend_resource,
+    recommendSongs: recommend_songs,
+    mapDiscoverPlaylist,
+    mapPodcastRadio,
+    mapSongRecord,
+    isLowSignalPodcastItem,
+    now: Date.now,
+  });
 }
 
 const QQ_MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';

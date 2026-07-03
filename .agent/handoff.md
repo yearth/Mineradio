@@ -7,8 +7,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: server runtime cleanup is in progress; latest verified slice extracts app configuration and Netease API mutable state into `server/runtime/app-config.ts` and `server/runtime/netease-api-runtime.ts`.
-- Current phase: server composition/runtime cleanup, keeping root `server.js` as the compatibility entry.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease search/discover-home orchestration into `server/services/netease-orchestration.ts`.
+- Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
 - Stage 2 second slice is complete: `server/http-utils.ts` provides request URL construction, listen gating, and startup banner lines; `server.js` now uses the compiled helper.
@@ -102,24 +102,22 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server composition/runtime cleanup tenth slice is complete: `server/composition/netease-auth-context.ts` and `server/composition/netease-library-context.ts` now own Netease auth/library route context assembly; `server.js` keeps per-request dependency factories so test-rebound Netease API functions are read lazily.
 - Server runtime cleanup eleventh slice is complete: `server/runtime/app-config.ts` now owns app/server/path/update/weather/default-version configuration; `server.js` keeps the existing constant names by reading from `APP_CONFIG`.
 - Server runtime cleanup twelfth slice is complete: `server/runtime/netease-api-runtime.ts` now owns the mutable NeteaseCloudMusicApi table used by `__test.setNeteaseApi`; `server.js` uses stable proxy functions so route/service dependencies read the latest overridden API without freezing references.
+- Provider orchestration first slice is complete: `server/services/netease-orchestration.ts` now owns Netease search result mapping/cover-backfill orchestration and discover-home aggregation; `server.js` keeps thin `handleSearch`/`handleDiscoverHome` wrappers that inject current cookies, Netease API functions, mappers, clock, and logger.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
 
-App config and Netease API runtime extraction:
+Netease search/discover orchestration extraction:
 
-- Initial RED for app config: `npm run build:ts && node --test tests/app-config-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/app-config'`.
-- App config focused/static verification: `npm run build:ts && node --test tests/app-config-runtime.test.js tests/app-info-service.test.js tests/server-helpers.test.js tests/update-routes.test.js tests/weather-controller.test.js tests/weather-provider-service.test.js tests/project-structure.test.js tests/server-router.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 52 tests.
-- Initial RED for Netease API runtime: `npm run build:ts && node --test tests/netease-api-runtime.test.js` failed with `Cannot find module '../server-dist/server/runtime/netease-api-runtime'`.
-- First Netease focused run caught a real regression: the proxy changed a legacy missing-provider error from `personalized is not a function` to `neteaseApiRuntime.current(...)[name] is not a function`. Fixed by making the proxy boundary throw `TypeError(`${name} is not a function`)` before invocation.
-- Netease focused/static verification after the fix: `npm run build:ts && node --test tests/netease-api-runtime.test.js tests/music-routes.test.js tests/server-test-runtime.test.js tests/netease-user-composition.test.js tests/netease-media-composition.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 150 tests.
-- `npm test && npm run coverage`: passed, 487 tests; production-code line coverage `100.00%`, including `server.js`, `server-dist/server/runtime/app-config.js`, and `server-dist/server/runtime/netease-api-runtime.js` at `100.00%`.
-- First QA subagent review: `NEEDS WORK`. Positive checks passed for app config parity and runtime `Object.assign({}, defaults, overrides || {})` semantics, but QA found a compatibility regression in the `like` -> `like_song` alias path: missing `like` returned `like is not a function` instead of legacy `like_song is not a function`.
-- Follow-up RED: `npm run build:ts && node --test tests/music-routes.test.js --test-name-pattern "legacy like_song missing-provider"` failed with actual `{ error: 'like is not a function' }` vs expected `{ error: 'like_song is not a function' }`.
-- Follow-up fix: `callNeteaseApi(name, args, displayName)` keeps lookup key `like` while allowing `like_song` as the legacy error display name; `tests/music-routes.test.js` now covers `server.__test.setNeteaseApi({ like: undefined })` for `/api/song/like`.
-- Follow-up focused/static verification: `npm run build:ts && node --test tests/music-routes.test.js --test-name-pattern "legacy like_song missing-provider" && node --test tests/netease-api-runtime.test.js tests/music-routes.test.js tests/server-test-runtime.test.js tests/netease-user-composition.test.js tests/netease-media-composition.test.js && node --check server.js && npm run typecheck && git diff --check` passed, including 151 focused tests.
-- Follow-up full verification: `npm test && npm run coverage` passed, 488 tests; production-code line coverage stayed `100.00%`.
-- QA subagent re-review: `PASS`. Read-only QA verified the new regression test targets `setNeteaseApi({ like: undefined })`, `like_song` still looks up runtime key `like`, other missing provider names such as `personalized` keep their old function-name error path, focused/static validation passed with 154 tests, and no coverage run was needed in the subagent because main verification already ran full coverage.
+- Initial RED: `npm run build:ts && node --test tests/netease-orchestration-service.test.js` failed with `Cannot find module '../server-dist/server/services/netease-orchestration'`.
+- New service: `server/services/netease-orchestration.ts` owns `searchNeteaseSongs(...)` and `buildDiscoverHome(...)`; root `server.js` imports the compiled service and preserves `handleSearch`/`handleDiscoverHome` as compatibility wrappers.
+- Service tests cover search mapping, cover backfill success, cover backfill failure fallback/warning, logged-out discover starter payload without upstream calls, and logged-in discover aggregation across personalized playlists, private recommendations, podcasts, and daily songs.
+- Focused/static verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/music-routes.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/simple-route-composition.test.js tests/project-structure.test.js tests/server-router.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 159 tests.
+- First full coverage run caught missing line coverage for the search cover-backfill failure branch in `server-dist/server/services/netease-orchestration.js`; added `searchNeteaseSongs keeps mapped songs when cover backfill fails`.
+- Final full verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check && npm test && npm run coverage` passed, 493 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-orchestration.js` at `100.00%`.
+- First QA subagent review: `NEEDS WORK`. QA accepted the implementation shape but flagged two gaps: no direct logged-in `Promise.allSettled` partial-failure service test, and discover used one cookie snapshot instead of the legacy per-upstream `currentUserCookie()` calls.
+- Follow-up fix: discover logged-in task construction now calls `deps.getUserCookie()` separately for personalized, `djHot`, `recommendResource`, and `recommendSongs`; service tests assert `cookieCalls === 4` and cover partial upstream failures where fulfilled playlist sections are preserved while failed podcast/daily sections return empty arrays.
+- Final QA subagent review: `PASS`. Read-only QA verified both risks were closed, reran `npm run typecheck`, `node --test tests/netease-orchestration-service.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/music-routes.test.js` with 156 passing tests, plus `node --check server.js && git diff --check`; no generated-file tracking risk was found.
 
 Netease auth/library route dependency composition extraction:
 
