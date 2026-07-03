@@ -22,6 +22,20 @@ type DiscoverHomeDeps = {
   now?: () => number;
 };
 
+type PodcastCollectionDeps = {
+  djSublist: (opts: any) => Promise<any>;
+  userAudio: (opts: any) => Promise<any>;
+  djPaygift: (opts: any) => Promise<any>;
+  satiResourceSubList: (opts: any) => Promise<any>;
+  recordRecentVoice: (opts: any) => Promise<any>;
+  getUserCookie: () => string;
+  firstArrayFrom: (obj: any, keys: string[]) => any[];
+  mapPodcastCollectionRadios: (raw: any[], key?: string) => any[];
+  mapPodcastVoiceItems: (raw: any[]) => any[];
+  now?: () => number;
+  logger?: Pick<Console, 'warn'>;
+};
+
 export async function searchNeteaseSongs(keywords: string, limit: number, deps: SearchDeps): Promise<any[]> {
   const logger = deps.logger || console;
   logger.log('[Search]', keywords, 'limit:', limit);
@@ -115,4 +129,79 @@ export async function buildDiscoverHome(deps: DiscoverHomeDeps): Promise<Record<
     podcasts,
     updatedAt: now(),
   };
+}
+
+export async function fetchNeteasePodcastCollectionItems(
+  key: string,
+  info: any,
+  limit: number,
+  offset: number,
+  deps: PodcastCollectionDeps
+): Promise<{ itemType: string; items: any[] }> {
+  const normalizedLimit = Math.max(8, Math.min(60, Number(limit) || 30));
+  const normalizedOffset = Math.max(0, Number(offset) || 0);
+  const now = deps.now || Date.now;
+  const logger = deps.logger || console;
+
+  if (key === 'collect') {
+    const response = await deps.djSublist({
+      limit: normalizedLimit,
+      offset: normalizedOffset,
+      cookie: deps.getUserCookie(),
+      timestamp: now(),
+    });
+    const raw = deps.firstArrayFrom(response.body, ['djRadios', 'djradios', 'radios', 'data']);
+    return { itemType: 'radio', items: deps.mapPodcastCollectionRadios(raw, key) };
+  }
+
+  if (key === 'created') {
+    const response = await deps.userAudio({
+      uid: info.userId,
+      cookie: deps.getUserCookie(),
+      timestamp: now(),
+    });
+    const raw = deps.firstArrayFrom(response.body, ['data', 'djRadios', 'djradios', 'radios']);
+    return { itemType: 'radio', items: deps.mapPodcastCollectionRadios(raw, key) };
+  }
+
+  if (key === 'paid') {
+    const response = await deps.djPaygift({
+      limit: normalizedLimit,
+      offset: normalizedOffset,
+      cookie: deps.getUserCookie(),
+      timestamp: now(),
+    });
+    const raw = deps.firstArrayFrom(response.body, ['data', 'djRadios', 'djradios', 'radios']);
+    return { itemType: 'radio', items: deps.mapPodcastCollectionRadios(raw, key) };
+  }
+
+  if (key === 'liked') {
+    let raw: any[] = [];
+    try {
+      const response = await deps.satiResourceSubList({
+        cookie: deps.getUserCookie(),
+        timestamp: now(),
+      });
+      raw = deps.firstArrayFrom(response.body, ['data', 'resources', 'list']);
+    } catch (error: any) {
+      logger.warn('[MyPodcastLiked] sati sub list failed:', error.message);
+    }
+
+    if (!raw.length) {
+      try {
+        const response = await deps.recordRecentVoice({
+          limit: normalizedLimit,
+          cookie: deps.getUserCookie(),
+          timestamp: now(),
+        });
+        raw = deps.firstArrayFrom(response.body, ['data', 'list', 'resources']);
+      } catch (error: any) {
+        logger.warn('[MyPodcastLiked] recent voice fallback failed:', error.message);
+      }
+    }
+
+    return { itemType: 'voice', items: deps.mapPodcastVoiceItems(raw) };
+  }
+
+  return { itemType: 'radio', items: [] };
 }

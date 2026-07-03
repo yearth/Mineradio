@@ -172,6 +172,7 @@ const {
 } = require('./server-dist/server/services/music-mapper');
 const {
   buildDiscoverHome: buildDiscoverHomeService,
+  fetchNeteasePodcastCollectionItems,
   searchNeteaseSongs,
 } = require('./server-dist/server/services/netease-orchestration');
 const {
@@ -1089,42 +1090,19 @@ async function handleQQLyric(mid, id) {
 }
 
 async function fetchMyPodcastItems(key, info, limit, offset) {
-  limit = Math.max(8, Math.min(60, Number(limit) || 30));
-  offset = Math.max(0, Number(offset) || 0);
-  if (key === 'collect') {
-    const r = await dj_sublist({ limit, offset, cookie: currentUserCookie(), timestamp: Date.now() });
-    const raw = firstArrayFrom(r.body, ['djRadios', 'djradios', 'radios', 'data']);
-    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
-  }
-  if (key === 'created') {
-    const r = await user_audio({ uid: info.userId, cookie: currentUserCookie(), timestamp: Date.now() });
-    const raw = firstArrayFrom(r.body, ['data', 'djRadios', 'djradios', 'radios']);
-    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
-  }
-  if (key === 'paid') {
-    const r = await dj_paygift({ limit, offset, cookie: currentUserCookie(), timestamp: Date.now() });
-    const raw = firstArrayFrom(r.body, ['data', 'djRadios', 'djradios', 'radios']);
-    return { itemType: 'radio', items: mapPodcastCollectionRadios(raw, key) };
-  }
-  if (key === 'liked') {
-    let raw = [];
-    try {
-      const sati = await sati_resource_sub_list({ cookie: currentUserCookie(), timestamp: Date.now() });
-      raw = firstArrayFrom(sati.body, ['data', 'resources', 'list']);
-    } catch (e) {
-      console.warn('[MyPodcastLiked] sati sub list failed:', e.message);
-    }
-    if (!raw.length) {
-      try {
-        const recent = await record_recent_voice({ limit, cookie: currentUserCookie(), timestamp: Date.now() });
-        raw = firstArrayFrom(recent.body, ['data', 'list', 'resources']);
-      } catch (e) {
-        console.warn('[MyPodcastLiked] recent voice fallback failed:', e.message);
-      }
-    }
-    return { itemType: 'voice', items: mapPodcastVoiceItems(raw) };
-  }
-  return { itemType: 'radio', items: [] };
+  return fetchNeteasePodcastCollectionItems(key, info, limit, offset, {
+    djSublist: dj_sublist,
+    userAudio: user_audio,
+    djPaygift: dj_paygift,
+    satiResourceSubList: sati_resource_sub_list,
+    recordRecentVoice: record_recent_voice,
+    getUserCookie: () => currentUserCookie(),
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: Date.now,
+    logger: console,
+  });
 }
 
 // ---------- 业务: 取歌曲URL (探测试听) ----------

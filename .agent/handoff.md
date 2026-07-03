@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease search/discover-home orchestration into `server/services/netease-orchestration.ts`.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease authenticated podcast collection orchestration into `server/services/netease-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -103,21 +103,19 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Server runtime cleanup eleventh slice is complete: `server/runtime/app-config.ts` now owns app/server/path/update/weather/default-version configuration; `server.js` keeps the existing constant names by reading from `APP_CONFIG`.
 - Server runtime cleanup twelfth slice is complete: `server/runtime/netease-api-runtime.ts` now owns the mutable NeteaseCloudMusicApi table used by `__test.setNeteaseApi`; `server.js` uses stable proxy functions so route/service dependencies read the latest overridden API without freezing references.
 - Provider orchestration first slice is complete: `server/services/netease-orchestration.ts` now owns Netease search result mapping/cover-backfill orchestration and discover-home aggregation; `server.js` keeps thin `handleSearch`/`handleDiscoverHome` wrappers that inject current cookies, Netease API functions, mappers, clock, and logger.
+- Provider orchestration second slice is complete: `server/services/netease-orchestration.ts` now owns authenticated podcast collection item orchestration for `collect`, `created`, `paid`, `liked`, and unknown keys; `server.js` keeps a thin `fetchMyPodcastItems` wrapper that injects current cookies, Netease API functions, mapper helpers, clock, and logger.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
 
-Netease search/discover orchestration extraction:
+Netease authenticated podcast collection orchestration extraction:
 
-- Initial RED: `npm run build:ts && node --test tests/netease-orchestration-service.test.js` failed with `Cannot find module '../server-dist/server/services/netease-orchestration'`.
-- New service: `server/services/netease-orchestration.ts` owns `searchNeteaseSongs(...)` and `buildDiscoverHome(...)`; root `server.js` imports the compiled service and preserves `handleSearch`/`handleDiscoverHome` as compatibility wrappers.
-- Service tests cover search mapping, cover backfill success, cover backfill failure fallback/warning, logged-out discover starter payload without upstream calls, and logged-in discover aggregation across personalized playlists, private recommendations, podcasts, and daily songs.
-- Focused/static verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/music-routes.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/simple-route-composition.test.js tests/project-structure.test.js tests/server-router.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 159 tests.
-- First full coverage run caught missing line coverage for the search cover-backfill failure branch in `server-dist/server/services/netease-orchestration.js`; added `searchNeteaseSongs keeps mapped songs when cover backfill fails`.
-- Final full verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check && npm test && npm run coverage` passed, 493 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-orchestration.js` at `100.00%`.
-- First QA subagent review: `NEEDS WORK`. QA accepted the implementation shape but flagged two gaps: no direct logged-in `Promise.allSettled` partial-failure service test, and discover used one cookie snapshot instead of the legacy per-upstream `currentUserCookie()` calls.
-- Follow-up fix: discover logged-in task construction now calls `deps.getUserCookie()` separately for personalized, `djHot`, `recommendResource`, and `recommendSongs`; service tests assert `cookieCalls === 4` and cover partial upstream failures where fulfilled playlist sections are preserved while failed podcast/daily sections return empty arrays.
-- Final QA subagent review: `PASS`. Read-only QA verified both risks were closed, reran `npm run typecheck`, `node --test tests/netease-orchestration-service.test.js tests/search-controller.test.js tests/discover-controller.test.js tests/music-routes.test.js` with 156 passing tests, plus `node --check server.js && git diff --check`; no generated-file tracking risk was found.
+- Initial RED: `npm run build:ts && node --test tests/netease-orchestration-service.test.js` failed with `TypeError: fetchNeteasePodcastCollectionItems is not a function`.
+- New service function: `fetchNeteasePodcastCollectionItems(...)` owns `collect`, `created`, `paid`, `liked`, and unknown collection key item orchestration; root `server.js` keeps `fetchMyPodcastItems(...)` as a dependency-injection wrapper.
+- Service tests cover collected radios with clamped `limit`/`offset`, created radio requests with `uid`, paid radio requests with max-limit clamp, liked voices from `sati_resource_sub_list`, liked fallback to `record_recent_voice`, all-liked-source failure logging/empty response, and unknown-key empty radio response.
+- Focused/static verification: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/podcast-controller.test.js tests/podcast-composition.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 171 tests.
+- Final full verification: `npm test && npm run coverage` passed, 499 tests; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-orchestration.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified `fetchMyPodcastItems` is now a thin dependency-injection wrapper, service behavior preserves limit/offset clamp, branch behavior, `uid`, cookie/timestamp injection, `firstArrayFrom` key ordering, mapper usage, liked sati-to-recent fallback, warning messages, route wiring coverage, generated-file tracking, and compiled export availability. Non-blocking suggestions were to optionally assert liked-source cookie/timestamp opts and alternate fallback key ordering more tightly later.
 
 Netease auth/library route dependency composition extraction:
 

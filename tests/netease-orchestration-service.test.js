@@ -3,12 +3,16 @@ const assert = require('node:assert/strict');
 
 const {
   buildDiscoverHome,
+  fetchNeteasePodcastCollectionItems,
   searchNeteaseSongs,
 } = require('../server-dist/server/services/netease-orchestration');
 const {
+  firstArrayFrom,
   isLowSignalPodcastItem,
   mapDiscoverPlaylist,
+  mapPodcastCollectionRadios,
   mapPodcastRadio,
+  mapPodcastVoiceItems,
   mapSongRecord,
 } = require('../server-dist/server/services/music-mapper');
 
@@ -240,4 +244,191 @@ test('buildDiscoverHome keeps fulfilled sections when some logged-in upstreams f
   assert.deepEqual(home.podcasts, []);
   assert.deepEqual(home.dailySongs, []);
   assert.equal(home.updatedAt, 789);
+});
+
+test('fetchNeteasePodcastCollectionItems maps collected podcast radios with clamped params', async () => {
+  const calls = [];
+  const result = await fetchNeteasePodcastCollectionItems('collect', { userId: 99 }, 5, -4, {
+    djSublist: async opts => {
+      calls.push(['dj_sublist', opts]);
+      return {
+        body: {
+          djRadios: [
+            { id: 801, name: 'Collected Radio', picUrl: 'https://img.example/collected.jpg' },
+          ],
+        },
+      };
+    },
+    userAudio: async () => { throw new Error('unexpected user_audio'); },
+    djPaygift: async () => { throw new Error('unexpected dj_paygift'); },
+    satiResourceSubList: async () => { throw new Error('unexpected sati'); },
+    recordRecentVoice: async () => { throw new Error('unexpected recent'); },
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 321,
+    logger: { warn() {} },
+  });
+
+  assert.equal(result.itemType, 'radio');
+  assert.deepEqual(result.items.map(item => item.id), [801]);
+  assert.equal(result.items[0].collectionKey, 'collect');
+  assert.deepEqual(calls, [
+    ['dj_sublist', { limit: 8, offset: 0, cookie: 'MUSIC_U=test-user', timestamp: 321 }],
+  ]);
+});
+
+test('fetchNeteasePodcastCollectionItems maps created and paid podcast radios', async () => {
+  const calls = [];
+  const deps = {
+    djSublist: async () => { throw new Error('unexpected dj_sublist'); },
+    userAudio: async opts => {
+      calls.push(['user_audio', opts]);
+      return {
+        body: {
+          data: [
+            { id: 802, name: 'Created Radio', picUrl: 'https://img.example/created.jpg' },
+          ],
+        },
+      };
+    },
+    djPaygift: async opts => {
+      calls.push(['dj_paygift', opts]);
+      return {
+        body: {
+          data: [
+            { id: 803, name: 'Paid Radio', picUrl: 'https://img.example/paid.jpg' },
+          ],
+        },
+      };
+    },
+    satiResourceSubList: async () => { throw new Error('unexpected sati'); },
+    recordRecentVoice: async () => { throw new Error('unexpected recent'); },
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 654,
+    logger: { warn() {} },
+  };
+
+  const created = await fetchNeteasePodcastCollectionItems('created', { userId: 99 }, 30, 0, deps);
+  const paid = await fetchNeteasePodcastCollectionItems('paid', { userId: 99 }, 120, 4, deps);
+
+  assert.deepEqual(created.items.map(item => item.id), [802]);
+  assert.deepEqual(paid.items.map(item => item.id), [803]);
+  assert.equal(created.items[0].collectionKey, 'created');
+  assert.equal(paid.items[0].collectionKey, 'paid');
+  assert.deepEqual(calls, [
+    ['user_audio', { uid: 99, cookie: 'MUSIC_U=test-user', timestamp: 654 }],
+    ['dj_paygift', { limit: 60, offset: 4, cookie: 'MUSIC_U=test-user', timestamp: 654 }],
+  ]);
+});
+
+test('fetchNeteasePodcastCollectionItems maps liked voices from sati source', async () => {
+  const result = await fetchNeteasePodcastCollectionItems('liked', { userId: 99 }, 30, 0, {
+    djSublist: async () => { throw new Error('unexpected dj_sublist'); },
+    userAudio: async () => { throw new Error('unexpected user_audio'); },
+    djPaygift: async () => { throw new Error('unexpected dj_paygift'); },
+    satiResourceSubList: async opts => ({
+      body: {
+        data: [
+          {
+            resource: {
+              id: 804,
+              name: 'Liked Voice',
+              coverUrl: 'https://img.example/liked.jpg',
+              voiceList: { name: 'Liked Podcast' },
+            },
+          },
+        ],
+        opts,
+      },
+    }),
+    recordRecentVoice: async () => { throw new Error('unexpected recent'); },
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 987,
+    logger: { warn() {} },
+  });
+
+  assert.equal(result.itemType, 'voice');
+  assert.deepEqual(result.items.map(item => item.id), [804]);
+});
+
+test('fetchNeteasePodcastCollectionItems falls back to recent voices for liked podcasts', async () => {
+  const warnings = [];
+  const result = await fetchNeteasePodcastCollectionItems('liked', { userId: 99 }, 7, 0, {
+    djSublist: async () => { throw new Error('unexpected dj_sublist'); },
+    userAudio: async () => { throw new Error('unexpected user_audio'); },
+    djPaygift: async () => { throw new Error('unexpected dj_paygift'); },
+    satiResourceSubList: async () => { throw new Error('liked voices unavailable'); },
+    recordRecentVoice: async opts => ({
+      body: {
+        data: [
+          {
+            id: 805,
+            name: 'Recent Liked Voice',
+            cover: 'https://img.example/recent.jpg',
+            voiceList: { name: 'Recent Podcast' },
+          },
+        ],
+        opts,
+      },
+    }),
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 111,
+    logger: { warn(...args) { warnings.push(args); } },
+  });
+
+  assert.equal(result.itemType, 'voice');
+  assert.deepEqual(result.items.map(item => item.id), [805]);
+  assert.deepEqual(warnings, [['[MyPodcastLiked] sati sub list failed:', 'liked voices unavailable']]);
+});
+
+test('fetchNeteasePodcastCollectionItems returns empty liked list when liked sources fail', async () => {
+  const warnings = [];
+  const result = await fetchNeteasePodcastCollectionItems('liked', { userId: 99 }, 7, 0, {
+    djSublist: async () => { throw new Error('unexpected dj_sublist'); },
+    userAudio: async () => { throw new Error('unexpected user_audio'); },
+    djPaygift: async () => { throw new Error('unexpected dj_paygift'); },
+    satiResourceSubList: async () => { throw new Error('sati offline'); },
+    recordRecentVoice: async () => { throw new Error('recent offline'); },
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 222,
+    logger: { warn(...args) { warnings.push(args); } },
+  });
+
+  assert.deepEqual(result, { itemType: 'voice', items: [] });
+  assert.deepEqual(warnings, [
+    ['[MyPodcastLiked] sati sub list failed:', 'sati offline'],
+    ['[MyPodcastLiked] recent voice fallback failed:', 'recent offline'],
+  ]);
+});
+
+test('fetchNeteasePodcastCollectionItems returns empty radios for unknown collection keys', async () => {
+  const result = await fetchNeteasePodcastCollectionItems('unknown', { userId: 99 }, 30, 0, {
+    djSublist: async () => { throw new Error('unexpected dj_sublist'); },
+    userAudio: async () => { throw new Error('unexpected user_audio'); },
+    djPaygift: async () => { throw new Error('unexpected dj_paygift'); },
+    satiResourceSubList: async () => { throw new Error('unexpected sati'); },
+    recordRecentVoice: async () => { throw new Error('unexpected recent'); },
+    getUserCookie: () => 'MUSIC_U=test-user',
+    firstArrayFrom,
+    mapPodcastCollectionRadios,
+    mapPodcastVoiceItems,
+    now: () => 333,
+    logger: { warn() {} },
+  });
+
+  assert.deepEqual(result, { itemType: 'radio', items: [] });
 });
