@@ -1,3 +1,10 @@
+import {
+  fetchNeteaseArtistDetail,
+  fetchNeteaseLyric,
+  fetchNeteasePlaylistTracks,
+  fetchNeteaseSongComments,
+} from '../services/netease-orchestration';
+
 export type JsonSender = (res: unknown, data: unknown, status?: number) => void;
 
 export type NeteaseMediaRouteContext = {
@@ -56,28 +63,14 @@ export async function handleNeteaseMediaRoutes(ctx: NeteaseMediaRouteContext): P
         ctx.sendJSON(ctx.res, { error: 'Missing song id', lyric: '' }, 400);
         return true;
       }
-      let body: any = {};
-      let source = 'lyric';
-      try {
-        if (typeof ctx.lyricNew === 'function') {
-          const nr = await ctx.lyricNew({ id, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-          body = nr.body || {};
-          source = 'lyric_new';
-        }
-      } catch (errNew: any) {
-        ctx.logger.warn('[LyricNew]', errNew.message);
-      }
-      if (!((body.lrc && body.lrc.lyric) || (body.yrc && body.yrc.lyric))) {
-        const r = await ctx.lyric({ id, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-        body = r.body || body || {};
-        source = 'lyric';
-      }
-      ctx.sendJSON(ctx.res, {
-        lyric: (body.lrc && body.lrc.lyric) || '',
-        tlyric: (body.tlyric && body.tlyric.lyric) || '',
-        yrc: (body.yrc && body.yrc.lyric) || '',
-        source,
+      const lyricPayload = await fetchNeteaseLyric(id, {
+        getUserCookie: ctx.getUserCookie,
+        lyricNew: ctx.lyricNew,
+        lyric: ctx.lyric,
+        now: ctx.now,
+        logger: ctx.logger,
       });
+      ctx.sendJSON(ctx.res, lyricPayload);
     } catch (err: any) {
       ctx.logger.error('[Lyric]', err);
       ctx.sendJSON(ctx.res, { error: err.message, lyric: '' }, 500);
@@ -94,9 +87,13 @@ export async function handleNeteaseMediaRoutes(ctx: NeteaseMediaRouteContext): P
         ctx.sendJSON(ctx.res, { error: 'Missing song id', comments: [] }, 400);
         return true;
       }
-      const r = await ctx.commentMusic({ id, limit, offset, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-      const body = r.body || r || {};
-      ctx.sendJSON(ctx.res, ctx.buildNeteaseSongCommentsPayload(body, id, offset));
+      const commentsPayload = await fetchNeteaseSongComments(id, limit, offset, {
+        getUserCookie: ctx.getUserCookie,
+        commentMusic: ctx.commentMusic,
+        buildNeteaseSongCommentsPayload: ctx.buildNeteaseSongCommentsPayload,
+        now: ctx.now,
+      });
+      ctx.sendJSON(ctx.res, commentsPayload);
     } catch (err: any) {
       ctx.logger.error('[SongComments]', err);
       ctx.sendJSON(ctx.res, { error: err.message, comments: [] }, 500);
@@ -112,41 +109,16 @@ export async function handleNeteaseMediaRoutes(ctx: NeteaseMediaRouteContext): P
         ctx.sendJSON(ctx.res, { error: 'Missing artist id', songs: [] }, 400);
         return true;
       }
-      let detailBody: any = {};
-      try {
-        const detail = await ctx.artistDetail({ id, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-        detailBody = detail.body || detail || {};
-      } catch (e: any) {
-        ctx.logger.warn('[ArtistDetail] detail failed:', e.message);
-      }
-      let rawSongs: any[] = [];
-      try {
-        const list = await ctx.artistSongs({ id, order: 'hot', limit, offset: 0, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-        const b = list.body || list || {};
-        rawSongs = (b.songs || (b.data && b.data.songs) || []);
-      } catch (e: any) {
-        ctx.logger.warn('[ArtistSongs] hot failed:', e.message);
-      }
-      if (!rawSongs.length) {
-        const top = await ctx.artistTopSong({ id, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-        const b = top.body || top || {};
-        rawSongs = b.songs || [];
-      }
-      const artist = detailBody.artist || (detailBody.data && (detailBody.data.artist || detailBody.data)) || {};
-      const songs = rawSongs.map(ctx.mapSongRecord).filter(s => s.id).slice(0, limit);
-      ctx.sendJSON(ctx.res, {
-        id,
-        artist: {
-          id: artist.id || id,
-          name: artist.name || artist.artistName || '',
-          avatar: artist.avatar || artist.cover || artist.picUrl || artist.img1v1Url || '',
-          brief: artist.briefDesc || artist.description || artist.desc || '',
-          musicSize: artist.musicSize || artist.songSize || 0,
-          albumSize: artist.albumSize || 0,
-        },
-        songs,
-        body: detailBody,
+      const artistPayload = await fetchNeteaseArtistDetail(id, limit, {
+        getUserCookie: ctx.getUserCookie,
+        artistDetail: ctx.artistDetail,
+        artistSongs: ctx.artistSongs,
+        artistTopSong: ctx.artistTopSong,
+        mapSongRecord: ctx.mapSongRecord,
+        now: ctx.now,
+        logger: ctx.logger,
       });
+      ctx.sendJSON(ctx.res, artistPayload);
     } catch (err: any) {
       ctx.logger.error('[ArtistDetail]', err);
       ctx.sendJSON(ctx.res, { error: err.message, songs: [] }, 500);
@@ -162,29 +134,15 @@ export async function handleNeteaseMediaRoutes(ctx: NeteaseMediaRouteContext): P
         return true;
       }
 
-      let playlistMeta: any = { id, name: '', cover: '', trackCount: 0 };
-      let rawTracks: any[] = [];
-
-      if (typeof ctx.playlistTrackAll === 'function') {
-        try {
-          const all = await ctx.playlistTrackAll({ id, limit: 500, offset: 0, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-          rawTracks = (all.body && (all.body.songs || all.body.tracks)) || [];
-        } catch (err: any) {
-          ctx.logger.warn('[PlaylistTracks] playlist_track_all failed, fallback to detail:', err.message);
-        }
-      }
-
-      if (!rawTracks.length && typeof ctx.playlistDetail === 'function') {
-        const detail = await ctx.playlistDetail({ id, s: 0, cookie: ctx.getUserCookie(), timestamp: ctx.now() });
-        const pl = (detail.body && detail.body.playlist) || {};
-        playlistMeta = { id: pl.id || id, name: pl.name || '', cover: pl.coverImgUrl || '', trackCount: pl.trackCount || 0 };
-        rawTracks = pl.tracks || [];
-      }
-
-      const tracks = rawTracks.map(ctx.mapSongRecord).filter(t => t.id);
-
-      if (!playlistMeta.trackCount) playlistMeta.trackCount = tracks.length;
-      ctx.sendJSON(ctx.res, { playlist: playlistMeta, tracks });
+      const playlistPayload = await fetchNeteasePlaylistTracks(id, {
+        getUserCookie: ctx.getUserCookie,
+        playlistTrackAll: ctx.playlistTrackAll,
+        playlistDetail: ctx.playlistDetail,
+        mapSongRecord: ctx.mapSongRecord,
+        now: ctx.now,
+        logger: ctx.logger,
+      });
+      ctx.sendJSON(ctx.res, playlistPayload);
     } catch (err: any) {
       ctx.logger.error('[PlaylistTracks]', err);
       ctx.sendJSON(ctx.res, { error: err.message, tracks: [] }, 500);

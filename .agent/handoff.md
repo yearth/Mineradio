@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts QQ artist detail, QQ song comments, and QQ lyric read orchestration into `server/services/qq-orchestration.ts`.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts Netease read orchestration into `server/services/netease-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -107,9 +107,21 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Provider orchestration third slice is complete: `server/services/weather-orchestration.ts` now owns weather-radio provider fallback, seed search fan-out, mood-keyword top-up, ordering, and response assembly; `server.js` keeps a thin `buildWeatherRadio` wrapper that injects weather provider/search/order/default-location/clock/logger dependencies.
 - Provider orchestration fourth slice is complete: `server/services/qq-orchestration.ts` now owns QQ search smartbox/detail enrichment, QQ user playlist created/collected fan-out and merge, and QQ playlist track detail payload orchestration; `server.js` keeps thin wrappers that inject current QQ login/request/mapping/dedupe helpers.
 - Provider orchestration fifth slice is complete: `server/services/qq-orchestration.ts` now also owns QQ artist detail, QQ song comments, and QQ lyric read orchestration; `server.js` keeps thin wrappers that inject current QQ request/session/mapping/comment/lyric helpers.
+- Provider orchestration sixth slice is complete: `server/services/netease-orchestration.ts` now owns Netease song URL, lyric, song comments, artist detail, and playlist track read orchestration; `server.js` keeps `handleSongUrl` as a thin wrapper and `server/controllers/netease-media-controller.ts` keeps route validation/HTTP response handling.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+Netease read orchestration extraction:
+
+- Initial REDs: `fetchNeteaseSongUrl` failed with `fetchNeteaseSongUrl is not a function`; `fetchNeteaseLyric` failed with `fetchNeteaseLyric is not a function`; `fetchNeteaseSongComments`, `fetchNeteaseArtistDetail`, and `fetchNeteasePlaylistTracks` each failed with the corresponding missing-function error.
+- New service functions: `server/services/netease-orchestration.ts` exports `fetchNeteaseSongUrl(...)`, `fetchNeteaseLyric(...)`, `fetchNeteaseSongComments(...)`, `fetchNeteaseArtistDetail(...)`, and `fetchNeteasePlaylistTracks(...)`.
+- Root/controller wrappers: `server.js` keeps `handleSongUrl(...)` as a dependency-injection wrapper around current cookie/API/quality/restriction helpers; `server/controllers/netease-media-controller.ts` now delegates lyric/comments/artist/playlist read orchestration to the service while preserving route matching, missing-id validation, `sendJSON`, and error handling.
+- Service tests cover Netease song URL full playback, v1-to-legacy fallback, trial fallback, unavailable restriction metadata and last provider error; lyric_new success, legacy fallback, and lyric_new warning fallback; song comments payload; artist detail metadata, hot/top song fallback, detail/hot warnings; playlist_track_all success and playlist_detail fallback.
+- Focused/static verification for song URL: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/netease-media-controller.test.js tests/netease-media-composition.test.js tests/music-routes.test.js tests/playback-quality-service.test.js tests/playback-restriction-service.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 174 tests.
+- Focused/static verification for all Netease read extraction: `npm run build:ts && node --test tests/netease-orchestration-service.test.js tests/netease-media-controller.test.js tests/netease-media-composition.test.js tests/music-routes.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 173 tests.
+- Final full verification: `npm test && npm run coverage` passed; 532 tests passed; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/netease-orchestration.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified Netease song URL quality/SVIP/v1-to-legacy/trial/restriction/last-error behavior, thin `server.js` wrapper, unchanged HTTP validation/error handling in the controller, lyric/comments/artist/playlist response-shape parity, test coverage, and generated-file staging risk.
 
 QQ artist-detail/song-comments/lyric read orchestration extraction:
 

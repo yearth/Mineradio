@@ -172,6 +172,7 @@ const {
 } = require('./server-dist/server/services/music-mapper');
 const {
   buildDiscoverHome: buildDiscoverHomeService,
+  fetchNeteaseSongUrl,
   fetchNeteasePodcastCollectionItems,
   searchNeteaseSongs,
 } = require('./server-dist/server/services/netease-orchestration');
@@ -934,65 +935,17 @@ async function fetchMyPodcastItems(key, info, limit, offset) {
 //   返回 { url, trial, level, br }
 //   trial=true 表示这是试听片段 (freeTrialInfo 非空)
 async function handleSongUrl(id, loginInfo, qualityPreference) {
-  console.log('[SongUrl] id:', id, 'logged-in:', !!currentUserCookie());
-  const requestedQuality = normalizeQualityPreference(qualityPreference);
-  const svipReady = hasNeteaseSvip(loginInfo);
-  const qualities = qualityCandidatesFrom(requestedQuality, NETEASE_QUALITY_CANDIDATES)
-    .filter(q => !q.svip || svipReady);
-
-  let trialFallback = null; // 兜底: 即使是试听也要能播
-  let lastData = null;
-  let lastError = null;
-
-  for (const q of qualities) {
-    try {
-      // 优先用 v1 接口 (支持更高音质 level 字段)
-      let result;
-      try {
-        result = await song_url_v1({ id, level: q.level, cookie: currentUserCookie() });
-      } catch (e) {
-        result = await song_url({ id, br: q.br, cookie: currentUserCookie() });
-      }
-      const d = result.body && result.body.data && result.body.data[0];
-      if (d) lastData = d;
-      const url = d && d.url;
-      const freeTrial = d && d.freeTrialInfo;
-      console.log('[SongUrl]', q.level, '->', url ? 'OK' : 'no url', freeTrial ? '(TRIAL)' : '');
-      if (url && !freeTrial) {
-        return { url, trial: false, playable: true, level: q.level, quality: q.label, br: d.br, requestedQuality };
-      }
-      if (url && freeTrial && !trialFallback) {
-        trialFallback = {
-          url,
-          trial: true,
-          playable: true,
-          level: q.level,
-          quality: q.label,
-          br: d.br,
-          requestedQuality,
-          trialInfo: freeTrial,
-          restriction: classifyNeteasePlaybackRestriction(d, loginInfo),
-        };
-      }
-    } catch (err) {
-      lastError = err;
-      console.log('[SongUrl]', q.level, 'failed:', err.message);
-    }
-  }
-  if (trialFallback) return trialFallback;
-  const restriction = classifyNeteasePlaybackRestriction(lastData, loginInfo);
-  return {
-    url: null,
-    trial: false,
-    playable: false,
-    reason: restriction.category,
-    message: restriction.message,
-    restriction,
-    lastCode: lastData && lastData.code,
-    fee: lastData && lastData.fee,
-    error: lastError && lastError.message,
-    requestedQuality,
-  };
+  return fetchNeteaseSongUrl(id, loginInfo, qualityPreference, {
+    getUserCookie: () => currentUserCookie(),
+    songUrlV1: song_url_v1,
+    songUrl: song_url,
+    normalizeQualityPreference,
+    hasNeteaseSvip,
+    qualityCandidatesFrom,
+    qualityCandidates: NETEASE_QUALITY_CANDIDATES,
+    classifyNeteasePlaybackRestriction,
+    logger: console,
+  });
 }
 
 // ---------- 业务: 登录态/用户信息 ----------
