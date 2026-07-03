@@ -176,6 +176,11 @@ const {
   searchNeteaseSongs,
 } = require('./server-dist/server/services/netease-orchestration');
 const {
+  fetchQQPlaylistTracks: fetchQQPlaylistTracksService,
+  fetchQQUserPlaylists: fetchQQUserPlaylistsService,
+  searchQQSongs,
+} = require('./server-dist/server/services/qq-orchestration');
+const {
   decodeHtmlEntities,
   decodeQQLyricText,
   normalizeQQSongId,
@@ -773,60 +778,20 @@ async function qqGetJSON(targetUrl, params, opts) {
 }
 
 async function handleQQUserPlaylists() {
-  const info = await getQQLoginInfo();
-  if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', playlists: [] };
-  const uin = info.userId;
-  const createdReq = qqGetJSON('https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss', {
-    hostUin: 0,
-    hostuin: uin,
-    sin: 0,
-    size: 200,
-    g_tk: 5381,
-    loginUin: uin,
-    format: 'json',
-    inCharset: 'utf8',
-    outCharset: 'utf-8',
-    notice: 0,
-    platform: 'yqq.json',
-    needNewCode: 0,
-  }, { headers: { Referer: 'https://y.qq.com/portal/profile.html' } });
-  const collectReq = qqGetJSON('https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg', {
-    ct: 20,
-    cid: 205360956,
-    userid: uin,
-    reqtype: 3,
-    sin: 0,
-    ein: 80,
-  }, { headers: { Referer: 'https://y.qq.com/portal/profile.html' } });
-  const [createdRaw, collectRaw] = await Promise.allSettled([createdReq, collectReq]);
-  const created = createdRaw.status === 'fulfilled' && createdRaw.value && createdRaw.value.data && Array.isArray(createdRaw.value.data.disslist)
-    ? createdRaw.value.data.disslist.map(pl => mapQQPlaylist(pl, 'created')) : [];
-  const collected = collectRaw.status === 'fulfilled' && collectRaw.value && collectRaw.value.data && Array.isArray(collectRaw.value.data.cdlist)
-    ? collectRaw.value.data.cdlist.map(pl => mapQQPlaylist(pl, 'collect')) : [];
-  const playlists = uniqueQQPlaylists(created.concat(collected));
-  return { loggedIn: true, provider: 'qq', userId: uin, playlists };
+  return fetchQQUserPlaylistsService({
+    getQQLoginInfo,
+    qqGetJSON,
+    mapQQPlaylist,
+    uniqueQQPlaylists,
+  });
 }
 
 async function handleQQPlaylistTracks(id) {
-  const info = await getQQLoginInfo();
-  if (!info.loggedIn || !info.userId) return { loggedIn: false, provider: 'qq', tracks: [] };
-  const pid = String(id || '').trim();
-  if (!pid) return { loggedIn: true, provider: 'qq', error: 'Missing QQ playlist id', tracks: [] };
-  const result = await qqGetJSON('https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg', {
-    type: 1,
-    utf8: 1,
-    disstid: pid,
-    loginUin: info.userId,
-    format: 'json',
-    inCharset: 'utf8',
-    outCharset: 'utf-8',
-    notice: 0,
-    platform: 'yqq.json',
-    needNewCode: 0,
-  }, { headers: { Referer: 'https://y.qq.com/n/yqq/playlist' } });
-  const detail = result && result.cdlist && result.cdlist[0] ? result.cdlist[0] : {};
-  const { playlist, tracks } = buildQQPlaylistTracksPayload(pid, detail);
-  return { loggedIn: true, provider: 'qq', playlist, tracks };
+  return fetchQQPlaylistTracksService(id, {
+    getQQLoginInfo,
+    qqGetJSON,
+    buildQQPlaylistTracksPayload,
+  });
 }
 
 async function qqSmartboxSearch(keywords, limit) {
@@ -898,18 +863,12 @@ async function handleQQArtistDetail(mid, limit) {
 }
 
 async function handleQQSearch(keywords, limit) {
-  const kw = String(keywords || '').trim();
-  if (!kw) return [];
-  console.log('[QQSearch]', kw, 'limit:', limit);
-  const base = await qqSmartboxSearch(kw, limit);
-  const detailed = await Promise.all(base.map(async item => {
-    try { return await qqSongDetail(item.mid, item); }
-    catch (e) {
-      console.warn('[QQSearch] detail failed:', item.mid, e.message);
-      return item;
-    }
-  }));
-  return uniqueNamedQQSongs(detailed);
+  return searchQQSongs(keywords, limit, {
+    qqSmartboxSearch,
+    qqSongDetail,
+    uniqueNamedQQSongs,
+    logger: console,
+  });
 }
 
 async function handleQQSongUrl(mid, mediaMid, qualityPreference) {

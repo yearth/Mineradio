@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`
-- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts weather radio orchestration into `server/services/weather-orchestration.ts`.
+- Worktree: provider orchestration cleanup is in progress; latest verified slice extracts QQ search/user-playlist/playlist-track orchestration into `server/services/qq-orchestration.ts`.
 - Current phase: provider orchestration cleanup, keeping root `server.js` as the compatibility entry and dependency-injection boundary.
 - Stage 1 is complete: TypeScript tooling, server skeleton, structure guard test, and roadmap are committed.
 - Stage 2 first slice is committed: `server/router.ts` describes the legacy API surface by owner, and `tests/server-router.test.js` checks it against actual `server.js` path dispatch.
@@ -105,9 +105,19 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - Provider orchestration first slice is complete: `server/services/netease-orchestration.ts` now owns Netease search result mapping/cover-backfill orchestration and discover-home aggregation; `server.js` keeps thin `handleSearch`/`handleDiscoverHome` wrappers that inject current cookies, Netease API functions, mappers, clock, and logger.
 - Provider orchestration second slice is complete: `server/services/netease-orchestration.ts` now owns authenticated podcast collection item orchestration for `collect`, `created`, `paid`, `liked`, and unknown keys; `server.js` keeps a thin `fetchMyPodcastItems` wrapper that injects current cookies, Netease API functions, mapper helpers, clock, and logger.
 - Provider orchestration third slice is complete: `server/services/weather-orchestration.ts` now owns weather-radio provider fallback, seed search fan-out, mood-keyword top-up, ordering, and response assembly; `server.js` keeps a thin `buildWeatherRadio` wrapper that injects weather provider/search/order/default-location/clock/logger dependencies.
+- Provider orchestration fourth slice is complete: `server/services/qq-orchestration.ts` now owns QQ search smartbox/detail enrichment, QQ user playlist created/collected fan-out and merge, and QQ playlist track detail payload orchestration; `server.js` keeps thin wrappers that inject current QQ login/request/mapping/dedupe helpers.
 - User explicitly asked to keep handoff current to avoid context-compression drift.
 
 ## Latest Slice Verification
+
+QQ search/user-playlist/playlist-track orchestration extraction:
+
+- Initial RED: `npm run build:ts && node --test tests/qq-orchestration-service.test.js` failed with `Cannot find module '../server-dist/server/services/qq-orchestration'`.
+- New service functions: `server/services/qq-orchestration.ts` exports `searchQQSongs(...)`, `fetchQQUserPlaylists(...)`, and `fetchQQPlaylistTracks(...)`; root `server.js` keeps `handleQQSearch(...)`, `handleQQUserPlaylists(...)`, and `handleQQPlaylistTracks(...)` as dependency-injection wrappers around current QQ login/request/mapping/dedupe helpers.
+- Service tests cover blank search short-circuiting, QQ detail enrichment fallback, logged-out playlist defaults, created+collected playlist merge, created-list failure fallback, collected-list failure fallback, logged-out/missing playlist id defaults, and playlist track mapping.
+- Focused/static verification: `npm run build:ts && node --test tests/qq-orchestration-service.test.js tests/qq-controller.test.js tests/qq-composition.test.js tests/music-routes.test.js tests/music-mapper-service.test.js tests/qq-utils-service.test.js && node --check server.js && npm run typecheck && git diff --check` passed, 182 tests.
+- Final full verification: `npm test && npm run coverage` passed in non-sandbox mode because request-client tests need to bind `127.0.0.1`; 510 tests passed; production-code line coverage `100.00%`, including `server.js` and `server-dist/server/services/qq-orchestration.js` at `100.00%`.
+- QA subagent review: `PASS`. Read-only QA verified behavior parity for search, playlist login gates, `Promise.allSettled` playlist fan-out, missing playlist id, track mapping, test coverage, and generated-file staging risk. QA noted the opposite one-sided playlist failure case was optional; a collected-list failure test was added before final full verification.
 
 Weather radio orchestration extraction:
 
