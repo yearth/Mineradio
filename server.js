@@ -295,6 +295,9 @@ const {
 const {
   handleMediaRoutes,
 } = require('./server-dist/server/controllers/media-controller');
+const {
+  dispatchRootRoute,
+} = require('./server-dist/server/root-dispatcher');
 
 const APP_PACKAGE = readPackageInfo();
 const APP_CONFIG = buildAppConfig({
@@ -1125,84 +1128,50 @@ const server = createHttpServer({
   requestHandler: createRequestHandler({
     port: PORT,
     handleRequest: async ({ req, res, url, pathname: pn }) => {
-
-  if (await handleAppRoutes(createAppRouteContext(
-    appRouteDependencies,
-    { pathname: pn, res }
-  ))) return;
-
-  if (await handleUpdateRoutes(createUpdateRouteContext(
-    updateRouteDependencies,
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleBeatmapRoutes(createBeatmapRouteContext(
-    beatmapRouteDependencies,
-    { pathname: pn, url, req, res }
-  ))) return;
-
-  if (await handleDiscoverRoutes(createDiscoverRouteContext(
-    createDiscoverRouteDependencies(),
-    { pathname: pn, res }
-  ))) return;
-
-  if (await handleWeatherRoutes(createWeatherRouteContext(
-    createWeatherRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleSearchRoutes(createSearchRouteContext(
-    createSearchRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleQQRoutes(createQQRouteContext(
-    createQQRouteDependencies(),
-    { pathname: pn, url, req, res }
-  ))) return;
-
-  if (await handlePodcastPublicRoutes(createPodcastRouteContext(
-    createPodcastRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handlePodcastAuthenticatedRoutes(createPodcastRouteContext(
-    createPodcastRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (pn === NETEASE_SONG_URL_ROUTE && await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
-    createNeteaseMediaRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleNeteaseAuthRoutes(createNeteaseAuthRouteContext(
-    createNeteaseAuthRouteDependencies(),
-    { pathname: pn, url, req, res }
-  ))) return;
-
-  if (await handlePodcastBeatmapRoutes(createPodcastRouteContext(
-    createPodcastRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleNeteaseLibraryRoutes(createNeteaseLibraryRouteContext(
-    createNeteaseLibraryRouteDependencies(),
-    { pathname: pn, url, req, res }
-  ))) return;
-
-  if (await handleNeteaseMediaRoutes(createNeteaseMediaRouteContext(
-    createNeteaseMediaRouteDependencies(),
-    { pathname: pn, url, res }
-  ))) return;
-
-  if (await handleMediaRoutes(createMediaRouteContext(
-    createMediaRouteDependencies(),
-    { pathname: pn, url, req, res }
-  ))) return;
-
-  // ---------- 静态资源 ----------
-  serveStatic(res, resolveStaticFilePath(pn, __dirname));
+      await dispatchRootRoute({ pathname: pn, url, req, res }, {
+        neteaseSongUrlRoute: NETEASE_SONG_URL_ROUTE,
+        rootDir: __dirname,
+        appRouteDependencies,
+        updateRouteDependencies,
+        beatmapRouteDependencies,
+        createDiscoverRouteDependencies,
+        createWeatherRouteDependencies,
+        createSearchRouteDependencies,
+        createQQRouteDependencies,
+        createPodcastRouteDependencies,
+        createNeteaseMediaRouteDependencies,
+        createNeteaseAuthRouteDependencies,
+        createNeteaseLibraryRouteDependencies,
+        createMediaRouteDependencies,
+        createAppRouteContext,
+        createUpdateRouteContext,
+        createBeatmapRouteContext,
+        createDiscoverRouteContext,
+        createWeatherRouteContext,
+        createSearchRouteContext,
+        createQQRouteContext,
+        createPodcastRouteContext,
+        createNeteaseMediaRouteContext,
+        createNeteaseAuthRouteContext,
+        createNeteaseLibraryRouteContext,
+        createMediaRouteContext,
+        handleAppRoutes,
+        handleUpdateRoutes,
+        handleBeatmapRoutes,
+        handleDiscoverRoutes,
+        handleWeatherRoutes,
+        handleSearchRoutes,
+        handleQQRoutes,
+        handlePodcastPublicRoutes,
+        handlePodcastAuthenticatedRoutes,
+        handleNeteaseMediaRoutes,
+        handleNeteaseAuthRoutes,
+        handlePodcastBeatmapRoutes,
+        handleNeteaseLibraryRoutes,
+        handleMediaRoutes,
+        resolveStaticFilePath,
+        serveStatic,
+      });
     }
   })
 });
