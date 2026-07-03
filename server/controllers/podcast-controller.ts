@@ -1,3 +1,12 @@
+import {
+  fetchPodcastDetail,
+  fetchPodcastHot,
+  fetchPodcastPrograms,
+  fetchPodcastSearch,
+  fetchUserPodcastCollectionItems,
+  fetchUserPodcastCollections,
+} from '../services/podcast-orchestration';
+
 export type JsonSender = (res: unknown, data: unknown, status?: number) => void;
 
 export type PodcastRouteContext = {
@@ -34,16 +43,8 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
   if (ctx.pathname === '/api/podcast/search') {
     try {
       const kw = String(ctx.url.searchParams.get('keywords') || '').trim();
-      const limit = Math.max(6, Math.min(30, parseInt(ctx.url.searchParams.get('limit') || '18', 10) || 18));
-      if (!kw) {
-        ctx.sendJSON(ctx.res, { podcasts: [] });
-        return true;
-      }
-      const r = await ctx.cloudsearch({ keywords: kw, type: 1009, limit, cookie: ctx.userCookie, timestamp: ctx.timestamp() });
-      const result = (r.body && r.body.result) || {};
-      const raw = result.djRadios || result.djradios || result.radios || [];
-      const podcasts = raw.map(ctx.mapPodcastRadio).filter((podcast: any) => podcast.id);
-      ctx.sendJSON(ctx.res, { podcasts, total: result.djRadiosCount || result.djradiosCount || podcasts.length });
+      const payload = await fetchPodcastSearch(kw, ctx.url.searchParams.get('limit') || '18', ctx);
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[PodcastSearch]', err);
       ctx.sendJSON(ctx.res, { error: err.message, podcasts: [] }, 500);
@@ -53,13 +54,12 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
 
   if (ctx.pathname === '/api/podcast/hot') {
     try {
-      const limit = Math.max(6, Math.min(30, parseInt(ctx.url.searchParams.get('limit') || '18', 10) || 18));
-      const offset = Math.max(0, parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0);
-      const r = await ctx.djHot({ limit, offset, cookie: ctx.userCookie, timestamp: ctx.timestamp() });
-      const body = r.body || {};
-      const raw = body.djRadios || body.djradios || body.radios || body.data || [];
-      const podcasts = (Array.isArray(raw) ? raw : []).map(ctx.mapPodcastRadio).filter((podcast: any) => podcast.id);
-      ctx.sendJSON(ctx.res, { podcasts, more: !!body.hasMore });
+      const payload = await fetchPodcastHot(
+        ctx.url.searchParams.get('limit') || '18',
+        ctx.url.searchParams.get('offset') || '0',
+        ctx
+      );
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[PodcastHot]', err);
       ctx.sendJSON(ctx.res, { error: err.message, podcasts: [] }, 500);
@@ -74,10 +74,8 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
         ctx.sendJSON(ctx.res, { error: 'Missing podcast id' }, 400);
         return true;
       }
-      const r = await ctx.djDetail({ rid, cookie: ctx.userCookie, timestamp: ctx.timestamp() });
-      const body = r.body || {};
-      const radio = ctx.mapPodcastRadio(body.data || body.djRadio || body.radio || body);
-      ctx.sendJSON(ctx.res, { podcast: radio });
+      const payload = await fetchPodcastDetail(rid, ctx);
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[PodcastDetail]', err);
       ctx.sendJSON(ctx.res, { error: err.message }, 500);
@@ -92,16 +90,13 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
         ctx.sendJSON(ctx.res, { error: 'Missing podcast id', programs: [] }, 400);
         return true;
       }
-      const limit = Math.max(10, Math.min(60, parseInt(ctx.url.searchParams.get('limit') || '30', 10) || 30));
-      const offset = Math.max(0, parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0);
-      const r = await ctx.djProgram({ rid, limit, offset, asc: false, cookie: ctx.userCookie, timestamp: ctx.timestamp() });
-      const body = r.body || {};
-      const raw = body.programs || (body.data && (body.data.list || body.data.programs)) || [];
-      const radio = raw[0] && raw[0].radio ? ctx.mapPodcastRadio(raw[0].radio) : { id: rid, rid };
-      const programs = (Array.isArray(raw) ? raw : [])
-        .map((program: any) => ctx.mapPodcastProgram(program, radio))
-        .filter((program: any) => program.id && program.name);
-      ctx.sendJSON(ctx.res, { radio, programs, more: !!body.more, total: body.count || programs.length });
+      const payload = await fetchPodcastPrograms(
+        rid,
+        ctx.url.searchParams.get('limit') || '30',
+        ctx.url.searchParams.get('offset') || '0',
+        ctx
+      );
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[PodcastPrograms]', err);
       ctx.sendJSON(ctx.res, { error: err.message, programs: [] }, 500);
@@ -115,23 +110,8 @@ export async function handlePodcastPublicRoutes(ctx: PodcastRouteContext): Promi
 export async function handlePodcastAuthenticatedRoutes(ctx: PodcastRouteContext): Promise<boolean> {
   if (ctx.pathname === '/api/podcast/my') {
     try {
-      const info = await ctx.getLoginInfo();
-      if (!info.loggedIn || !info.userId) {
-        const empty = ['collect', 'created', 'liked'].map(key => ctx.podcastCollectionMeta(key, []));
-        ctx.sendJSON(ctx.res, { loggedIn: false, collections: empty });
-        return true;
-      }
-      const keys = ['collect', 'created', 'liked'];
-      const collections = await Promise.all(keys.map(async key => {
-        try {
-          const data = await ctx.fetchMyPodcastItems(key, info, 12, 0);
-          return ctx.podcastCollectionMeta(key, data.items || []);
-        } catch (err: any) {
-          ctx.logger.warn('[MyPodcast]', key, err.message);
-          return ctx.podcastCollectionMeta(key, []);
-        }
-      }));
-      ctx.sendJSON(ctx.res, { loggedIn: true, collections });
+      const payload = await fetchUserPodcastCollections(ctx);
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[MyPodcast]', err);
       ctx.sendJSON(ctx.res, { error: err.message, collections: [] }, 500);
@@ -141,22 +121,11 @@ export async function handlePodcastAuthenticatedRoutes(ctx: PodcastRouteContext)
 
   if (ctx.pathname === '/api/podcast/my/items') {
     try {
-      const info = await ctx.getLoginInfo();
-      if (!info.loggedIn || !info.userId) {
-        ctx.sendJSON(ctx.res, { loggedIn: false, items: [] });
-        return true;
-      }
       const key = String(ctx.url.searchParams.get('key') || 'collect');
       const limit = parseInt(ctx.url.searchParams.get('limit') || '36', 10) || 36;
       const offset = parseInt(ctx.url.searchParams.get('offset') || '0', 10) || 0;
-      const data = await ctx.fetchMyPodcastItems(key, info, limit, offset);
-      ctx.sendJSON(ctx.res, {
-        loggedIn: true,
-        key,
-        ...ctx.podcastCollectionMeta(key, data.items || []),
-        itemType: data.itemType,
-        items: data.items || [],
-      });
+      const payload = await fetchUserPodcastCollectionItems(key, limit, offset, ctx);
+      ctx.sendJSON(ctx.res, payload);
     } catch (err: any) {
       ctx.logger.error('[MyPodcastItems]', err);
       ctx.sendJSON(ctx.res, { error: err.message, items: [] }, 500);
