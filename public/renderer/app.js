@@ -14757,6 +14757,10 @@ updateSearchModeTabs();
 function songProviderKey(song) {
   return window.MineradioSearchLogic.songProviderKey(song);
 }
+var playerQueueHelpers = window.MineradioPlayerQueue.createPlayerQueueHelpers({
+  cloneSong: cloneSong,
+  songProviderKey: songProviderKey,
+});
 function songSourceTagHtml(song) {
   var key = songProviderKey(song);
   var label = key === 'qq' ? 'QQ' : 'NE';
@@ -15240,12 +15244,7 @@ function bindVolumeControls() {
 //  播放队列
 // ============================================================
 function queueItemKey(song) {
-  if (!song) return '';
-  if (song.provider === 'qq' || song.source === 'qq' || song.type === 'qq') return 'qq:' + (song.mid || song.songmid || song.id || (song.name + '|' + song.artist));
-  if (song.type === 'podcast' && song.programId) return 'podcast:' + song.programId;
-  if (song.localKey) return 'local:' + song.localKey;
-  if (song.id != null && song.id !== '') return 'song:' + song.id;
-  return String(song.name || '') + '|' + String(song.artist || '');
+  return playerQueueHelpers.queueItemKey(song);
 }
 function queueSong(song, opts) {
   opts = opts || {};
@@ -15301,14 +15300,10 @@ function openQueueArtist(i) {
   if (song) openArtistDetailForSong(song);
 }
 function moveQueueIndexToTop(idx) {
-  idx = Number(idx);
-  if (!isFinite(idx) || idx < 0 || idx >= playQueue.length) return -1;
-  if (idx === 0) return 0;
-  var item = playQueue.splice(idx, 1)[0];
-  playQueue.unshift(item);
-  if (currentIdx === idx) currentIdx = 0;
-  else if (currentIdx >= 0 && currentIdx < idx) currentIdx += 1;
-  return 0;
+  var queueState = { playQueue: playQueue, currentIdx: currentIdx };
+  var result = playerQueueHelpers.moveQueueIndexToTop(queueState, idx);
+  currentIdx = queueState.currentIdx;
+  return result;
 }
 function playSearchResult(i) {
   var song = playlist[i]; if (!song) return;
@@ -15330,28 +15325,13 @@ function playSearchResult(i) {
 var firstPlayDone = false;
 
 function playbackProviderLabel(song) {
-  return songProviderKey(song) === 'qq' ? 'QQ 音乐' : '网易云';
+  return playerQueueHelpers.playbackProviderLabel(song);
 }
 function playbackLoginProvider(song) {
-  return songProviderKey(song) === 'qq' ? 'qq' : 'netease';
+  return playerQueueHelpers.playbackLoginProvider(song);
 }
 function playbackRestrictionMessage(song, data) {
-  data = data || {};
-  var restriction = data.restriction || {};
-  var category = data.reason || restriction.category || '';
-  var provider = playbackProviderLabel(song);
-  var message = data.message || restriction.message || '';
-  if (!message) {
-    if (category === 'login_required') message = provider + '需要登录后再尝试播放';
-    else if (category === 'vip_required') message = provider + '歌曲需要会员权限';
-    else if (category === 'paid_required') message = provider + '歌曲需要购买或更高权限';
-    else if (category === 'trial_only') message = provider + '仅返回试听片段';
-    else if (category === 'copyright_unavailable') message = provider + '版权暂不可播';
-    else message = provider + '没有返回可播放地址';
-  }
-  if (category === 'login_required') return message + ' · 正在打开登录';
-  if (category === 'copyright_unavailable' || category === 'url_unavailable') return message + ' · 可以试试另一个平台版本';
-  return message;
+  return playerQueueHelpers.playbackRestrictionMessage(song, data);
 }
 function qqPlaybackRetryQualities(requestedQuality, resolvedLevel) {
   requestedQuality = normalizePlaybackQuality(requestedQuality || playbackQuality);

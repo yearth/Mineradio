@@ -12,6 +12,7 @@ const rendererPreferencesPath = path.join(root, 'public', 'renderer', 'core', 'p
 const rendererUpdateStatePath = path.join(root, 'public', 'renderer', 'core', 'update-state.js');
 const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', 'lyrics-parser.js');
 const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
+const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
 const packageJson = require('../package.json');
 
@@ -196,6 +197,63 @@ test('renderer app wires search logic through the core search module', () => {
   assert.match(renderer, /MineradioSearchLogic\.mergeSongSearchResults/);
   assert.match(renderer, /MineradioSearchLogic\.rememberSearchQuery/);
   assert.doesNotMatch(renderer, /function scoreSongSearchResult\s*\(song, q, sourceIndex\)\s*\{[\s\S]*?var qAsksDerivative/);
+});
+
+test('renderer core scripts expose required browser globals before app boot', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const requiredCoreGlobals = [
+    'MineradioApiClient',
+    'MineradioPreferences',
+    'MineradioUpdateState',
+    'MineradioLyricsParser',
+    'MineradioSearchLogic',
+    'MineradioPlayerQueue',
+  ];
+  const browserContext = {
+    window: {},
+    console: { warn() {}, error() {}, log() {} },
+    setTimeout() { return 0; },
+    clearTimeout() {},
+  };
+
+  assert.ok(rendererIndex > -1, 'renderer/app.js must be loaded');
+  for (const script of scripts.slice(0, rendererIndex)) {
+    if (!script.startsWith('renderer/core/')) continue;
+    const filePath = path.join(root, 'public', script);
+    vm.runInNewContext(readProjectFile(filePath), browserContext, { filename: filePath });
+  }
+
+  for (const name of requiredCoreGlobals) {
+    assert.ok(browserContext.window[name], `${name} must exist before renderer/app.js executes`);
+  }
+
+  const renderer = readProjectFile(rendererPath);
+  const appNamespaces = [...renderer.matchAll(/window\.(Mineradio[A-Za-z]+)/g)].map(match => match[1]);
+  assert.ok(appNamespaces.length >= requiredCoreGlobals.length, 'renderer app should reference core namespaces');
+  for (const name of appNamespaces) {
+    assert.ok(browserContext.window[name], `${name} is referenced by app.js but is not loaded first`);
+  }
+});
+
+test('renderer app wires player queue through the core player queue module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const playerQueueIndex = scripts.indexOf('renderer/core/player-queue.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const playerQueue = readProjectFile(rendererPlayerQueuePath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(playerQueueIndex > -1, 'renderer/core/player-queue.js must be loaded');
+  assert.ok(playerQueueIndex < rendererIndex, 'core player queue must load before renderer/app.js');
+  vm.runInNewContext(playerQueue, browserContext, { filename: rendererPlayerQueuePath });
+  assert.equal(typeof browserContext.window.MineradioPlayerQueue.createPlayerQueueHelpers, 'function');
+  assert.match(renderer, /MineradioPlayerQueue\.createPlayerQueueHelpers/);
+  assert.match(renderer, /playerQueueHelpers\.queueItemKey/);
+  assert.match(renderer, /playerQueueHelpers\.moveQueueIndexToTop/);
+  assert.match(renderer, /playerQueueHelpers\.playbackRestrictionMessage/);
 });
 
 test('inline HTML event handlers call functions defined by the renderer', () => {

@@ -6,6 +6,7 @@ const {
   cloneSong,
   queueSong,
   queueSongNext,
+  createPlayerQueueHelpers,
   moveQueueIndexToTop,
   playSearchResultInQueue,
   playbackProviderLabel,
@@ -68,4 +69,18 @@ test('cloneSong makes a shallow data copy before queue mutation', () => {
   const cloned = cloneSong(song);
   assert.deepEqual(cloned, song);
   assert.notEqual(cloned, song);
+});
+
+test('queue helpers can inject cloneSong to preserve renderer cover hydration', () => {
+  const source = { id: 1, name: 'A', customCover: 'cover://a' };
+  const state = { playQueue: [], currentIdx: -1 };
+  const helpers = createPlayerQueueHelpers({
+    cloneSong(song) {
+      return Object.assign({}, song || {}, { cover: song && song.customCover });
+    },
+  });
+
+  assert.equal(helpers.queueSong(state, source), 0);
+  assert.deepEqual(state.playQueue[0], { id: 1, name: 'A', customCover: 'cover://a', cover: 'cover://a' });
+  assert.notEqual(state.playQueue[0], source);
 });
