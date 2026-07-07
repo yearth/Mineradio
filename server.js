@@ -37,8 +37,8 @@ const {
   buildAppConfig,
 } = require('./server-dist/server/runtime/app-config');
 const {
-  createNeteaseApiRuntime,
-} = require('./server-dist/server/runtime/netease-api-runtime');
+  createNeteaseProviderRuntime,
+} = require('./server-dist/server/runtime/netease-provider-runtime');
 const {
   serveStatic: serveStaticFile,
 } = require('./server-dist/server/static-utils');
@@ -269,49 +269,47 @@ const OPEN_METEO_GEOCODE_URL = APP_CONFIG.openMeteoGeocodeUrl;
 const WEATHER_IP_LOCATION_URL = APP_CONFIG.weatherIpLocationUrl;
 const WEATHER_DEFAULT_LOCATION = APP_CONFIG.weatherDefaultLocation;
 
-const neteaseApiRuntime = createNeteaseApiRuntime(neteaseApiDefaults);
-function callNeteaseApi(name, args, displayName) {
-  const fn = neteaseApiRuntime.current()[name];
-  if (typeof fn !== 'function') throw new TypeError(`${displayName || name} is not a function`);
-  return fn(...args);
-}
-const search = (...args) => callNeteaseApi('search', args);
-const cloudsearch = (...args) => callNeteaseApi('cloudsearch', args);
-const song_detail = (...args) => callNeteaseApi('song_detail', args);
-const song_url = (...args) => callNeteaseApi('song_url', args);
-const song_url_v1 = (...args) => callNeteaseApi('song_url_v1', args);
-const login_qr_key = (...args) => callNeteaseApi('login_qr_key', args);
-const login_qr_create = (...args) => callNeteaseApi('login_qr_create', args);
-const login_qr_check = (...args) => callNeteaseApi('login_qr_check', args);
-const login_status = (...args) => callNeteaseApi('login_status', args);
-const logout = (...args) => callNeteaseApi('logout', args);
-const user_account = (...args) => callNeteaseApi('user_account', args);
-const user_playlist = (...args) => callNeteaseApi('user_playlist', args);
-const comment_music = (...args) => callNeteaseApi('comment_music', args);
-const artist_detail = (...args) => callNeteaseApi('artist_detail', args);
-const artist_top_song = (...args) => callNeteaseApi('artist_top_song', args);
-const artist_songs = (...args) => callNeteaseApi('artist_songs', args);
-const like_song = (...args) => callNeteaseApi('like', args, 'like_song');
-const likelist = (...args) => callNeteaseApi('likelist', args);
-const song_like_check = (...args) => callNeteaseApi('song_like_check', args);
-const playlist_tracks = (...args) => callNeteaseApi('playlist_tracks', args);
-const playlist_track_add = (...args) => callNeteaseApi('playlist_track_add', args);
-const playlist_create = (...args) => callNeteaseApi('playlist_create', args);
-const playlist_detail = (...args) => callNeteaseApi('playlist_detail', args);
-const playlist_track_all = (...args) => callNeteaseApi('playlist_track_all', args);
-const personalized = (...args) => callNeteaseApi('personalized', args);
-const recommend_resource = (...args) => callNeteaseApi('recommend_resource', args);
-const recommend_songs = (...args) => callNeteaseApi('recommend_songs', args);
-const dj_detail = (...args) => callNeteaseApi('dj_detail', args);
-const dj_program = (...args) => callNeteaseApi('dj_program', args);
-const dj_hot = (...args) => callNeteaseApi('dj_hot', args);
-const dj_sublist = (...args) => callNeteaseApi('dj_sublist', args);
-const user_audio = (...args) => callNeteaseApi('user_audio', args);
-const dj_paygift = (...args) => callNeteaseApi('dj_paygift', args);
-const record_recent_voice = (...args) => callNeteaseApi('record_recent_voice', args);
-const sati_resource_sub_list = (...args) => callNeteaseApi('sati_resource_sub_list', args);
-const lyric = (...args) => callNeteaseApi('lyric', args);
-const lyric_new = (...args) => callNeteaseApi('lyric_new', args);
+const neteaseProvider = createNeteaseProviderRuntime(neteaseApiDefaults);
+const neteaseApiRuntime = neteaseProvider.runtime;
+const {
+  search,
+  cloudsearch,
+  song_detail,
+  song_url,
+  song_url_v1,
+  login_qr_key,
+  login_qr_create,
+  login_qr_check,
+  login_status,
+  logout,
+  user_account,
+  user_playlist,
+  comment_music,
+  artist_detail,
+  artist_top_song,
+  artist_songs,
+  like_song,
+  likelist,
+  song_like_check,
+  playlist_tracks,
+  playlist_track_add,
+  playlist_create,
+  playlist_detail,
+  playlist_track_all,
+  personalized,
+  recommend_resource,
+  recommend_songs,
+  dj_detail,
+  dj_program,
+  dj_hot,
+  dj_sublist,
+  user_audio,
+  dj_paygift,
+  record_recent_voice,
+  sati_resource_sub_list,
+  lyric,
+  lyric_new,
+} = neteaseProvider.api;
 
 const updateRuntime = createUpdateRuntime();
 const updateDownloadJobs = updateRuntime.jobs;
