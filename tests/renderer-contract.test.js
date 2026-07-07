@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const indexHtmlPath = path.join(root, 'public', 'index.html');
 const rendererPath = path.join(root, 'public', 'renderer', 'app.js');
+const rendererApiClientPath = path.join(root, 'public', 'renderer', 'core', 'api-client.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
 const packageJson = require('../package.json');
 
@@ -101,6 +102,23 @@ test('index.html keeps the classic renderer boot order stable', () => {
   assert.equal(scripts.at(-1), 'renderer/app.js');
   assert.ok(stylesheetIndex > -1, 'styles/app.css stylesheet link is required');
   assert.ok(rendererIndex > 3, 'renderer/app.js must load after vendor and preload scripts');
+});
+
+test('renderer app wires apiJson through the core API client', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const apiClientIndex = scripts.indexOf('renderer/core/api-client.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const apiClient = readProjectFile(rendererApiClientPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(apiClientIndex > -1, 'renderer/core/api-client.js must be loaded');
+  assert.ok(apiClientIndex < rendererIndex, 'core API client must load before renderer/app.js');
+  vm.runInNewContext(apiClient, browserContext, { filename: rendererApiClientPath });
+  assert.equal(typeof browserContext.window.MineradioApiClient.createApiJson, 'function');
+  assert.match(renderer, /MineradioApiClient\.createApiJson/);
+  assert.doesNotMatch(renderer, /async function apiJson\s*\(/);
 });
 
 test('inline HTML event handlers call functions defined by the renderer', () => {
