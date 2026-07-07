@@ -27,9 +27,6 @@ const {
   createSessionRuntime,
 } = require('./server-dist/server/runtime/session-runtime');
 const {
-  createRequestRuntime,
-} = require('./server-dist/server/runtime/request-runtime');
-const {
   createUpdateRuntime,
 } = require('./server-dist/server/runtime/update-runtime');
 const {
@@ -61,12 +58,8 @@ const {
 const {
   normalizeCookieHeader,
   normalizeQQCookieInput,
-  normalizeQQProfile: normalizeQQProfileService,
   normalizeQQUin,
   parseCookieString,
-  qqCookieMusicKey: qqCookieMusicKeyService,
-  qqCookiePlaybackKey: qqCookiePlaybackKeyService,
-  qqCookieUin: qqCookieUinService,
   rawCookieFallback,
 } = require('./server-dist/server/services/cookie-session');
 const {
@@ -108,7 +101,6 @@ const {
 } = require('./server-dist/server/services/netease-orchestration');
 const {
   fetchQQArtistDetail,
-  fetchQQLoginInfo,
   fetchQQPlaylistTracks: fetchQQPlaylistTracksService,
   fetchQQLyric,
   fetchQQSongComments,
@@ -136,13 +128,8 @@ const {
 const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
-  buildQQProfileUrl,
   buildQQSongCommentsPayload,
   mapQQPlaylist,
-  parseJSONText,
-  requestQQGetJson,
-  requestQQMusicJson,
-  requestQQSmartboxSearch,
   qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
 const {
@@ -150,10 +137,6 @@ const {
   readBeatMapCache: readBeatMapCacheService,
   writeBeatMapCache: writeBeatMapCacheService,
 } = require('./server-dist/server/services/beatmap-cache');
-const {
-  requestJson: requestJsonService,
-  requestText: requestTextService,
-} = require('./server-dist/server/services/request-client');
 const {
   buildAppVersionPayload,
   readPackageInfo: readPackageInfoService,
@@ -171,6 +154,9 @@ const {
 const {
   createUpdateRuntimeAdapters,
 } = require('./server-dist/server/composition/update-runtime-adapters');
+const {
+  createQQRequestAdapters,
+} = require('./server-dist/server/composition/qq-request-adapters');
 const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
@@ -325,18 +311,6 @@ function readBeatMapCache(key) {
 function writeBeatMapCache(body) {
   return writeBeatMapCacheService(body, BEATMAP_CACHE_DIR);
 }
-function qqCookieObject() {
-  return parseCookieString(currentQQCookie());
-}
-function qqCookieUin(obj) {
-  return qqCookieUinService(obj || qqCookieObject());
-}
-function qqCookieMusicKey(obj) {
-  return qqCookieMusicKeyService(obj || qqCookieObject());
-}
-function qqCookiePlaybackKey(obj) {
-  return qqCookiePlaybackKeyService(obj || qqCookieObject());
-}
 async function requireLogin(res) {
   const info = await getLoginInfo();
   if (!isNeteaseLoginReady(info)) {
@@ -375,24 +349,27 @@ async function handleDiscoverHome() {
   });
 }
 
-const QQ_MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
-const QQ_SMARTBOX_URL = 'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg';
-const QQ_HEADERS = {
-  Referer: 'https://y.qq.com/',
-  'User-Agent': UA,
-};
-
-function baseRequestText(targetUrl, opts, body) {
-  return requestTextService(targetUrl, opts, body, { http, https });
-}
-const requestRuntime = createRequestRuntime({ requestText: baseRequestText });
-function requestText(targetUrl, opts, body) {
-  return requestRuntime.requestText(targetUrl, opts, body);
-}
-
-async function requestJson(targetUrl, opts, body) {
-  return requestJsonService(targetUrl, opts, body, { requestText });
-}
+const qqRequestAdapters = createQQRequestAdapters({
+  http,
+  https,
+  userAgent: UA,
+  getQQCookie: () => currentQQCookie(),
+  logger: console,
+});
+const {
+  requestRuntime,
+  requestText,
+  requestJson,
+  qqCookieObject,
+  qqCookieUin,
+  qqCookieMusicKey,
+  qqCookiePlaybackKey,
+  qqMusicRequest,
+  getQQLoginInfo,
+  qqGetJSON,
+  qqSmartboxSearch,
+  qqSongDetail,
+} = qqRequestAdapters;
 
 async function fetchOpenMeteoWeather(params) {
   return fetchOpenMeteoWeatherService(params, {
@@ -426,46 +403,6 @@ async function buildWeatherRadio(params) {
   });
 }
 
-async function qqMusicRequest(payload, opts) {
-  opts = opts || {};
-  return requestQQMusicJson({
-    payload,
-    url: QQ_MUSICU_URL,
-    baseHeaders: QQ_HEADERS,
-    cookie: currentQQCookie(),
-    includeCookie: !!opts.cookie,
-    requestText,
-  });
-}
-
-async function getQQLoginInfo() {
-  return fetchQQLoginInfo({
-    getQQCookie: () => currentQQCookie(),
-    qqCookieObject,
-    qqCookieUin,
-    qqCookieMusicKey,
-    normalizeQQProfile: (body, cookieObj) => normalizeQQProfileService(body, cookieObj, !!currentQQCookie()),
-    buildQQProfileUrl,
-    parseJSONText,
-    requestText,
-    baseHeaders: QQ_HEADERS,
-    logger: console,
-  });
-}
-
-async function qqGetJSON(targetUrl, params, opts) {
-  opts = opts || {};
-  return requestQQGetJson({
-    url: targetUrl,
-    params,
-    baseHeaders: QQ_HEADERS,
-    headers: opts.headers || {},
-    cookie: currentQQCookie(),
-    includeCookie: opts.cookie !== false,
-    requestText,
-  });
-}
-
 async function handleQQUserPlaylists() {
   return fetchQQUserPlaylistsService({
     getQQLoginInfo,
@@ -481,30 +418,6 @@ async function handleQQPlaylistTracks(id) {
     qqGetJSON,
     buildQQPlaylistTracksPayload,
   });
-}
-
-async function qqSmartboxSearch(keywords, limit) {
-  return requestQQSmartboxSearch({
-    keywords,
-    limit,
-    url: QQ_SMARTBOX_URL,
-    headers: QQ_HEADERS,
-    requestText,
-  });
-}
-
-async function qqSongDetail(mid, fallback) {
-  if (!mid) return fallback;
-  const json = await qqMusicRequest({
-    comm: { ct: 24, cv: 0 },
-    songinfo: {
-      module: 'music.pf_song_detail_svr',
-      method: 'get_song_detail_yqq',
-      param: { song_mid: mid },
-    },
-  });
-  const data = json && json.songinfo && json.songinfo.data;
-  return mapQQTrack(data && data.track_info, fallback);
 }
 
 async function handleQQArtistDetail(mid, limit) {
