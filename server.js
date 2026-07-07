@@ -11,12 +11,8 @@ const https = require('https');
 const fs   = require('fs');
 const path = require('path');
 const tls = require('tls');
-const { once } = require('events');
 const { analyzePodcastDjStream, analyzePodcastDjIntro } = require('./dj-analyzer');
 const { defaultBeatMapCacheDir } = require('./lib/platform-paths');
-const {
-  safeUpdateFileName,
-} = require('./lib/update-utils');
 const {
   createHttpServer,
   createRequestHandler,
@@ -49,74 +45,6 @@ const {
   parseGitHubRepository,
   readUpdateConfig,
 } = require('./server-dist/server/services/update-config');
-const {
-  buildMirrorUrl,
-  uniqueDownloadCandidates: buildUniqueDownloadCandidates,
-} = require('./server-dist/server/services/update-download-candidates');
-const {
-  normalizeManifestUpdateInfo: normalizeManifestUpdateInfoService,
-} = require('./server-dist/server/services/update-manifest');
-const {
-  classifyUpdateError,
-  updateError,
-} = require('./server-dist/server/services/update-errors');
-const {
-  parseLatestYmlUpdateInfo: parseLatestYmlUpdateInfoService,
-} = require('./server-dist/server/services/update-latest-yml');
-const {
-  decodePatchFile,
-  normalizePatchPayload: normalizePatchPayloadService,
-  patchTargetPath: patchTargetPathService,
-  safePatchRelativePath,
-} = require('./server-dist/server/services/update-patch-payload');
-const {
-  activeUpdateJobFor: activeUpdateJobForService,
-  ensureMirrorCanBeVerified,
-  prepareUpdateJobAttempt,
-  publicUpdateJob,
-  setUpdateJobError,
-  trimUpdateJobs: trimUpdateJobsService,
-} = require('./server-dist/server/services/update-job-runtime');
-const {
-  moveInvalidUpdateFile: moveInvalidUpdateFileService,
-  reuseVerifiedInstallerJob: reuseVerifiedInstallerJobService,
-  sha256Hex,
-  verifyUpdateBuffer,
-  verifyUpdateFile: verifyUpdateFileService,
-} = require('./server-dist/server/services/update-file-cache');
-const {
-  startUpdateDownloadJob: startUpdateDownloadJobService,
-  startUpdatePatchJob: startUpdatePatchJobService,
-} = require('./server-dist/server/services/update-job-factory');
-const {
-  writePatchFile: writePatchFileService,
-} = require('./server-dist/server/services/update-patch-apply');
-const {
-  installerProgress,
-  patchProgress,
-  speedBps: updateSpeedBps,
-} = require('./server-dist/server/services/update-progress');
-const {
-  fetchTextFromCandidates: fetchTextFromCandidatesService,
-  localUpdateFallback: localUpdateFallbackService,
-} = require('./server-dist/server/services/update-fetch');
-const {
-  fetchManifestUpdateInfo: fetchManifestUpdateInfoService,
-  readUpdateManifest: readUpdateManifestService,
-} = require('./server-dist/server/services/update-manifest-source');
-const {
-  fetchLatestUpdateInfo: fetchLatestUpdateInfoService,
-  fetchLatestYmlUpdateInfo: fetchLatestYmlUpdateInfoService,
-} = require('./server-dist/server/services/update-check');
-const {
-  downloadPatchBufferFromCandidate: downloadPatchBufferFromCandidateService,
-} = require('./server-dist/server/services/update-patch-download');
-const {
-  downloadUpdateAssetWithMirrors: downloadUpdateAssetWithMirrorsService,
-} = require('./server-dist/server/services/update-installer-download');
-const {
-  downloadAndApplyPatchWithMirrors: downloadAndApplyPatchWithMirrorsService,
-} = require('./server-dist/server/services/update-patch-runner');
 const {
   normalizeApiCode,
   normalizeApiMessage,
@@ -241,6 +169,9 @@ const {
   createRootRouteRuntimeFactories,
 } = require('./server-dist/server/root-runtime-factories');
 const {
+  createUpdateRuntimeAdapters,
+} = require('./server-dist/server/composition/update-runtime-adapters');
+const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
 const {
@@ -316,7 +247,30 @@ const {
 } = neteaseProvider.api;
 
 const updateRuntime = createUpdateRuntime();
-const updateDownloadJobs = updateRuntime.jobs;
+const updateAdapters = createUpdateRuntimeAdapters({
+  fs,
+  path,
+  getFetch: () => fetch,
+  rootDir: __dirname,
+  appVersion: APP_VERSION,
+  updateConfig: UPDATE_CONFIG,
+  updateFallbackNotes: UPDATE_FALLBACK_NOTES,
+  updateDownloadDir: UPDATE_DOWNLOAD_DIR,
+  updatePatchBackupDir: UPDATE_PATCH_BACKUP_DIR,
+  patchMaxBytes: PATCH_MAX_BYTES,
+  updateRuntime,
+  userAgent: `Mineradio/${APP_VERSION}`,
+  logger: console,
+});
+const {
+  updateDownloadJobs,
+  publicUpdateJob,
+  fetchLatestUpdateInfo,
+  localUpdateFallback,
+  startUpdateDownloadJob,
+  startUpdatePatchJob,
+  moveInvalidUpdateFile,
+} = updateAdapters;
 
 function applySystemCertificateAuthorities() {
   try {
@@ -362,42 +316,6 @@ function serveStatic(res, filePath) {
 function readPackageInfo() {
   return readPackageInfoService(path.join(__dirname, 'package.json'), { fs });
 }
-function updateRuntimePlatform() {
-  return updateRuntime.platform(process.platform);
-}
-function updateManifestRef() {
-  return updateRuntime.manifest(UPDATE_CONFIG.manifest);
-}
-function uniqueDownloadCandidates(urls, opts) {
-  opts = opts || {};
-  return buildUniqueDownloadCandidates(urls, {
-    ...opts,
-    mirrors: UPDATE_CONFIG.mirrors || [],
-    preferMirrors: UPDATE_CONFIG.preferMirrors,
-  });
-}
-function normalizeManifestUpdateInfo(data) {
-  return normalizeManifestUpdateInfoService(data, {
-    currentVersion: APP_VERSION,
-    fallbackNotes: UPDATE_FALLBACK_NOTES,
-    uniqueDownloadCandidates,
-  });
-}
-async function readUpdateManifest(ref) {
-  return readUpdateManifestService(ref, {
-    fs,
-    path,
-    fetch,
-    userAgent: `Mineradio/${APP_VERSION}`,
-  });
-}
-async function fetchManifestUpdateInfo(ref) {
-  return fetchManifestUpdateInfoService(ref, {
-    readManifest: readUpdateManifest,
-    normalizeManifestUpdateInfo,
-    localUpdateFallback,
-  });
-}
 function beatCacheRootInfo() {
   return beatCacheRootInfoService(BEATMAP_CACHE_DIR);
 }
@@ -406,173 +324,6 @@ function readBeatMapCache(key) {
 }
 function writeBeatMapCache(body) {
   return writeBeatMapCacheService(body, BEATMAP_CACHE_DIR);
-}
-function localUpdateFallback(reason, opts) {
-  opts = opts || {};
-  return localUpdateFallbackService(reason, {
-    configured: opts.configured,
-    preview: UPDATE_CONFIG.preview,
-    currentVersion: APP_VERSION,
-    fallbackNotes: UPDATE_FALLBACK_NOTES,
-  });
-}
-async function fetchWithTimeout(url, opts, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs || 12000);
-  try {
-    return await fetch(url, Object.assign({}, opts || {}, { signal: controller.signal }));
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function fetchTextFromCandidates(candidates, timeoutMs) {
-  return fetchTextFromCandidatesService(candidates, {
-    timeoutMs,
-    userAgent: `Mineradio/${APP_VERSION}`,
-    fetchWithTimeout,
-    classifyUpdateError,
-  });
-}
-function parseLatestYmlUpdateInfo(text, reason) {
-  return parseLatestYmlUpdateInfoService(text, reason, {
-    currentVersion: APP_VERSION,
-    owner: UPDATE_CONFIG.owner,
-    repo: UPDATE_CONFIG.repo,
-    uniqueDownloadCandidates,
-  });
-}
-async function fetchLatestYmlUpdateInfo(reason) {
-  return fetchLatestYmlUpdateInfoService(reason, {
-    config: UPDATE_CONFIG,
-    updateError,
-    uniqueDownloadCandidates,
-    fetchTextFromCandidates,
-    parseLatestYmlUpdateInfo,
-  });
-}
-async function fetchLatestUpdateInfo() {
-  return fetchLatestUpdateInfoService({
-    platform: updateRuntimePlatform,
-    manifestRef: updateManifestRef,
-    config: UPDATE_CONFIG,
-    currentVersion: APP_VERSION,
-    fallbackNotes: UPDATE_FALLBACK_NOTES,
-    fetch,
-    fetchManifestUpdateInfo,
-    localUpdateFallback,
-    fetchLatestYmlUpdateInfo,
-    uniqueDownloadCandidates,
-  });
-}
-function activeUpdateJobFor(version) {
-  return activeUpdateJobForService(updateDownloadJobs, version);
-}
-function trimUpdateJobs() {
-  trimUpdateJobsService(updateDownloadJobs);
-}
-function verifyUpdateFile(filePath, job) {
-  return verifyUpdateFileService(filePath, job, { fs });
-}
-function moveInvalidUpdateFile(filePath, reason) {
-  return moveInvalidUpdateFileService(filePath, reason, { fs, path, logger: console });
-}
-function reuseVerifiedInstallerJob(opts) {
-  return reuseVerifiedInstallerJobService(opts, {
-    fs,
-    path,
-    jobs: updateDownloadJobs,
-    trimJobs: trimUpdateJobs,
-    moveInvalid: moveInvalidUpdateFile,
-  });
-}
-async function downloadUpdateAssetWithMirrors(job) {
-  return downloadUpdateAssetWithMirrorsService(job, {
-    fs,
-    once,
-    downloadDir: UPDATE_DOWNLOAD_DIR,
-    userAgent: `Mineradio/${APP_VERSION}`,
-    uniqueDownloadCandidates,
-    ensureMirrorCanBeVerified,
-    prepareUpdateJobAttempt,
-    fetchWithTimeout,
-    updateError,
-    updateSpeedBps,
-    installerProgress,
-    verifyUpdateFile,
-    classifyUpdateError,
-    setUpdateJobError,
-  });
-}
-function startUpdateDownloadJob(info) {
-  return startUpdateDownloadJobService(info, {
-    path,
-    jobs: updateDownloadJobs,
-    downloadDir: UPDATE_DOWNLOAD_DIR,
-    safeUpdateFileName,
-    uniqueDownloadCandidates,
-    activeUpdateJobFor,
-    publicUpdateJob,
-    trimUpdateJobs,
-    reuseVerifiedInstallerJob,
-    runDownload: downloadUpdateAssetWithMirrors,
-    autoDownload: updateRuntime.autoDownload(),
-  });
-}
-function patchTargetPath(rel) {
-  return patchTargetPathService(rel, __dirname);
-}
-function writePatchFile(job, file) {
-  return writePatchFileService(job, file, {
-    fs,
-    path,
-    backupDir: UPDATE_PATCH_BACKUP_DIR,
-    patchTargetPath,
-    safePatchRelativePath,
-    decodePatchFile,
-    sha256Hex,
-    maxBytes: PATCH_MAX_BYTES,
-  });
-}
-function normalizePatchPayload(payload) {
-  return normalizePatchPayloadService(payload, { currentVersion: APP_VERSION });
-}
-async function downloadPatchBufferFromCandidate(job, candidate, index, total) {
-  return downloadPatchBufferFromCandidateService(job, candidate, index, total, {
-    patchMaxBytes: PATCH_MAX_BYTES,
-    userAgent: `Mineradio/${APP_VERSION}`,
-    ensureMirrorCanBeVerified,
-    prepareUpdateJobAttempt,
-    fetchWithTimeout,
-    updateError,
-    updateSpeedBps,
-    patchProgress,
-    verifyUpdateBuffer,
-  });
-}
-async function downloadAndApplyPatchWithMirrors(job) {
-  return downloadAndApplyPatchWithMirrorsService(job, {
-    fs,
-    downloadDir: UPDATE_DOWNLOAD_DIR,
-    uniqueDownloadCandidates,
-    downloadPatchBufferFromCandidate,
-    normalizePatchPayload,
-    writePatchFile,
-    classifyUpdateError,
-    setUpdateJobError,
-  });
-}
-function startUpdatePatchJob(info) {
-  return startUpdatePatchJobService(info, {
-    path,
-    jobs: updateDownloadJobs,
-    downloadDir: UPDATE_DOWNLOAD_DIR,
-    safeUpdateFileName,
-    uniqueDownloadCandidates,
-    publicUpdateJob,
-    trimUpdateJobs,
-    runPatch: downloadAndApplyPatchWithMirrors,
-    autoPatch: updateRuntime.autoPatch(),
-  });
 }
 function qqCookieObject() {
   return parseCookieString(currentQQCookie());
