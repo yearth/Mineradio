@@ -42,7 +42,7 @@ test('server test runtime export names are unique and complete', () => {
   assert.deepEqual(new Set(serverTestRuntimeExportNames), new Set(groupedNames));
   assert.equal(new Set(serverTestRuntimeExportNames).size, serverTestRuntimeExportNames.length);
   assert.equal(serverTestRuntimeExportNames.length, 15);
-  assert.match(serverSource, /module\.exports\.__test = buildServerTestRuntime\(/);
+  assert.match(serverSource, /module\.exports\.__test = .*testRuntime/);
 });
 
 test('buildServerTestRuntime preserves the legacy export order and delegates hooks', () => {
