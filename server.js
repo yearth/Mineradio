@@ -47,9 +47,6 @@ const {
   normalizeApiMessage,
 } = require('./server-dist/server/services/provider-response');
 const {
-  getNeteaseLoginInfo,
-  isNeteaseLoginReady,
-  neteaseLoginRequiredPayload,
   normalizeLoginInfo,
   normalizeNeteaseVip,
   pendingNeteaseLoginInfo,
@@ -68,31 +65,17 @@ const {
 } = require('./server-dist/server/services/playback-restriction');
 const {
   NETEASE_QUALITY_CANDIDATES,
-  hasNeteaseSvip,
-  normalizeQualityPreference,
-  qualityCandidatesFrom,
 } = require('./server-dist/server/services/playback-quality');
 const {
-  firstArrayFrom,
-  isLowSignalPodcastItem,
   buildNeteaseSongCommentsPayload,
   mapArtists,
-  mapDiscoverPlaylist,
-  mapPodcastCollectionRadios,
   mapPodcastProgram,
   mapPodcastRadio,
-  mapPodcastVoiceItems,
   mapQQArtists,
   mapSongRecord,
   podcastCollectionMeta,
   qqAlbumCover,
 } = require('./server-dist/server/services/music-mapper');
-const {
-  buildDiscoverHome: buildDiscoverHomeService,
-  fetchNeteaseSongUrl,
-  fetchNeteasePodcastCollectionItems,
-  searchNeteaseSongs,
-} = require('./server-dist/server/services/netease-orchestration');
 const {
   decodeHtmlEntities,
 } = require('./server-dist/server/services/lyric-utils');
@@ -141,6 +124,9 @@ const {
 const {
   createQQRouteAdapters,
 } = require('./server-dist/server/composition/qq-route-adapters');
+const {
+  createNeteaseRouteAdapters,
+} = require('./server-dist/server/composition/netease-route-adapters');
 const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
@@ -295,43 +281,6 @@ function readBeatMapCache(key) {
 function writeBeatMapCache(body) {
   return writeBeatMapCacheService(body, BEATMAP_CACHE_DIR);
 }
-async function requireLogin(res) {
-  const info = await getLoginInfo();
-  if (!isNeteaseLoginReady(info)) {
-    sendJSON(res, neteaseLoginRequiredPayload(), 401);
-    return null;
-  }
-  return info;
-}
-
-// ---------- 业务: 搜索 ----------
-//   优先用 cloudsearch (新接口, 字段更全, picUrl 更稳定)
-//   对于仍然缺失封面的歌曲, 用 song_detail 批量补齐
-async function handleSearch(keywords, limit) {
-  return searchNeteaseSongs(keywords, limit, {
-    cloudsearch,
-    songDetail: song_detail,
-    getUserCookie: () => currentUserCookie(),
-    mapSongRecord,
-    logger: console,
-  });
-}
-
-async function handleDiscoverHome() {
-  return buildDiscoverHomeService({
-    getLoginInfo,
-    getUserCookie: () => currentUserCookie(),
-    personalized,
-    djHot: dj_hot,
-    recommendResource: recommend_resource,
-    recommendSongs: recommend_songs,
-    mapDiscoverPlaylist,
-    mapPodcastRadio,
-    mapSongRecord,
-    isLowSignalPodcastItem,
-    now: Date.now,
-  });
-}
 
 const qqRequestAdapters = createQQRequestAdapters({
   http,
@@ -377,6 +326,62 @@ const {
   handleQQLyric,
 } = qqRouteAdapters;
 
+const getNeteaseApi = () => ({
+  cloudsearch,
+  djHot: dj_hot,
+  djDetail: dj_detail,
+  djProgram: dj_program,
+  lyricNew: lyric_new,
+  lyric,
+  commentMusic: comment_music,
+  artistDetail: artist_detail,
+  artistSongs: artist_songs,
+  artistTopSong: artist_top_song,
+  playlistTrackAll: playlist_track_all,
+  playlistDetail: playlist_detail,
+  loginQrKey: login_qr_key,
+  loginQrCreate: login_qr_create,
+  loginQrCheck: login_qr_check,
+  logout,
+  userPlaylist: user_playlist,
+  songLikeCheck: song_like_check,
+  likelist,
+  likeSong: like_song,
+  playlistCreate: playlist_create,
+  playlistTracks: playlist_tracks,
+  playlistTrackAdd: playlist_track_add,
+  songDetail: song_detail,
+  personalized,
+  recommendResource: recommend_resource,
+  recommendSongs: recommend_songs,
+  djSublist: dj_sublist,
+  userAudio: user_audio,
+  djPaygift: dj_paygift,
+  satiResourceSubList: sati_resource_sub_list,
+  recordRecentVoice: record_recent_voice,
+  songUrlV1: song_url_v1,
+  songUrl: song_url,
+  loginStatus: login_status,
+  userAccount: user_account,
+});
+const neteaseRouteAdapters = createNeteaseRouteAdapters({
+  getUserCookie: () => currentUserCookie(),
+  saveCookie,
+  sendJSON,
+  getNeteaseApi,
+  now: Date.now,
+  logger: console,
+  qualityCandidates: NETEASE_QUALITY_CANDIDATES,
+});
+const {
+  getLoginInfo,
+  requireLogin,
+  handleSearch,
+  handleDiscoverHome,
+  fetchMyPodcastItems,
+  handleSongUrl,
+} = neteaseRouteAdapters;
+
 async function fetchOpenMeteoWeather(params) {
   return fetchOpenMeteoWeatherService(params, {
     defaultLocation: WEATHER_DEFAULT_LOCATION,
@@ -406,49 +411,6 @@ async function buildWeatherRadio(params) {
     defaultLocation: WEATHER_DEFAULT_LOCATION,
     now: Date.now,
     logger: console,
-  });
-}
-
-async function fetchMyPodcastItems(key, info, limit, offset) {
-  return fetchNeteasePodcastCollectionItems(key, info, limit, offset, {
-    djSublist: dj_sublist,
-    userAudio: user_audio,
-    djPaygift: dj_paygift,
-    satiResourceSubList: sati_resource_sub_list,
-    recordRecentVoice: record_recent_voice,
-    getUserCookie: () => currentUserCookie(),
-    firstArrayFrom,
-    mapPodcastCollectionRadios,
-    mapPodcastVoiceItems,
-    now: Date.now,
-    logger: console,
-  });
-}
-
-// ---------- 业务: 取歌曲URL (探测试听) ----------
-//   返回 { url, trial, level, br }
-//   trial=true 表示这是试听片段 (freeTrialInfo 非空)
-async function handleSongUrl(id, loginInfo, qualityPreference) {
-  return fetchNeteaseSongUrl(id, loginInfo, qualityPreference, {
-    getUserCookie: () => currentUserCookie(),
-    songUrlV1: song_url_v1,
-    songUrl: song_url,
-    normalizeQualityPreference,
-    hasNeteaseSvip,
-    qualityCandidatesFrom,
-    qualityCandidates: NETEASE_QUALITY_CANDIDATES,
-    classifyNeteasePlaybackRestriction,
-    logger: console,
-  });
-}
-
-// ---------- 业务: 登录态/用户信息 ----------
-async function getLoginInfo() {
-  return getNeteaseLoginInfo(currentUserCookie(), {
-    loginStatus: login_status,
-    saveCookie,
-    userAccount: user_account,
-    warn: console.warn,
   });
 }
 
@@ -510,31 +472,7 @@ const rootRouteRuntimeFactories = createRootRouteRuntimeFactories({
   now: Date.now,
   logger: console,
   getFetch: () => fetch,
-  getNeteaseApi: () => ({
-    cloudsearch,
-    djHot: dj_hot,
-    djDetail: dj_detail,
-    djProgram: dj_program,
-    lyricNew: lyric_new,
-    lyric,
-    commentMusic: comment_music,
-    artistDetail: artist_detail,
-    artistSongs: artist_songs,
-    artistTopSong: artist_top_song,
-    playlistTrackAll: playlist_track_all,
-    playlistDetail: playlist_detail,
-    loginQrKey: login_qr_key,
-    loginQrCreate: login_qr_create,
-    loginQrCheck: login_qr_check,
-    logout,
-    userPlaylist: user_playlist,
-    songLikeCheck: song_like_check,
-    likelist,
-    likeSong: like_song,
-    playlistCreate: playlist_create,
-    playlistTracks: playlist_tracks,
-    playlistTrackAdd: playlist_track_add,
-  }),
+  getNeteaseApi,
 });
 
 const rootRouteDependencies = createRootRouteDispatcherDependencies({
