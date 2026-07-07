@@ -32,9 +32,15 @@ function createPlayerQueueHelpers(deps) {
     return resolveCloneSong(song);
   }
 
-  function queueSong(state, song, opts) {
+  function queueSongWithResult(state, song, opts) {
     opts = opts || {};
-    if (!song) return -1;
+    if (!song) {
+      return {
+        insertAt: -1,
+        currentIdx: state.currentIdx,
+        changed: false,
+      };
+    }
     var cloned = cloneSong(song);
     var playQueue = state.playQueue;
     var currentIdx = state.currentIdx;
@@ -47,7 +53,13 @@ function createPlayerQueueHelpers(deps) {
           if (queueItemKey(playQueue[i]) === key) { existing = i; break; }
         }
       }
-      if (existing === currentIdx) return currentIdx;
+      if (existing === currentIdx) {
+        return {
+          insertAt: currentIdx,
+          currentIdx: currentIdx,
+          changed: false,
+        };
+      }
       if (existing >= 0) {
         cloned = playQueue.splice(existing, 1)[0];
         if (currentIdx >= 0 && existing < currentIdx) currentIdx -= 1;
@@ -60,11 +72,23 @@ function createPlayerQueueHelpers(deps) {
       insertAt = playQueue.length - 1;
     }
     state.currentIdx = currentIdx;
-    return insertAt;
+    return {
+      insertAt: insertAt,
+      currentIdx: currentIdx,
+      changed: true,
+    };
+  }
+
+  function queueSong(state, song, opts) {
+    return queueSongWithResult(state, song, opts).insertAt;
+  }
+
+  function queueSongNextWithResult(state, song) {
+    return queueSongWithResult(state, song, { position: 'next' });
   }
 
   function queueSongNext(state, song) {
-    return queueSong(state, song, { position: 'next' });
+    return queueSongNextWithResult(state, song).insertAt;
   }
 
   function moveQueueIndexToTop(state, idx) {
@@ -79,9 +103,17 @@ function createPlayerQueueHelpers(deps) {
     return 0;
   }
 
-  function playSearchResultInQueue(state, playlist, i) {
+  function playSearchResultInQueueWithResult(state, playlist, i) {
     var song = playlist && playlist[i];
-    if (!song) return -1;
+    if (!song) {
+      return {
+        index: -1,
+        currentIdx: state.currentIdx,
+        changed: false,
+        matchedExisting: false,
+      };
+    }
+    var matchedExisting = false;
     if (!state.playQueue.length) {
       state.playQueue.unshift(cloneSong(song));
       state.currentIdx = 0;
@@ -91,13 +123,24 @@ function createPlayerQueueHelpers(deps) {
       for (var j = 0; j < state.playQueue.length; j++) {
         if (queueItemKey(state.playQueue[j]) === targetKey) { matchIdx = j; break; }
       }
-      if (matchIdx >= 0) state.currentIdx = moveQueueIndexToTop(state, matchIdx);
-      else {
+      if (matchIdx >= 0) {
+        matchedExisting = true;
+        state.currentIdx = moveQueueIndexToTop(state, matchIdx);
+      } else {
         state.playQueue.unshift(cloneSong(song));
         state.currentIdx = 0;
       }
     }
-    return state.currentIdx;
+    return {
+      index: state.currentIdx,
+      currentIdx: state.currentIdx,
+      changed: true,
+      matchedExisting: matchedExisting,
+    };
+  }
+
+  function playSearchResultInQueue(state, playlist, i) {
+    return playSearchResultInQueueWithResult(state, playlist, i).index;
   }
 
   function playbackProviderLabel(song) {
@@ -130,9 +173,12 @@ function createPlayerQueueHelpers(deps) {
   return {
     queueItemKey: queueItemKey,
     cloneSong: cloneSong,
+    queueSongWithResult: queueSongWithResult,
     queueSong: queueSong,
+    queueSongNextWithResult: queueSongNextWithResult,
     queueSongNext: queueSongNext,
     moveQueueIndexToTop: moveQueueIndexToTop,
+    playSearchResultInQueueWithResult: playSearchResultInQueueWithResult,
     playSearchResultInQueue: playSearchResultInQueue,
     playbackProviderLabel: playbackProviderLabel,
     playbackLoginProvider: playbackLoginProvider,

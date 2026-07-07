@@ -15247,33 +15247,14 @@ function queueItemKey(song) {
   return playerQueueHelpers.queueItemKey(song);
 }
 function queueSong(song, opts) {
-  opts = opts || {};
-  if (!song) return -1;
-  var cloned = cloneSong(song);
-  var insertAt = playQueue.length;
-  if (opts.position === 'next') {
-    var key = queueItemKey(cloned);
-    var existing = -1;
-    if (key) {
-      for (var i = 0; i < playQueue.length; i++) {
-        if (queueItemKey(playQueue[i]) === key) { existing = i; break; }
-      }
-    }
-    if (existing === currentIdx) return currentIdx;
-    if (existing >= 0) {
-      cloned = playQueue.splice(existing, 1)[0];
-      if (currentIdx >= 0 && existing < currentIdx) currentIdx -= 1;
-    }
-    var hasCurrent = currentIdx >= 0 && currentIdx < playQueue.length;
-    insertAt = hasCurrent ? Math.min(playQueue.length, currentIdx + 1) : playQueue.length;
-    playQueue.splice(insertAt, 0, cloned);
-  } else {
-    playQueue.push(cloned);
-    insertAt = playQueue.length - 1;
+  var queueState = { playQueue: playQueue, currentIdx: currentIdx };
+  var result = playerQueueHelpers.queueSongWithResult(queueState, song, opts);
+  currentIdx = queueState.currentIdx;
+  if (result.changed) {
+    safeRenderQueuePanel('queue-song');
+    safeShelfRebuild('queue-song');
   }
-  safeRenderQueuePanel('queue-song');
-  safeShelfRebuild('queue-song');
-  return insertAt;
+  return result.insertAt;
 }
 function queueSongNext(song) {
   return queueSong(song, { position: 'next' });
@@ -15310,14 +15291,9 @@ function playSearchResult(i) {
   homeForcedOpen = false;
   homeSuppressed = false;
   setHomeControlsLocked(false);
-  if (!playQueue.length) { playQueue.unshift(cloneSong(song)); currentIdx = 0; }
-  else {
-    var matchIdx = -1;
-    var targetKey = queueItemKey(song);
-    for (var j = 0; j < playQueue.length; j++) if (queueItemKey(playQueue[j]) === targetKey) { matchIdx = j; break; }
-    if (matchIdx >= 0) currentIdx = moveQueueIndexToTop(matchIdx);
-    else { playQueue.unshift(cloneSong(song)); currentIdx = 0; }
-  }
+  var queueState = { playQueue: playQueue, currentIdx: currentIdx };
+  var result = playerQueueHelpers.playSearchResultInQueueWithResult(queueState, playlist, i);
+  currentIdx = result.index;
   $results.classList.remove('show');
   $input.value = ''; $input.blur();
   playQueueAt(currentIdx);

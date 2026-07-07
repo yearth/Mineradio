@@ -6,9 +6,12 @@ const {
   cloneSong,
   queueSong,
   queueSongNext,
+  queueSongWithResult,
+  queueSongNextWithResult,
   createPlayerQueueHelpers,
   moveQueueIndexToTop,
   playSearchResultInQueue,
+  playSearchResultInQueueWithResult,
   playbackProviderLabel,
   playbackLoginProvider,
   playbackRestrictionMessage,
@@ -33,6 +36,26 @@ test('queueSong appends, inserts next, and reuses existing queued items', () => 
   assert.deepEqual(state.playQueue.map(song => song.id), [1, 4, 2, 3]);
 });
 
+test('queueSong result metadata distinguishes queue mutations from current-song noops', () => {
+  const state = { playQueue: [{ id: 1, name: 'Current' }, { id: 2, name: 'Later' }], currentIdx: 0 };
+
+  assert.deepEqual(queueSongWithResult(state, { id: 3, name: 'Append' }), {
+    insertAt: 2,
+    currentIdx: 0,
+    changed: true,
+  });
+  assert.deepEqual(queueSongNextWithResult(state, { id: 1, name: 'Current' }), {
+    insertAt: 0,
+    currentIdx: 0,
+    changed: false,
+  });
+  assert.deepEqual(queueSongWithResult(state, null), {
+    insertAt: -1,
+    currentIdx: 0,
+    changed: false,
+  });
+});
+
 test('moveQueueIndexToTop and playSearchResultInQueue preserve current index behavior', () => {
   const state = { playQueue: [{ id: 1 }, { id: 2 }, { id: 3 }], currentIdx: 1 };
 
@@ -52,6 +75,35 @@ test('moveQueueIndexToTop and playSearchResultInQueue preserve current index beh
   assert.equal(playSearchResultInQueue(emptyState, [{ id: 11, name: 'First' }], 0), 0);
   assert.deepEqual(emptyState.playQueue, [{ id: 11, name: 'First' }]);
   assert.equal(playSearchResultInQueue(emptyState, [], 0), -1);
+});
+
+test('playSearchResultInQueue result metadata preserves selection and mutation details', () => {
+  const existingState = { playQueue: [{ id: 1 }, { id: 2 }, { id: 3 }], currentIdx: 1 };
+  assert.deepEqual(playSearchResultInQueueWithResult(existingState, [{ id: 3 }], 0), {
+    index: 0,
+    currentIdx: 0,
+    changed: true,
+    matchedExisting: true,
+  });
+  assert.deepEqual(existingState.playQueue.map(song => song.id), [3, 1, 2]);
+
+  const newState = { playQueue: [{ id: 1 }], currentIdx: 0 };
+  const selected = { id: 4, name: 'New' };
+  assert.deepEqual(playSearchResultInQueueWithResult(newState, [selected], 0), {
+    index: 0,
+    currentIdx: 0,
+    changed: true,
+    matchedExisting: false,
+  });
+  assert.equal(newState.playQueue[0].id, 4);
+  assert.notEqual(newState.playQueue[0], selected);
+
+  assert.deepEqual(playSearchResultInQueueWithResult(newState, [], 0), {
+    index: -1,
+    currentIdx: 0,
+    changed: false,
+    matchedExisting: false,
+  });
 });
 
 test('playback labels and restriction messages preserve provider-specific copy', () => {

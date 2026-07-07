@@ -252,7 +252,9 @@ test('renderer app wires player queue through the core player queue module', () 
   assert.equal(typeof browserContext.window.MineradioPlayerQueue.createPlayerQueueHelpers, 'function');
   assert.match(renderer, /MineradioPlayerQueue\.createPlayerQueueHelpers/);
   assert.match(renderer, /playerQueueHelpers\.queueItemKey/);
+  assert.match(renderer, /playerQueueHelpers\.queueSongWithResult/);
   assert.match(renderer, /playerQueueHelpers\.moveQueueIndexToTop/);
+  assert.match(renderer, /playerQueueHelpers\.playSearchResultInQueueWithResult/);
   assert.match(renderer, /playerQueueHelpers\.playbackRestrictionMessage/);
 });
 
