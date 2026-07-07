@@ -65,20 +65,17 @@ const {
 const {
   classifyNeteasePlaybackRestriction,
   playbackRestriction,
-  qqPlaybackUnavailablePayload,
 } = require('./server-dist/server/services/playback-restriction');
 const {
   NETEASE_QUALITY_CANDIDATES,
   hasNeteaseSvip,
   normalizeQualityPreference,
   qualityCandidatesFrom,
-  qqVkeyFileCandidates,
 } = require('./server-dist/server/services/playback-quality');
 const {
   firstArrayFrom,
   isLowSignalPodcastItem,
   buildNeteaseSongCommentsPayload,
-  buildQQPlaylistTracksPayload,
   mapArtists,
   mapDiscoverPlaylist,
   mapPodcastCollectionRadios,
@@ -86,12 +83,9 @@ const {
   mapPodcastRadio,
   mapPodcastVoiceItems,
   mapQQArtists,
-  mapQQTrack,
   mapSongRecord,
   podcastCollectionMeta,
   qqAlbumCover,
-  uniqueNamedQQSongs,
-  uniqueQQPlaylists,
 } = require('./server-dist/server/services/music-mapper');
 const {
   buildDiscoverHome: buildDiscoverHomeService,
@@ -100,17 +94,7 @@ const {
   searchNeteaseSongs,
 } = require('./server-dist/server/services/netease-orchestration');
 const {
-  fetchQQArtistDetail,
-  fetchQQPlaylistTracks: fetchQQPlaylistTracksService,
-  fetchQQLyric,
-  fetchQQSongComments,
-  fetchQQUserPlaylists: fetchQQUserPlaylistsService,
-  searchQQSongs,
-} = require('./server-dist/server/services/qq-orchestration');
-const {
   decodeHtmlEntities,
-  decodeQQLyricText,
-  normalizeQQSongId,
 } = require('./server-dist/server/services/lyric-utils');
 const {
   buildWeatherMood,
@@ -128,9 +112,6 @@ const {
 const {
   audioContentTypeForUrl,
   audioProxyHeadersFor,
-  buildQQSongCommentsPayload,
-  mapQQPlaylist,
-  qqSingerAvatar,
 } = require('./server-dist/server/services/qq-utils');
 const {
   beatCacheRootInfo: beatCacheRootInfoService,
@@ -157,6 +138,9 @@ const {
 const {
   createQQRequestAdapters,
 } = require('./server-dist/server/composition/qq-request-adapters');
+const {
+  createQQRouteAdapters,
+} = require('./server-dist/server/composition/qq-route-adapters');
 const {
   dispatchRootRoute,
 } = require('./server-dist/server/root-dispatcher');
@@ -371,6 +355,28 @@ const {
   qqSongDetail,
 } = qqRequestAdapters;
 
+const qqRouteAdapters = createQQRouteAdapters({
+  getQQLoginInfo,
+  qqGetJSON,
+  qqMusicRequest,
+  qqSmartboxSearch,
+  qqSongDetail,
+  qqCookieObject,
+  qqCookieUin,
+  qqCookieMusicKey,
+  qqCookiePlaybackKey,
+  logger: console,
+});
+const {
+  handleQQUserPlaylists,
+  handleQQPlaylistTracks,
+  handleQQArtistDetail,
+  handleQQSearch,
+  handleQQSongUrl,
+  handleQQSongComments,
+  handleQQLyric,
+} = qqRouteAdapters;
+
 async function fetchOpenMeteoWeather(params) {
   return fetchOpenMeteoWeatherService(params, {
     defaultLocation: WEATHER_DEFAULT_LOCATION,
@@ -399,116 +405,6 @@ async function buildWeatherRadio(params) {
     orderWeatherSongs,
     defaultLocation: WEATHER_DEFAULT_LOCATION,
     now: Date.now,
-    logger: console,
-  });
-}
-
-async function handleQQUserPlaylists() {
-  return fetchQQUserPlaylistsService({
-    getQQLoginInfo,
-    qqGetJSON,
-    mapQQPlaylist,
-    uniqueQQPlaylists,
-  });
-}
-
-async function handleQQPlaylistTracks(id) {
-  return fetchQQPlaylistTracksService(id, {
-    getQQLoginInfo,
-    qqGetJSON,
-    buildQQPlaylistTracksPayload,
-  });
-}
-
-async function handleQQArtistDetail(mid, limit) {
-  return fetchQQArtistDetail(mid, limit, {
-    qqMusicRequest,
-    mapQQTrack,
-    qqSingerAvatar,
-  });
-}
-
-async function handleQQSearch(keywords, limit) {
-  return searchQQSongs(keywords, limit, {
-    qqSmartboxSearch,
-    qqSongDetail,
-    uniqueNamedQQSongs,
-    logger: console,
-  });
-}
-
-async function handleQQSongUrl(mid, mediaMid, qualityPreference) {
-  const songmid = String(mid || '').trim();
-  if (!songmid) return { provider: 'qq', url: '', error: 'MISSING_MID', message: 'Missing QQ song mid' };
-  const guid = String(10000000 + Math.floor(Math.random() * 90000000));
-  const cookieObj = qqCookieObject();
-  const uin = qqCookieUin(cookieObj) || '0';
-  const musicKey = qqCookieMusicKey(cookieObj);
-  const playbackKey = qqCookiePlaybackKey(cookieObj);
-  const { requestedQuality, fileCandidates, filenames } = qqVkeyFileCandidates(songmid, mediaMid, qualityPreference);
-  const param = {
-    guid,
-    songmid: filenames.length ? filenames.map(() => songmid) : [songmid],
-    songtype: filenames.length ? filenames.map(() => 0) : [0],
-    uin,
-    loginflag: 1,
-    platform: '20',
-  };
-  if (filenames.length) param.filename = filenames;
-  const comm = { uin, format: 'json', ct: musicKey ? 19 : 24, cv: 0 };
-  if (musicKey) comm.authst = musicKey;
-  const json = await qqMusicRequest({
-    comm,
-    req_0: {
-      module: 'vkey.GetVkeyServer',
-      method: 'CgiGetVkey',
-      param,
-    },
-  }, { cookie: true });
-  const data = json && json.req_0 && json.req_0.data;
-  const infos = (data && Array.isArray(data.midurlinfo)) ? data.midurlinfo : [];
-  const info = infos.find(item => item && item.purl) || infos[0];
-  const purl = info && info.purl;
-  if (purl) {
-    const sip = (data.sip && data.sip[0]) || 'https://ws.stream.qqmusic.qq.com/';
-    const fileMeta = fileCandidates.find(item => item.filename === info.filename) || {};
-    return {
-      provider: 'qq',
-      url: sip + purl,
-      trial: false,
-      playable: true,
-      level: fileMeta.level || info.filename || '',
-      quality: fileMeta.label || info.filename || '',
-      filename: info.filename || '',
-      requestedQuality,
-    };
-  }
-  return qqPlaybackUnavailablePayload({
-    info,
-    hasSession: !!(uin && musicKey),
-    hasPlaybackKey: !!(uin && playbackKey),
-    fileCandidates,
-    requestedQuality,
-  });
-}
-
-async function handleQQSongComments(id, mid, limit, offset) {
-  return fetchQQSongComments(id, mid, limit, offset, {
-    qqSongDetail,
-    qqGetJSON,
-    qqCookieUin,
-    buildQQSongCommentsPayload,
-    logger: console,
-  });
-}
-
-async function handleQQLyric(mid, id) {
-  return fetchQQLyric(mid, id, {
-    qqMusicRequest,
-    qqGetJSON,
-    qqCookieUin,
-    normalizeQQSongId,
-    decodeQQLyricText,
     logger: console,
   });
 }
