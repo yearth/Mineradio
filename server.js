@@ -28,6 +28,9 @@ const {
   createCookieRuntime,
 } = require('./server-dist/server/runtime/cookie-runtime');
 const {
+  createSessionRuntime,
+} = require('./server-dist/server/runtime/session-runtime');
+const {
   createRequestRuntime,
 } = require('./server-dist/server/runtime/request-runtime');
 const {
@@ -343,18 +346,13 @@ const cookieRuntime = createCookieRuntime({
   normalizeCookieHeader,
   rawCookieFallback,
 });
-function currentUserCookie() {
-  return cookieRuntime.userCookie();
-}
-function currentQQCookie() {
-  return cookieRuntime.qqCookie();
-}
-function saveCookie(c) {
-  cookieRuntime.saveCookie(c);
-}
-function saveQQCookie(c) {
-  cookieRuntime.saveQQCookie(c);
-}
+const sessionRuntime = createSessionRuntime(cookieRuntime);
+const {
+  currentUserCookie,
+  currentQQCookie,
+  saveCookie,
+  saveQQCookie,
+} = sessionRuntime;
 
 // ---------- 工具 ----------
 function serveStatic(res, filePath) {
@@ -1028,7 +1026,7 @@ if (process.env.NODE_ENV === 'test') {
     },
     resetMusicRuntime() {
       applyNeteaseApi();
-      cookieRuntime.reset();
+      sessionRuntime.reset();
       requestRuntime.reset();
     },
     setUpdatePlatform: value => updateRuntime.setPlatform(value),
