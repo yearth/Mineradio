@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const {
   buildServerTestRuntime,
+  createServerTestRuntimeBindings,
   serverTestRuntimeGroups,
   serverTestRuntimeExportNames,
 } = require('../server-dist/server/test-support/runtime');
@@ -80,5 +81,61 @@ test('buildServerTestRuntime preserves the legacy export order and delegates hoo
     ['resetMusicRuntime'],
     ['setUpdateAutoDownload', false],
     ['resetUpdateRuntime'],
+  ]);
+});
+
+test('createServerTestRuntimeBindings wires test hooks to mutable runtimes', () => {
+  const calls = [];
+  const bindings = createServerTestRuntimeBindings({
+    neteaseApiRuntime: {
+      apply: value => calls.push(['neteaseApiRuntime.apply', value]),
+    },
+    requestRuntime: {
+      setRequestText: value => calls.push(['requestRuntime.setRequestText', value]),
+      reset: () => calls.push(['requestRuntime.reset']),
+    },
+    sessionRuntime: {
+      reset: () => calls.push(['sessionRuntime.reset']),
+    },
+    updateRuntime: {
+      setPlatform: value => calls.push(['updateRuntime.setPlatform', value]),
+      setManifest: value => calls.push(['updateRuntime.setManifest', value]),
+      setAutoDownload: value => calls.push(['updateRuntime.setAutoDownload', value]),
+      setAutoPatch: value => calls.push(['updateRuntime.setAutoPatch', value]),
+      reset: () => calls.push(['updateRuntime.reset']),
+    },
+    helpers: {
+      normalizeCookieHeader: 'normalizeCookieHeader',
+      rawCookieFallback: 'rawCookieFallback',
+      parseGitHubRepository: 'parseGitHubRepository',
+      readUpdateConfig: 'readUpdateConfig',
+      requestText: 'requestText',
+      moveInvalidUpdateFile: 'moveInvalidUpdateFile',
+      buildWeatherMood: 'buildWeatherMood',
+    },
+  });
+  const runtime = buildServerTestRuntime(bindings);
+
+  assert.equal(runtime.requestText, 'requestText');
+  runtime.setNeteaseApi({ cloudsearch: true });
+  runtime.setRequestText('override');
+  runtime.resetMusicRuntime();
+  runtime.setUpdatePlatform('darwin');
+  runtime.setUpdateManifest({ version: '1.2.3' });
+  runtime.setUpdateAutoDownload(false);
+  runtime.setUpdateAutoPatch(true);
+  runtime.resetUpdateRuntime();
+
+  assert.deepEqual(calls, [
+    ['neteaseApiRuntime.apply', { cloudsearch: true }],
+    ['requestRuntime.setRequestText', 'override'],
+    ['neteaseApiRuntime.apply', undefined],
+    ['sessionRuntime.reset'],
+    ['requestRuntime.reset'],
+    ['updateRuntime.setPlatform', 'darwin'],
+    ['updateRuntime.setManifest', { version: '1.2.3' }],
+    ['updateRuntime.setAutoDownload', false],
+    ['updateRuntime.setAutoPatch', true],
+    ['updateRuntime.reset'],
   ]);
 });

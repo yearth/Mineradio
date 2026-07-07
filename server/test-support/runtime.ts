@@ -20,6 +20,27 @@ export interface ServerTestRuntimeDependencies {
   readonly resetUpdateRuntime: () => void;
 }
 
+export interface ServerTestRuntimeBindingOptions {
+  readonly neteaseApiRuntime: {
+    readonly apply: (value?: unknown) => void;
+  };
+  readonly requestRuntime: {
+    readonly setRequestText: (value: unknown) => void;
+    readonly reset: () => void;
+  };
+  readonly sessionRuntime: {
+    readonly reset: () => void;
+  };
+  readonly updateRuntime: {
+    readonly setPlatform: (value: unknown) => void;
+    readonly setManifest: (value: unknown) => void;
+    readonly setAutoDownload: (value: unknown) => void;
+    readonly setAutoPatch: (value: unknown) => void;
+    readonly reset: () => void;
+  };
+  readonly helpers: Record<string, unknown>;
+}
+
 export const serverTestRuntimePlan: ServerTestRuntimePlan = {
   purpose: 'Centralize test-only dependency injection while server.js remains the legacy runtime entry.'
 };
@@ -88,6 +109,42 @@ export function buildServerTestRuntime(deps: ServerTestRuntimeDependencies): Rec
     },
     resetUpdateRuntime(): void {
       deps.resetUpdateRuntime();
+    },
+  };
+}
+
+export function createServerTestRuntimeBindings(
+  options: ServerTestRuntimeBindingOptions
+): ServerTestRuntimeDependencies {
+  const applyNeteaseApi = (overrides?: unknown): void => {
+    options.neteaseApiRuntime.apply(overrides);
+  };
+
+  return {
+    setNeteaseApi: applyNeteaseApi,
+    setRequestText(value: unknown): void {
+      options.requestRuntime.setRequestText(value);
+    },
+    helpers: options.helpers,
+    resetMusicRuntime(): void {
+      applyNeteaseApi();
+      options.sessionRuntime.reset();
+      options.requestRuntime.reset();
+    },
+    setUpdatePlatform(value: unknown): void {
+      options.updateRuntime.setPlatform(value);
+    },
+    setUpdateManifest(value: unknown): void {
+      options.updateRuntime.setManifest(value);
+    },
+    setUpdateAutoDownload(value: unknown): void {
+      options.updateRuntime.setAutoDownload(value);
+    },
+    setUpdateAutoPatch(value: unknown): void {
+      options.updateRuntime.setAutoPatch(value);
+    },
+    resetUpdateRuntime(): void {
+      options.updateRuntime.reset();
     },
   };
 }

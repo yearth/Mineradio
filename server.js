@@ -232,6 +232,7 @@ const {
 } = require('./server-dist/server/services/app-info');
 const {
   buildServerTestRuntime,
+  createServerTestRuntimeBindings,
 } = require('./server-dist/server/test-support/runtime');
 const {
   createRootRouteDispatcherDependencies,
@@ -1009,12 +1010,11 @@ const server = createServerBootstrap({
 
 module.exports = server;
 if (process.env.NODE_ENV === 'test') {
-  const applyNeteaseApi = overrides => {
-    neteaseApiRuntime.apply(overrides);
-  };
-  module.exports.__test = buildServerTestRuntime({
-    setNeteaseApi: applyNeteaseApi,
-    setRequestText: fn => requestRuntime.setRequestText(fn),
+  const testRuntimeBindings = createServerTestRuntimeBindings({
+    neteaseApiRuntime,
+    requestRuntime,
+    sessionRuntime,
+    updateRuntime,
     helpers: {
       normalizeCookieHeader,
       rawCookieFallback,
@@ -1024,15 +1024,6 @@ if (process.env.NODE_ENV === 'test') {
       moveInvalidUpdateFile,
       buildWeatherMood,
     },
-    resetMusicRuntime() {
-      applyNeteaseApi();
-      sessionRuntime.reset();
-      requestRuntime.reset();
-    },
-    setUpdatePlatform: value => updateRuntime.setPlatform(value),
-    setUpdateManifest: value => updateRuntime.setManifest(value),
-    setUpdateAutoDownload: value => updateRuntime.setAutoDownload(value),
-    setUpdateAutoPatch: value => updateRuntime.setAutoPatch(value),
-    resetUpdateRuntime: () => updateRuntime.reset(),
   });
+  module.exports.__test = buildServerTestRuntime(testRuntimeBindings);
 }
