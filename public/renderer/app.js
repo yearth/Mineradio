@@ -45,7 +45,7 @@ var CUSTOM_LYRIC_STORE_KEY = 'mineradio-custom-lyrics-v1';
 var CUSTOM_LYRIC_PREF_STORE_KEY = 'mineradio-custom-lyric-prefs-v1';
 var LYRIC_LAYOUT_STORE_KEY = 'mineradio-lyric-layout-v1';
 var VISUAL_PRESET_SCHEMA = 'skull-preset-v2';
-var PLAYBACK_QUALITY_STORE_KEY = 'mineradio-playback-quality-v1';
+var PLAYBACK_QUALITY_STORE_KEY = window.MineradioPreferences.PLAYBACK_QUALITY_STORE_KEY;
 var UPLOAD_TIP_STORE_KEY = 'mineradio-upload-tip-seen';
 var DIY_MODE_STORE_KEY = 'mineradio-diy-player-mode-v1';
 var PLAYLIST_PANEL_PIN_STORE_KEY = 'mineradio-playlist-panel-pinned-v1';
@@ -183,12 +183,7 @@ var updatePreviewState = {
   ]
 };
 function readSavedVolume() {
-  try {
-    var v = parseFloat(localStorage.getItem('apex-player-volume'));
-    return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1.0;
-  } catch (e) {
-    return 1.0;
-  }
+  return window.MineradioPreferences.readSavedVolume(localStorage);
 }
 function readDiyModePreference() {
   try { return localStorage.getItem(DIY_MODE_STORE_KEY) === '1'; } catch (e) { return false; }
@@ -197,16 +192,10 @@ function saveDiyModePreference(on) {
   try { localStorage.setItem(DIY_MODE_STORE_KEY, on ? '1' : '0'); } catch (e) {}
 }
 function readBooleanPreference(key, fallback) {
-  try {
-    var raw = localStorage.getItem(key);
-    if (raw == null) return !!fallback;
-    return raw === '1';
-  } catch (e) {
-    return !!fallback;
-  }
+  return window.MineradioPreferences.readBooleanPreference(localStorage, key, fallback);
 }
 function saveBooleanPreference(key, on) {
-  try { localStorage.setItem(key, on ? '1' : '0'); } catch (e) {}
+  window.MineradioPreferences.saveBooleanPreference(localStorage, key, on);
 }
 function applyUserCapsuleAutoHideState() {
   document.body.classList.toggle('user-capsule-auto-hide', !!userCapsuleAutoHide);
@@ -12416,62 +12405,28 @@ var apiJson = window.MineradioApiClient.createApiJson({
 });
 function escHtml(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function normalizePlaybackQuality(value) {
-  value = String(value || '').toLowerCase();
-  if (value === 'jymaster' || value === 'master' || value === 'svip') return 'jymaster';
-  if (value === 'hires' || value === 'hi-res' || value === 'highres' || value === 'highest') return 'hires';
-  if (value === 'lossless' || value === 'flac' || value === 'sq') return 'lossless';
-  if (value === 'exhigh' || value === 'high' || value === '320k' || value === 'hq') return 'exhigh';
-  if (value === 'standard' || value === 'normal' || value === 'std') return 'standard';
-  return 'hires';
+  return window.MineradioPreferences.normalizePlaybackQuality(value);
 }
 function playbackQualityLabel(value) {
-  value = normalizePlaybackQuality(value);
-  if (value === 'jymaster') return '超清母带';
-  if (value === 'hires') return '高清臻音';
-  if (value === 'lossless') return '无损';
-  if (value === 'exhigh') return '极高';
-  if (value === 'standard') return '标准';
-  return '高清臻音';
+  return window.MineradioPreferences.playbackQualityLabel(value);
 }
 function playbackQualityShortLabel(value) {
-  value = normalizePlaybackQuality(value);
-  if (value === 'jymaster') return '母带';
-  if (value === 'hires') return '臻音';
-  if (value === 'lossless') return 'SQ';
-  if (value === 'exhigh') return 'HQ';
-  if (value === 'standard') return 'STD';
-  return '臻音';
+  return window.MineradioPreferences.playbackQualityShortLabel(value);
 }
 function playbackQualityRank(value) {
-  value = normalizePlaybackQuality(value);
-  if (value === 'jymaster') return 5;
-  if (value === 'hires') return 4;
-  if (value === 'lossless') return 3;
-  if (value === 'exhigh') return 2;
-  if (value === 'standard') return 1;
-  return 4;
+  return window.MineradioPreferences.playbackQualityRank(value);
 }
 function playbackQualityWasDowngraded(requested, resolved) {
-  return playbackQualityRank(resolved) < playbackQualityRank(requested);
+  return window.MineradioPreferences.playbackQualityWasDowngraded(requested, resolved);
 }
 function playbackBitrateLabel(br) {
-  br = Number(br) || 0;
-  if (!br) return '';
-  if (br >= 1000000) return (br / 1000000).toFixed(br >= 2000000 ? 1 : 2).replace(/\.0+$/, '') + ' Mbps';
-  return Math.round(br / 1000) + ' kbps';
+  return window.MineradioPreferences.playbackBitrateLabel(br);
 }
 function playbackResolvedQualityText(data) {
-  data = data || {};
-  var label = playbackQualityLabel(data.level || data.quality || playbackQuality);
-  var br = playbackBitrateLabel(data.br);
-  return br ? (label + ' · ' + br) : label;
+  return window.MineradioPreferences.playbackResolvedQualityText(data, playbackQuality);
 }
 function readPlaybackQualityPreference() {
-  try {
-    return normalizePlaybackQuality(localStorage.getItem(PLAYBACK_QUALITY_STORE_KEY) || 'hires');
-  } catch (e) {
-    return 'hires';
-  }
+  return window.MineradioPreferences.readPlaybackQualityPreference(localStorage);
 }
 function savePlaybackQualityPreference() {
   try { localStorage.setItem(PLAYBACK_QUALITY_STORE_KEY, playbackQuality); } catch (e) {}
@@ -14519,7 +14474,7 @@ function isMusicSearchMode(mode) {
   return mode !== 'podcast';
 }
 function searchResultKey(q, mode) {
-  return (mode || searchMode || 'song') + '|' + String(q || '').trim();
+  return window.MineradioSearchLogic.searchResultKey(q, mode || searchMode || 'song');
 }
 function clearSearchResults() {
   searchRequestSeq++;
@@ -14532,22 +14487,13 @@ function clearSearchResults() {
   $results.classList.remove('show');
 }
 function readSearchHistory() {
-  try {
-    var raw = JSON.parse(localStorage.getItem(SEARCH_HISTORY_STORE_KEY) || '[]');
-    return Array.isArray(raw) ? raw.map(function(v){ return String(v || '').trim(); }).filter(Boolean).slice(0, 10) : [];
-  } catch (e) {
-    return [];
-  }
+  return window.MineradioSearchLogic.readSearchHistory(localStorage);
 }
 function writeSearchHistory(items) {
-  try { localStorage.setItem(SEARCH_HISTORY_STORE_KEY, JSON.stringify((items || []).slice(0, 10))); } catch (e) {}
+  window.MineradioSearchLogic.writeSearchHistory(localStorage, items);
 }
 function rememberSearchQuery(q) {
-  q = String(q || '').trim();
-  if (!q) return;
-  var items = readSearchHistory().filter(function(item){ return item.toLowerCase() !== q.toLowerCase(); });
-  items.unshift(q);
-  writeSearchHistory(items);
+  window.MineradioSearchLogic.rememberSearchQuery(localStorage, q);
 }
 function renderSearchHistory() {
   if (searchMode !== 'song') return false;
@@ -14627,27 +14573,13 @@ function setSearchMode(mode) {
   }
 }
 function podcastMetaText(item) {
-  item = item || {};
-  var bits = [];
-  if (item.djName) bits.push(item.djName);
-  if (item.programCount) bits.push(item.programCount + ' episodes');
-  if (item.subCount) bits.push(Math.round(item.subCount / 1000) + 'k follows');
-  return bits.join('  ·  ');
+  return window.MineradioSearchLogic.podcastMetaText(item);
 }
 function formatProgramTime(sec) {
-  sec = Math.max(0, Number(sec) || 0);
-  var h = Math.floor(sec / 3600);
-  var m = Math.floor((sec % 3600) / 60);
-  var s = Math.floor(sec % 60);
-  return h ? (h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')) : (m + ':' + String(s).padStart(2, '0'));
+  return window.MineradioSearchLogic.formatProgramTime(sec);
 }
 function programMetaText(item) {
-  item = item || {};
-  var bits = [];
-  if (item.radioName || item.artist) bits.push(item.radioName || item.artist);
-  if (item.djName && item.djName !== item.artist) bits.push(item.djName);
-  if (item.duration) bits.push(formatProgramTime(Math.round(item.duration / 1000)));
-  return bits.join('  ·  ');
+  return window.MineradioSearchLogic.programMetaText(item);
 }
 function searchThumbHtml(src) {
   return src
@@ -14823,8 +14755,7 @@ document.addEventListener('click', function(e){
 updateSearchModeTabs();
 
 function songProviderKey(song) {
-  if (song && (song.provider === 'qq' || song.source === 'qq' || song.type === 'qq')) return 'qq';
-  return 'netease';
+  return window.MineradioSearchLogic.songProviderKey(song);
 }
 function songSourceTagHtml(song) {
   var key = songProviderKey(song);
@@ -14854,8 +14785,7 @@ function openSearchResultArtist(index) {
   openArtistDetailForSong(song);
 }
 function searchIntentPrefersQQ(q) {
-  q = String(q || '').toLowerCase();
-  return /(^|\s)qq($|\s)|qq音乐|qq音樂|周杰伦|周杰倫|jay\s*chou|jay/.test(q);
+  return window.MineradioSearchLogic.searchIntentPrefersQQ(q);
 }
 function simpleSearchNorm(text) {
   return String(text || '').toLowerCase()
@@ -14863,16 +14793,10 @@ function simpleSearchNorm(text) {
     .replace(/[\s·・,，。.!！?？'"“”‘’|\-_/]+/g, '');
 }
 function searchMentionsKnownArtist(q, artist) {
-  var rawQ = String(q || '').toLowerCase();
-  var rawArtist = String(artist || '').toLowerCase();
-  if (!rawArtist) return false;
-  if (/周杰伦|周杰倫|jay\s*chou/.test(rawQ) && /周杰伦|周杰倫|jay\s*chou/.test(rawArtist)) return true;
-  var nq = simpleSearchNorm(q);
-  var na = simpleSearchNorm(artist);
-  return !!(na && na.length >= 2 && nq.indexOf(na) >= 0);
+  return window.MineradioSearchLogic.searchMentionsKnownArtist(q, artist);
 }
 function searchLooksLikeDerivative(text) {
-  return /(翻唱|cover|伴奏|instrumental|remix|片段|demo|女声|男声|karaoke|完整版\s*cover|抖音版|dj版|合唱版|改编版|赵露思版|超燃|硬曲|剪辑|二创|tribute|made\s*famous\s*by)/i.test(String(text || ''));
+  return window.MineradioSearchLogic.searchLooksLikeDerivative(text);
 }
 var SEARCH_ORIGINAL_ARTIST_HINTS = [
   { titles: ['日落大道'], artists: ['梁博'] },
@@ -14913,54 +14837,10 @@ function searchLooksLikeSameTitleCover(song, nq, name, album, raw, originalArtis
   return selfTitledSingle || searchLooksLikeDerivative(raw) || (sourceIndex || 0) > 0;
 }
 function scoreSongSearchResult(song, q, sourceIndex) {
-  var nq = simpleSearchNorm(q);
-  var name = simpleSearchNorm(song && song.name);
-  var artist = simpleSearchNorm(song && song.artist);
-  var album = simpleSearchNorm(song && song.album);
-  var raw = String(((song && song.name) || '') + ' ' + ((song && song.artist) || '') + ' ' + ((song && song.album) || '')).toLowerCase();
-  var qAsksDerivative = /(live|现场|翻唱|cover|伴奏|instrumental|remix|dj|片段|demo|女声|男声|karaoke)/i.test(String(q || ''));
-  var derivative = searchLooksLikeDerivative(raw);
-  var artistMentioned = searchMentionsKnownArtist(q, song && song.artist);
-  var originalArtists = canonicalOriginalArtistsForSearch(q, song);
-  var originalArtistMatch = songArtistMatchesAny(song, originalArtists);
-  var score = 0;
-  if (name === nq) score += 90;
-  else if (name.indexOf(nq) === 0) score += 55;
-  else if (name.indexOf(nq) >= 0) score += 32;
-  if (name && nq && nq.indexOf(name) >= 0) score += name.length >= 2 ? 68 : 18;
-  if (originalArtistMatch && name && nq && (name === nq || nq.indexOf(name) >= 0 || name.indexOf(nq) >= 0)) score += 122;
-  else if (!qAsksDerivative && originalArtists.length && name && nq && (name === nq || nq.indexOf(name) >= 0 || name.indexOf(nq) >= 0)) score -= 58;
-  if (artistMentioned) score += 96;
-  else if (artist && nq && nq.indexOf(artist) >= 0) score += 64;
-  else if (artist && artist.indexOf(nq) >= 0) score += 22;
-  if (artistMentioned && name && nq.indexOf(name) >= 0) score += 34;
-  if (/周杰伦|周杰倫|jay\s*chou/i.test(String(q || '')) && !artistMentioned) score -= 28;
-  if (album && nq && (album.indexOf(nq) >= 0 || nq.indexOf(album) >= 0)) score += 8;
-  if (songProviderKey(song) === 'qq') score += searchIntentPrefersQQ(q) ? 48 : 4;
-  if (song && song.playable === false) score -= 12;
-  if (!qAsksDerivative) {
-    if (derivative) score -= artistMentioned ? 76 : 96;
-    if (/(live|现场)/i.test(raw)) score -= artistMentioned ? 28 : 42;
-    if (originalArtists.length && searchLooksLikeSameTitleCover(song, nq, name, album, raw, originalArtistMatch, sourceIndex)) score -= 46;
-  }
-  score -= (sourceIndex || 0) * 0.75;
-  return score;
+  return window.MineradioSearchLogic.scoreSongSearchResult(song, q, sourceIndex);
 }
 function mergeSongSearchResults(neteaseSongs, qqSongs, limit, q) {
-  var out = [];
-  var seen = {};
-  function push(song, sourceIndex) {
-    if (!song || !song.name) return;
-    var key = songProviderKey(song) + ':' + (song.mid || song.id || (song.name + '|' + song.artist));
-    if (seen[key]) return;
-    seen[key] = true;
-    song._searchScore = scoreSongSearchResult(song, q, sourceIndex);
-    out.push(song);
-  }
-  (neteaseSongs || []).forEach(function(song, i){ push(song, i); });
-  (qqSongs || []).forEach(function(song, i){ push(song, i); });
-  out.sort(function(a, b){ return (b._searchScore || 0) - (a._searchScore || 0); });
-  return out.slice(0, limit);
+  return window.MineradioSearchLogic.mergeSongSearchResults(neteaseSongs, qqSongs, limit, q);
 }
 async function fetchMusicSearchResults(q, mode) {
   if (mode === 'qq') {
@@ -16383,68 +16263,16 @@ function withLyricFallback(lines) {
   return text ? [{ t:0, text:text, duration:9999, charCount:Math.max(1, text.length), fallback:true }] : [];
 }
 function lyricTagTimeToSeconds(min, sec, frac) {
-  var t = (parseInt(min, 10) || 0) * 60 + (parseInt(sec, 10) || 0);
-  if (frac) t += (parseInt(frac, 10) || 0) / Math.pow(10, Math.min(3, frac.length));
-  return t;
+  return window.MineradioLyricsParser.lyricTagTimeToSeconds(min, sec, frac);
 }
 function finalizeLyricLineDurations(lines) {
-  lines.sort(function(a, b){ return a.t - b.t; });
-  for (var i = 0; i < lines.length; i++) {
-    var next = lines[i + 1];
-    var inferred = next && next.t > lines[i].t ? next.t - lines[i].t : 4.8;
-    if (!isFinite(lines[i].duration) || lines[i].duration <= 0) lines[i].duration = inferred;
-    lines[i].duration = Math.max(0.45, Math.min(12, lines[i].duration));
-    lines[i].charCount = Math.max(1, lines[i].charCount || String(lines[i].text || '').length);
-  }
-  return lines;
+  return window.MineradioLyricsParser.finalizeLyricLineDurations(lines);
 }
 function parseLyricText(text) {
-  var lines = [], reg = /\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]/g;
-  text.split(/\r?\n/).forEach(function(line){
-    var times = [], m;
-    reg.lastIndex = 0;
-    while ((m = reg.exec(line))) times.push(lyricTagTimeToSeconds(m[1], m[2], m[3]));
-    if (!times.length) return;
-    var txt = line.replace(reg, '').trim();
-    if (!txt) return;
-    times.forEach(function(t){ lines.push({ t: t, text: txt, source:'lrc' }); });
-  });
-  return finalizeLyricLineDurations(lines);
+  return window.MineradioLyricsParser.parseLyricText(text);
 }
 function parseYrcText(text) {
-  var lines = [];
-  String(text || '').split(/\r?\n/).forEach(function(line){
-    var m = line.match(/^\[(\d+),(\d+)\](.*)$/);
-    if (!m) return;
-    var lineStartMs = parseInt(m[1], 10) || 0;
-    var lineDurMs = parseInt(m[2], 10) || 0;
-    var body = m[3] || '';
-    var words = [], fullText = '';
-    var reg = /\((\d+),(\d+),\d+\)([^()]*)/g, wm;
-    while ((wm = reg.exec(body))) {
-      var txt = (wm[3] || '').replace(/\s+/g, ' ');
-      if (!txt) continue;
-      var rawStart = parseInt(wm[1], 10) || 0;
-      var rawDur = parseInt(wm[2], 10) || 0;
-      var absStartMs = rawStart >= lineStartMs - 500 ? rawStart : lineStartMs + rawStart;
-      var c0 = fullText.length;
-      fullText += txt;
-      words.push({ text:txt, t:absStartMs / 1000, d:Math.max(0.06, rawDur / 1000), c0:c0, c1:fullText.length });
-    }
-    if (!fullText) fullText = body.replace(/\(\d+,\d+,\d+\)/g, '').replace(/\s+/g, ' ');
-    var leading = (fullText.match(/^\s+/) || [''])[0].length;
-    fullText = fullText.replace(/\s+/g, ' ').trim();
-    if (!fullText) return;
-    if (words.length) {
-      words.forEach(function(w){
-        w.c0 = Math.max(0, Math.min(fullText.length, w.c0 - leading));
-        w.c1 = Math.max(w.c0, Math.min(fullText.length, w.c1 - leading));
-      });
-      words = words.filter(function(w){ return w.c1 > w.c0; });
-    }
-    lines.push({ t:lineStartMs / 1000, duration:lineDurMs / 1000, text:fullText, words:words, charCount:Math.max(1, fullText.length), source: words.length ? 'yrc-word' : 'yrc-line' });
-  });
-  return finalizeLyricLineDurations(lines);
+  return window.MineradioLyricsParser.parseYrcText(text);
 }
 function renderLyrics() {
   // v8: 歌词渲染由 stageLyrics 在每帧 tickLyricsParticles 里推动
@@ -19956,31 +19784,13 @@ function setCamMode(m) {
 //  更新提示预览
 // ============================================================
 function formatUpdateBytes(bytes) {
-  bytes = Number(bytes) || 0;
-  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2).replace(/\.00$/, '') + ' GB';
-  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
-  if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
-  return bytes + ' B';
+  return window.MineradioUpdateState.formatUpdateBytes(bytes);
 }
 function formatUpdateSpeed(bytesPerSecond) {
-  bytesPerSecond = Number(bytesPerSecond) || 0;
-  return bytesPerSecond > 0 ? (formatUpdateBytes(bytesPerSecond) + '/s') : '';
+  return window.MineradioUpdateState.formatUpdateSpeed(bytesPerSecond);
 }
 function updateProgressDetailText() {
-  var parts = [];
-  if (updatePreviewState.attempts > 1 && updatePreviewState.attempt > 0) {
-    parts.push('线路 ' + updatePreviewState.attempt + '/' + updatePreviewState.attempts);
-  }
-  if (updatePreviewState.sourceLabel) parts.push(updatePreviewState.sourceLabel);
-  if (updatePreviewState.received > 0) {
-    parts.push(updatePreviewState.total > 0
-      ? (formatUpdateBytes(updatePreviewState.received) + ' / ' + formatUpdateBytes(updatePreviewState.total))
-      : ('已下载 ' + formatUpdateBytes(updatePreviewState.received)));
-  }
-  var speed = formatUpdateSpeed(updatePreviewState.speedBps);
-  if (speed) parts.push(speed);
-  if (updatePreviewState.etaSeconds > 0 && updatePreviewState.etaSeconds < 3600) parts.push('约 ' + updatePreviewState.etaSeconds + ' 秒');
-  return parts.join(' · ');
+  return window.MineradioUpdateState.updateProgressDetailText(updatePreviewState);
 }
 function initUpdatePreview() {
   renderUpdatePreviewPanel();
@@ -20021,22 +19831,7 @@ async function checkLatestUpdate() {
 }
 
 function applyLatestUpdateInfo(data) {
-  data = data || {};
-  var release = data.release || {};
-  updatePreviewState.currentVersion = data.currentVersion || updatePreviewState.currentVersion;
-  updatePreviewState.version = data.latestVersion || release.version || updatePreviewState.currentVersion;
-  updatePreviewState.configured = !!data.configured;
-  updatePreviewState.preview = !!data.preview;
-  updatePreviewState.updateAvailable = !!data.updateAvailable;
-  updatePreviewState.releaseUrl = release.htmlUrl || data.htmlUrl || '';
-  updatePreviewState.downloadUrl = release.downloadUrl || data.downloadUrl || '';
-  updatePreviewState.patchAvailable = !!(release.patchAvailable && release.patch && release.patch.downloadUrl);
-  updatePreviewState.patchUrl = updatePreviewState.patchAvailable ? release.patch.downloadUrl : '';
-  updatePreviewState.patchFallbackTried = false;
-  updatePreviewState.hero = release.summary || (updatePreviewState.updateAvailable ? '发现新版本，建议更新。' : '当前版本，更新检测已就绪。');
-  if (Array.isArray(release.notes) && release.notes.length) {
-    updatePreviewState.notes = release.notes.slice(0, 4);
-  }
+  window.MineradioUpdateState.applyLatestUpdateInfo(updatePreviewState, data);
   renderUpdatePreviewPanel();
   setUpdatePreviewVisible(updatePreviewState.updateAvailable || updatePreviewState.preview);
 }
@@ -20194,24 +19989,7 @@ async function startRealUpdateDownload() {
   }
   if (updatePreviewState.timer) clearInterval(updatePreviewState.timer);
   if (updatePreviewState.pollTimer) clearInterval(updatePreviewState.pollTimer);
-  updatePreviewState.status = 'downloading';
-  updatePreviewState.progress = 0;
-  updatePreviewState.mode = 'installer';
-  updatePreviewState.downloadJobId = '';
-  updatePreviewState.installerPath = '';
-  updatePreviewState.installerOpened = false;
-  updatePreviewState.cached = false;
-  updatePreviewState.received = 0;
-  updatePreviewState.total = 0;
-  updatePreviewState.speedBps = 0;
-  updatePreviewState.etaSeconds = 0;
-  updatePreviewState.sourceLabel = '';
-  updatePreviewState.attempt = 0;
-  updatePreviewState.attempts = 0;
-  updatePreviewState.errorReason = '';
-  updatePreviewState.errorDetail = '';
-  updatePreviewState.failedAttempts = [];
-  updatePreviewState.message = '正在下载完整安装包';
+  window.MineradioUpdateState.beginUpdateDownload(updatePreviewState);
   updateUpdatePreviewProgress(0);
   try {
     var job = await apiJson('/api/update/download', { method: 'POST' });
@@ -20238,25 +20016,7 @@ async function startRealUpdatePatch() {
   }
   if (updatePreviewState.timer) clearInterval(updatePreviewState.timer);
   if (updatePreviewState.pollTimer) clearInterval(updatePreviewState.pollTimer);
-  updatePreviewState.status = 'downloading';
-  updatePreviewState.mode = 'patch';
-  updatePreviewState.progress = 0;
-  updatePreviewState.patchJobId = '';
-  updatePreviewState.installerPath = '';
-  updatePreviewState.installerOpened = false;
-  updatePreviewState.cached = false;
-  updatePreviewState.received = 0;
-  updatePreviewState.total = 0;
-  updatePreviewState.speedBps = 0;
-  updatePreviewState.etaSeconds = 0;
-  updatePreviewState.sourceLabel = '';
-  updatePreviewState.attempt = 0;
-  updatePreviewState.attempts = 0;
-  updatePreviewState.errorReason = '';
-  updatePreviewState.errorDetail = '';
-  updatePreviewState.failedAttempts = [];
-  updatePreviewState.patchFallbackTried = false;
-  updatePreviewState.message = '正在下载快速补丁';
+  window.MineradioUpdateState.beginUpdatePatch(updatePreviewState);
   updateUpdatePreviewProgress(0);
   try {
     var job = await apiJson('/api/update/patch', { method: 'POST' });

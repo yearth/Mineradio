@@ -86,7 +86,7 @@ test('applyUpdateJobStatus preserves ready, error, and progress fields', () => {
   assert.equal(state.progress, 45.4);
   assert.match(updateProgressDetailText(state), /线路 2\/3/);
   assert.match(updateProgressDetailText(state), /mirror/);
-  assert.match(updateProgressDetailText(state), /1.5 KB \/ 4 KB/);
+  assert.match(updateProgressDetailText(state), /2 KB \/ 4 KB/);
   assert.match(updateProgressDetailText(state), /2 KB\/s/);
 
   applyUpdateJobStatus(state, { status: 'ready', filePath: '/tmp/Mineradio.dmg', cached: true });
@@ -104,8 +104,9 @@ test('applyUpdateJobStatus preserves ready, error, and progress fields', () => {
 
 test('update formatters keep compact byte and speed labels', () => {
   assert.equal(formatUpdateBytes(0), '0 B');
-  assert.equal(formatUpdateBytes(1536), '1.5 KB');
+  assert.equal(formatUpdateBytes(1536), '2 KB');
   assert.equal(formatUpdateBytes(5 * 1024 * 1024), '5 MB');
+  assert.equal(formatUpdateBytes(2.5 * 1024 * 1024 * 1024), '2.50 GB');
   assert.equal(formatUpdateSpeed(0), '');
   assert.equal(formatUpdateSpeed(2048), '2 KB/s');
 });

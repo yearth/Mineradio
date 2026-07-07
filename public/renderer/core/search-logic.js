@@ -176,9 +176,10 @@ function mergeSongSearchResults(neteaseSongs, qqSongs, limit, q) {
   return out.slice(0, limit);
 }
 
-module.exports = {
+var MineradioSearchLogic = {
   searchResultKey: searchResultKey,
   readSearchHistory: readSearchHistory,
+  writeSearchHistory: writeSearchHistory,
   rememberSearchQuery: rememberSearchQuery,
   formatProgramTime: formatProgramTime,
   podcastMetaText: podcastMetaText,
@@ -190,3 +191,6 @@ module.exports = {
   mergeSongSearchResults: mergeSongSearchResults,
   songProviderKey: songProviderKey,
 };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = MineradioSearchLogic;
+if (typeof window !== 'undefined') window.MineradioSearchLogic = MineradioSearchLogic;

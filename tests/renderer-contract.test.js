@@ -8,6 +8,10 @@ const root = path.join(__dirname, '..');
 const indexHtmlPath = path.join(root, 'public', 'index.html');
 const rendererPath = path.join(root, 'public', 'renderer', 'app.js');
 const rendererApiClientPath = path.join(root, 'public', 'renderer', 'core', 'api-client.js');
+const rendererPreferencesPath = path.join(root, 'public', 'renderer', 'core', 'preferences.js');
+const rendererUpdateStatePath = path.join(root, 'public', 'renderer', 'core', 'update-state.js');
+const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', 'lyrics-parser.js');
+const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
 const packageJson = require('../package.json');
 
@@ -119,6 +123,79 @@ test('renderer app wires apiJson through the core API client', () => {
   assert.equal(typeof browserContext.window.MineradioApiClient.createApiJson, 'function');
   assert.match(renderer, /MineradioApiClient\.createApiJson/);
   assert.doesNotMatch(renderer, /async function apiJson\s*\(/);
+});
+
+test('renderer app wires preferences through the core preferences module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const preferencesIndex = scripts.indexOf('renderer/core/preferences.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const preferences = readProjectFile(rendererPreferencesPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(preferencesIndex > -1, 'renderer/core/preferences.js must be loaded');
+  assert.ok(preferencesIndex < rendererIndex, 'core preferences must load before renderer/app.js');
+  vm.runInNewContext(preferences, browserContext, { filename: rendererPreferencesPath });
+  assert.equal(typeof browserContext.window.MineradioPreferences.readSavedVolume, 'function');
+  assert.match(renderer, /MineradioPreferences\.readSavedVolume/);
+  assert.match(renderer, /MineradioPreferences\.normalizePlaybackQuality/);
+  assert.doesNotMatch(renderer, /function readSavedVolume\s*\(\)\s*\{[\s\S]*?parseFloat\(localStorage\.getItem\('apex-player-volume'\)/);
+  assert.doesNotMatch(renderer, /function normalizePlaybackQuality\s*\(value\)\s*\{[\s\S]*?String\(value \|\| ''\)\.toLowerCase\(\)/);
+});
+
+test('renderer app wires update state through the core update-state module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const updateStateIndex = scripts.indexOf('renderer/core/update-state.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const updateState = readProjectFile(rendererUpdateStatePath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(updateStateIndex > -1, 'renderer/core/update-state.js must be loaded');
+  assert.ok(updateStateIndex < rendererIndex, 'core update-state must load before renderer/app.js');
+  vm.runInNewContext(updateState, browserContext, { filename: rendererUpdateStatePath });
+  assert.equal(typeof browserContext.window.MineradioUpdateState.applyLatestUpdateInfo, 'function');
+  assert.match(renderer, /MineradioUpdateState\.applyLatestUpdateInfo/);
+  assert.match(renderer, /MineradioUpdateState\.formatUpdateBytes/);
+  assert.doesNotMatch(renderer, /function formatUpdateBytes\s*\(bytes\)\s*\{[\s\S]*?1024 \* 1024/);
+});
+
+test('renderer app wires lyrics parsing through the core lyrics parser module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const lyricsParserIndex = scripts.indexOf('renderer/core/lyrics-parser.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const lyricsParser = readProjectFile(rendererLyricsParserPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(lyricsParserIndex > -1, 'renderer/core/lyrics-parser.js must be loaded');
+  assert.ok(lyricsParserIndex < rendererIndex, 'core lyrics parser must load before renderer/app.js');
+  vm.runInNewContext(lyricsParser, browserContext, { filename: rendererLyricsParserPath });
+  assert.equal(typeof browserContext.window.MineradioLyricsParser.parseLyricText, 'function');
+  assert.match(renderer, /MineradioLyricsParser\.parseLyricText/);
+  assert.match(renderer, /MineradioLyricsParser\.parseYrcText/);
+  assert.doesNotMatch(renderer, /function parseLyricText\s*\(text\)\s*\{[\s\S]*?String\(text \|\| ''\)\.split/);
+});
+
+test('renderer app wires search logic through the core search module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const searchLogicIndex = scripts.indexOf('renderer/core/search-logic.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const searchLogic = readProjectFile(rendererSearchLogicPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(searchLogicIndex > -1, 'renderer/core/search-logic.js must be loaded');
+  assert.ok(searchLogicIndex < rendererIndex, 'core search logic must load before renderer/app.js');
+  vm.runInNewContext(searchLogic, browserContext, { filename: rendererSearchLogicPath });
+  assert.equal(typeof browserContext.window.MineradioSearchLogic.mergeSongSearchResults, 'function');
+  assert.match(renderer, /MineradioSearchLogic\.mergeSongSearchResults/);
+  assert.match(renderer, /MineradioSearchLogic\.rememberSearchQuery/);
+  assert.doesNotMatch(renderer, /function scoreSongSearchResult\s*\(song, q, sourceIndex\)\s*\{[\s\S]*?var qAsksDerivative/);
 });
 
 test('inline HTML event handlers call functions defined by the renderer', () => {
