@@ -13,6 +13,7 @@ const rendererUpdateStatePath = path.join(root, 'public', 'renderer', 'core', 'u
 const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', 'lyrics-parser.js');
 const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
 const rendererSearchResultsPath = path.join(root, 'public', 'renderer', 'core', 'search-results.js');
+const rendererPodcastResultsPath = path.join(root, 'public', 'renderer', 'core', 'podcast-results.js');
 const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
 const rendererMiniQueuePath = path.join(root, 'public', 'renderer', 'core', 'mini-queue.js');
 const rendererQueuePanelPath = path.join(root, 'public', 'renderer', 'core', 'queue-panel.js');
@@ -213,6 +214,7 @@ test('renderer core scripts expose required browser globals before app boot', ()
     'MineradioLyricsParser',
     'MineradioSearchLogic',
     'MineradioSearchResults',
+    'MineradioPodcastResults',
     'MineradioPlayerQueue',
     'MineradioMiniQueue',
     'MineradioQueuePanel',
@@ -260,6 +262,25 @@ test('renderer app wires search result markup through the core search results mo
   assert.match(renderer, /MineradioSearchResults\.searchResultMetaText/);
   assert.match(renderer, /MineradioSearchResults\.searchResultMetaHtml/);
   assert.match(renderer, /MineradioSearchResults\.renderSongSearchResultsHtml/);
+});
+
+test('renderer app wires podcast result markup through the core podcast results module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const podcastResultsIndex = scripts.indexOf('renderer/core/podcast-results.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const podcastResults = readProjectFile(rendererPodcastResultsPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(podcastResultsIndex > -1, 'renderer/core/podcast-results.js must be loaded');
+  assert.ok(podcastResultsIndex < rendererIndex, 'core podcast results must load before renderer/app.js');
+  vm.runInNewContext(podcastResults, browserContext, { filename: rendererPodcastResultsPath });
+  assert.equal(typeof browserContext.window.MineradioPodcastResults.renderPodcastProgramsHtml, 'function');
+  assert.match(renderer, /MineradioPodcastResults\.renderPodcastThumbHtml/);
+  assert.match(renderer, /MineradioPodcastResults\.renderPodcastRadioItemsHtml/);
+  assert.match(renderer, /MineradioPodcastResults\.renderPodcastNoProgramsHtml/);
+  assert.match(renderer, /MineradioPodcastResults\.renderPodcastProgramsHtml/);
 });
 
 test('renderer app wires mini queue rendering through the core mini queue module', () => {
@@ -327,6 +348,7 @@ test('inline HTML event handlers call functions defined by the renderer', () => 
     ...extractInlineHandlerCalls(html, 'public/index.html'),
     ...extractInlineHandlerCalls(renderer, 'public/renderer/app.js'),
     ...extractInlineHandlerCalls(readProjectFile(rendererSearchResultsPath), 'public/renderer/core/search-results.js'),
+    ...(fs.existsSync(rendererPodcastResultsPath) ? extractInlineHandlerCalls(readProjectFile(rendererPodcastResultsPath), 'public/renderer/core/podcast-results.js') : []),
     ...(fs.existsSync(rendererQueuePanelPath) ? extractInlineHandlerCalls(readProjectFile(rendererQueuePanelPath), 'public/renderer/core/queue-panel.js') : []),
   ];
   const indexHandlerCount = handlers.filter(handler => handler.sourceLabel === 'public/index.html').length;

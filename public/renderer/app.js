@@ -14582,9 +14582,9 @@ function programMetaText(item) {
   return window.MineradioSearchLogic.programMetaText(item);
 }
 function searchThumbHtml(src) {
-  return src
-    ? '<img src="' + coverUrlWithSize(src, 80) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">'
-    : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,255,255,0.06);flex-shrink:0"></div>';
+  return window.MineradioPodcastResults.renderPodcastThumbHtml(src, {
+    coverUrlWithSize: coverUrlWithSize,
+  });
 }
 function renderPodcastRadios(items, label) {
   podcastResults = items || [];
@@ -14595,18 +14595,11 @@ function renderPodcastRadios(items, label) {
     $results.classList.add('show');
     return;
   }
-  $results.innerHTML = podcastResults.map(function(p, i){
-    return '<div class="search-result">' +
-      '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0" onclick="openPodcastPrograms(' + i + ')">' +
-        searchThumbHtml(p.cover) +
-        '<div class="search-result-info">' +
-          '<div class="search-result-title">' + escHtml(p.name || '') + '<span class="tag-podcast">Podcast</span></div>' +
-          '<div class="search-result-meta">' + escHtml(podcastMetaText(p) || label || 'NetEase Radio') + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<button class="add-btn" title="Open" onclick="event.stopPropagation();openPodcastPrograms(' + i + ')">›</button>' +
-    '</div>';
-  }).join('');
+  $results.innerHTML = window.MineradioPodcastResults.renderPodcastRadioItemsHtml(podcastResults, label, {
+    escHtml: escHtml,
+    coverUrlWithSize: coverUrlWithSize,
+    podcastMetaText: podcastMetaText,
+  });
   $results.classList.add('show');
   if (window.gsap) animateListItems($results, '.search-result', { x: 0, y: 6, stagger: 0.012, duration: 0.18, limit: 18 });
 }
@@ -14654,28 +14647,17 @@ async function openPodcastPrograms(i) {
 function renderPodcastPrograms() {
   var radio = podcastCurrentRadio || {};
   if (!podcastPrograms.length) {
-    $results.innerHTML = '<div class="podcast-result-head"><button class="podcast-back-btn" onclick="event.stopPropagation();renderPodcastRadios(podcastResults)">‹</button><div class="search-result-info"><div class="search-result-title">' + escHtml(radio.name || 'Podcast') + '</div><div class="search-result-meta">No playable episodes</div></div></div>';
+    $results.innerHTML = window.MineradioPodcastResults.renderPodcastNoProgramsHtml(radio, {
+      escHtml: escHtml,
+    });
     $results.classList.add('show');
     return;
   }
-  $results.innerHTML =
-    '<div class="podcast-result-head">' +
-      '<button class="podcast-back-btn" onclick="event.stopPropagation();renderPodcastRadios(podcastResults)">‹</button>' +
-      searchThumbHtml(radio.cover) +
-      '<div class="search-result-info"><div class="search-result-title">' + escHtml(radio.name || 'Podcast') + '<span class="tag-podcast">Podcast</span></div><div class="search-result-meta">' + escHtml(radio.djName || (podcastPrograms.length + ' episodes')) + '</div></div>' +
-    '</div>' +
-    podcastPrograms.map(function(p, i){
-      return '<div class="search-result">' +
-        '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0" onclick="playPodcastProgram(' + i + ')">' +
-          searchThumbHtml(p.cover) +
-          '<div class="search-result-info">' +
-            '<div class="search-result-title">' + escHtml(p.name || '') + '</div>' +
-            '<div class="search-result-meta">' + escHtml(programMetaText(p)) + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<button class="add-btn" title="下一首播放" onclick="event.stopPropagation();queuePodcastProgram(' + i + ')">+</button>' +
-      '</div>';
-    }).join('');
+  $results.innerHTML = window.MineradioPodcastResults.renderPodcastProgramsHtml(radio, podcastPrograms, {
+    escHtml: escHtml,
+    coverUrlWithSize: coverUrlWithSize,
+    programMetaText: programMetaText,
+  });
   $results.classList.add('show');
   if (window.gsap) animateListItems($results, '.search-result', { x: 0, y: 6, stagger: 0.010, duration: 0.18, limit: 18 });
 }
