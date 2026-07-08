@@ -15,6 +15,7 @@ const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 's
 const rendererSearchResultsPath = path.join(root, 'public', 'renderer', 'core', 'search-results.js');
 const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
 const rendererMiniQueuePath = path.join(root, 'public', 'renderer', 'core', 'mini-queue.js');
+const rendererQueuePanelPath = path.join(root, 'public', 'renderer', 'core', 'queue-panel.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
 const packageJson = require('../package.json');
 
@@ -214,6 +215,7 @@ test('renderer core scripts expose required browser globals before app boot', ()
     'MineradioSearchResults',
     'MineradioPlayerQueue',
     'MineradioMiniQueue',
+    'MineradioQueuePanel',
   ];
   const browserContext = {
     window: {},
@@ -278,6 +280,23 @@ test('renderer app wires mini queue rendering through the core mini queue module
   assert.match(renderer, /MineradioMiniQueue\.renderMiniQueueItemsHtml/);
 });
 
+test('renderer app wires queue panel rendering through the core queue panel module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const queuePanelIndex = scripts.indexOf('renderer/core/queue-panel.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const queuePanel = readProjectFile(rendererQueuePanelPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(queuePanelIndex > -1, 'renderer/core/queue-panel.js must be loaded');
+  assert.ok(queuePanelIndex < rendererIndex, 'core queue panel must load before renderer/app.js');
+  vm.runInNewContext(queuePanel, browserContext, { filename: rendererQueuePanelPath });
+  assert.equal(typeof browserContext.window.MineradioQueuePanel.renderQueuePanelItemsHtml, 'function');
+  assert.match(renderer, /MineradioQueuePanel\.renderQueuePanelEmptyHtml/);
+  assert.match(renderer, /MineradioQueuePanel\.renderQueuePanelItemsHtml/);
+});
+
 test('renderer app wires player queue through the core player queue module', () => {
   const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
   const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
@@ -308,6 +327,7 @@ test('inline HTML event handlers call functions defined by the renderer', () => 
     ...extractInlineHandlerCalls(html, 'public/index.html'),
     ...extractInlineHandlerCalls(renderer, 'public/renderer/app.js'),
     ...extractInlineHandlerCalls(readProjectFile(rendererSearchResultsPath), 'public/renderer/core/search-results.js'),
+    ...(fs.existsSync(rendererQueuePanelPath) ? extractInlineHandlerCalls(readProjectFile(rendererQueuePanelPath), 'public/renderer/core/queue-panel.js') : []),
   ];
   const indexHandlerCount = handlers.filter(handler => handler.sourceLabel === 'public/index.html').length;
   const rendererHandlerCount = handlers.filter(handler => handler.sourceLabel !== 'public/index.html').length;
