@@ -7,7 +7,14 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`.
-- Current local slice: extract playlist panel delegated click recognition into a tested renderer helper.
+- Current local slice: published the macOS preview/refactor fork to the user's personal GitHub repository.
+- Personal GitHub repository: `https://github.com/yearth/Mineradio`.
+- Remotes:
+  - `origin`: original upstream clone, `https://github.com/XxHuberrr/Mineradio.git`.
+  - `personal`: user's personal repository, `https://github.com/yearth/Mineradio.git`.
+- Remote branches pushed:
+  - `personal/main`: current refactor state for repository homepage/default branch.
+  - `personal/feat/macos-preview`: active development branch.
 - Latest committed renderer slices:
   - `7b34391 refactor: extract renderer stylesheet`
   - `a99b3f5 refactor: extract renderer script`
@@ -26,9 +33,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 
 ## Current Local Changes
 
-- `public/renderer/core/playlist-panel.js`: adds `resolvePlaylistPanelClickAction(event)` to map delegated clicks to explicit actions: playlist load-more, detail load-more/top/play, detail artist, detail row, and playlist card open. Detail actions preserve the previous `preventDefault`/`stopPropagation` behavior; card clicks remain non-blocking and keep legacy default provider/id/title fallbacks.
-- `public/renderer/app.js`: replaces the inline `#pl-list` selector ladder with action dispatch while keeping the same stateful effects in place.
-- `tests/renderer-playlist-panel.test.js`: adds DOM harness tests for nested delegated clicks, default-prevention behavior, action payloads, and empty/card click handling.
+- README has been rewritten for the personal fork to explain macOS preview status and the main differences from the original Mineradio project.
+- `.agent/handoff.md` records the personal GitHub remote and pushed branches.
 
 ## Verification
 
@@ -42,6 +48,11 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 - QA gate:
   - Read-only subagent result: `PASS`.
   - QA noted that direct `stopPropagation` observation would strengthen the tests; the DOM harness test now asserts outer listeners are not reached for blocking detail actions.
+- Publishing:
+  - `a96dc15 docs: describe macos refactor fork` committed the README update.
+  - Created public repo `yearth/Mineradio`.
+  - Pushed current refactor state to `personal/main` and `personal/feat/macos-preview`.
+  - Pushed existing tags through `v1.1.1` to `personal`.
 
 ## Guardrails
 
@@ -53,8 +64,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 
 ## Next Actions
 
-1. Commit with message `refactor: extract renderer playlist click resolver`.
-2. Build a macOS package for the user to verify, because this batch touched user-facing playlist interactions.
-3. Next renderer candidates after user build verification:
+1. Commit and push this handoff update to `personal/main` and `personal/feat/macos-preview`.
+2. Next renderer candidates:
    - Continue renderer TDD before splitting handlers with side effects.
    - Candidate areas: playlist panel scroll/load-more state helpers, shelf/library markup, or podcast-list delegated click recognition.
