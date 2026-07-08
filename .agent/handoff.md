@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`.
-- Current local slice: extract playlist panel list/card markup into a renderer core helper.
+- Current local slice: extend the podcast renderer helper to own my-podcast collection/radio panel markup.
 - Latest committed renderer slices:
   - `7b34391 refactor: extract renderer stylesheet`
   - `a99b3f5 refactor: extract renderer script`
@@ -16,29 +16,28 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
   - `bdecaae refactor: extract renderer search result helper`
   - `cbbaef9 refactor: extract renderer queue panel helper`
   - `9756b94 refactor: extract renderer podcast result helper`
+  - `24cdf58 refactor: extract renderer playlist panel helper`
 - Relevant architecture state:
   - `public/index.html` loads renderer core classic scripts before `renderer/app.js`.
   - Renderer remains classic-script based, not ESM, because existing inline handlers depend on global function names.
-  - `public/renderer/app.js` still owns DOM state/effects but delegates tested pure helpers for API, preferences, update state, lyrics, search logic, player queue, mini queue, search result markup, queue panel markup, podcast result markup, and now playlist panel markup.
+  - `public/renderer/app.js` still owns DOM state/effects but delegates tested pure helpers for API, preferences, update state, lyrics, search logic, player queue, mini queue, search result markup, queue panel markup, podcast result markup, playlist panel markup, and now my-podcast collection/radio panel markup.
 
 ## Current Local Changes
 
-- `public/renderer/core/playlist-panel.js`: new classic-script/Node-exported helper as `window.MineradioPlaylistPanel`; renders playlist panel section labels, playlist cards, empty fallback, provider/key helpers, and rendered-count metadata.
-- `public/index.html`: loads `renderer/core/playlist-panel.js` before `renderer/app.js`.
-- `public/renderer/app.js`: keeps playlist request/state/detail/load-more/animation behavior in the renderer app, but delegates playlist panel key/provider-id/list markup to `window.MineradioPlaylistPanel`.
-- `tests/renderer-playlist-panel.test.js`: protects provider/key/provider-id/cover rules, QQ/Netease grouping, render-limit behavior, expanded-card class, card data attributes, cover fallback, detail injection, empty fallback, and escaping.
-- `tests/renderer-contract.test.js`: verifies the new core global loads before `renderer/app.js` and verifies app wiring to `MineradioPlaylistPanel`.
+- `public/renderer/core/podcast-results.js`: extends existing `window.MineradioPodcastResults` with my-podcast panel helpers for collection cards, child radio cards, shared 44px podcast panel thumb, inline header, back button, empty fallback, cover sizing, and escaping.
+- `public/renderer/app.js`: keeps login, empty collection, click handling, queue loading, request/state, and animation timing in the renderer app; delegates only my-podcast panel markup to `window.MineradioPodcastResults`.
+- `tests/renderer-podcast-results.test.js`: protects collection card markup, 88px cover sizing, data attributes, 44px fallback thumb, radio child rows, header/back markup, empty content fallback, subtext, and escaping.
+- `tests/renderer-contract.test.js`: verifies `MineradioPodcastResults` exports the new helpers and that `renderer/app.js` wires to them.
 
 ## Verification
 
 - RED before implementation:
-  - `npm run test:renderer -- --test-name-pattern "playlist panel"` failed because `public/renderer/core/playlist-panel.js` did not exist.
-  - `npm run test:renderer -- --test-name-pattern "playlist panel markup"` failed because `renderer/core/playlist-panel.js` was not loaded and `MineradioPlaylistPanel` did not exist before `renderer/app.js`.
+  - `npm run test:renderer -- --test-name-pattern "my podcast|podcast result markup"` failed because `MineradioPodcastResults.renderMyPodcastCollectionsHtml` and `renderMyPodcastRadioItemsHtml` did not exist, and app wiring still used inline markup.
 - GREEN after implementation:
-  - `npm run test:renderer -- --test-name-pattern "playlist panel"`: 71/71 pass.
-  - `npm run test:renderer`: 71/71 pass.
-  - `npm test`: 649/649 pass.
-  - `npm run coverage`: 649/649 pass; all included production files line coverage `100.00%`, including `public/renderer/core/playlist-panel.js`.
+  - `npm run test:renderer -- --test-name-pattern "my podcast|podcast result markup"`: 73/73 pass.
+  - `npm run test:renderer`: 73/73 pass.
+  - `npm test`: 651/651 pass.
+  - `npm run coverage`: 651/651 pass; all included production files line coverage `100.00%`, including `public/renderer/core/podcast-results.js`.
   - `git diff --check`: pass.
 
 ## Guardrails
@@ -51,8 +50,9 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 
 ## Next Actions
 
-1. Run independent read-only QA gate for the playlist-panel slice.
-2. If QA passes, commit with message `refactor: extract renderer playlist panel helper`.
-3. Next renderer candidates:
-   - Extract podcast collection/radio card markup from `renderMyPodcastCollections` or `renderMyPodcastRadioItems`.
+1. Run independent read-only QA gate for the my-podcast panel helper slice.
+2. If QA passes, commit with message `refactor: extract renderer podcast collection helper`.
+3. Build a macOS package for the user to verify, because this batch touched visible playlist and my-podcast panel markup.
+4. Next renderer candidates after user build verification:
+   - Extract playlist detail markup (`playlistPanelDetailHtml`) or other stateful renderer markup only after adding focused tests first.
    - Use the DOM harness for stateful renderer DOM behavior before splitting handlers with side effects.

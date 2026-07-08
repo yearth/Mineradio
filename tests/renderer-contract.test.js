@@ -283,6 +283,10 @@ test('renderer app wires podcast result markup through the core podcast results 
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastRadioItemsHtml/);
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastNoProgramsHtml/);
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastProgramsHtml/);
+  assert.equal(typeof browserContext.window.MineradioPodcastResults.renderMyPodcastCollectionsHtml, 'function');
+  assert.equal(typeof browserContext.window.MineradioPodcastResults.renderMyPodcastRadioItemsHtml, 'function');
+  assert.match(renderer, /MineradioPodcastResults\.renderMyPodcastCollectionsHtml/);
+  assert.match(renderer, /MineradioPodcastResults\.renderMyPodcastRadioItemsHtml/);
 });
 
 test('renderer app wires playlist panel markup through the core playlist panel module', () => {
