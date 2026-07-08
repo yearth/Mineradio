@@ -14,6 +14,7 @@ const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', '
 const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
 const rendererSearchResultsPath = path.join(root, 'public', 'renderer', 'core', 'search-results.js');
 const rendererPodcastResultsPath = path.join(root, 'public', 'renderer', 'core', 'podcast-results.js');
+const rendererPlaylistPanelPath = path.join(root, 'public', 'renderer', 'core', 'playlist-panel.js');
 const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
 const rendererMiniQueuePath = path.join(root, 'public', 'renderer', 'core', 'mini-queue.js');
 const rendererQueuePanelPath = path.join(root, 'public', 'renderer', 'core', 'queue-panel.js');
@@ -215,6 +216,7 @@ test('renderer core scripts expose required browser globals before app boot', ()
     'MineradioSearchLogic',
     'MineradioSearchResults',
     'MineradioPodcastResults',
+    'MineradioPlaylistPanel',
     'MineradioPlayerQueue',
     'MineradioMiniQueue',
     'MineradioQueuePanel',
@@ -281,6 +283,24 @@ test('renderer app wires podcast result markup through the core podcast results 
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastRadioItemsHtml/);
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastNoProgramsHtml/);
   assert.match(renderer, /MineradioPodcastResults\.renderPodcastProgramsHtml/);
+});
+
+test('renderer app wires playlist panel markup through the core playlist panel module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const playlistPanelIndex = scripts.indexOf('renderer/core/playlist-panel.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const playlistPanel = readProjectFile(rendererPlaylistPanelPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(playlistPanelIndex > -1, 'renderer/core/playlist-panel.js must be loaded');
+  assert.ok(playlistPanelIndex < rendererIndex, 'core playlist panel must load before renderer/app.js');
+  vm.runInNewContext(playlistPanel, browserContext, { filename: rendererPlaylistPanelPath });
+  assert.equal(typeof browserContext.window.MineradioPlaylistPanel.renderPlaylistPanelListHtml, 'function');
+  assert.match(renderer, /MineradioPlaylistPanel\.playlistPanelKey/);
+  assert.match(renderer, /MineradioPlaylistPanel\.playlistPanelProviderId/);
+  assert.match(renderer, /MineradioPlaylistPanel\.renderPlaylistPanelListHtml/);
 });
 
 test('renderer app wires mini queue rendering through the core mini queue module', () => {
