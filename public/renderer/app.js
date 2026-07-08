@@ -16512,39 +16512,11 @@ function playlistPanelProviderId(provider, id) {
   return window.MineradioPlaylistPanel.playlistPanelProviderId(provider, id);
 }
 function playlistPanelDetailHtml(pl, provider) {
-  var key = playlistPanelKey(provider, pl && pl.id);
-  if (playlistPanelDetailState.key !== key) return '';
-  var tracks = playlistPanelDetailState.tracks || [];
-  var loading = playlistPanelDetailState.loading;
-  var cover = pl && pl.cover ? (provider === 'qq' ? pl.cover : (pl.cover + '?param=96y96')) : '';
-  var img = cover ? '<img class="pl-detail-cover" src="' + escHtml(cover) + '" alt="" decoding="async" onerror="this.style.opacity=0.2">' : '<div class="pl-detail-cover"></div>';
-  var renderLimit = loading ? 0 : Math.max(PLAYLIST_DETAIL_INITIAL_RENDER, playlistPanelDetailState.renderLimit || PLAYLIST_DETAIL_INITIAL_RENDER);
-  renderLimit = Math.min(tracks.length, renderLimit);
-  var visibleTracks = loading ? [] : tracks.slice(0, renderLimit);
-  var rows = loading
-    ? '<div class="pl-detail-row"><div style="width:34px;height:34px;border-radius:7px;background:rgba(255,255,255,.06)"></div><div style="flex:1;min-width:0"><div class="pl-detail-row-title">正在载入歌单</div><div class="pl-detail-row-artist">请稍候</div></div></div>'
-    : visibleTracks.map(function(song, i){
-        var thumb = songCoverSrc(song, 60);
-        var imgTag = thumb ? '<img src="' + escHtml(thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.style.opacity=0.2">' : '<div style="width:34px;height:34px;border-radius:7px;background:rgba(255,255,255,.06);flex:0 0 auto"></div>';
-        return '<div class="pl-detail-row" data-pl-detail-row="' + i + '">' +
-          imgTag +
-          '<div style="flex:1;min-width:0"><div class="pl-detail-row-title">' + escHtml(song.name || '') + '</div>' +
-          '<button type="button" class="pl-detail-row-artist" data-pl-detail-artist="' + i + '">' + escHtml(song.artist || '未知歌手') + '</button></div>' +
-        '</div>';
-      }).join('');
-  if (!loading && !rows) rows = '<div style="text-align:center;padding:14px 0;color:rgba(255,255,255,.30);font-size:11.5px">歌单暂无可播放歌曲</div>';
-  if (!loading && tracks.length > renderLimit) {
-    rows += '<button type="button" class="fx-mini-btn ghost pl-detail-load-more" data-pl-detail-load-more="1">加载更多 ' + renderLimit + '/' + tracks.length + '</button>';
-  } else if (!loading && tracks.length > PLAYLIST_DETAIL_INITIAL_RENDER) {
-    rows += '<div class="pl-detail-progress">已显示全部 ' + tracks.length + ' 首</div>';
-  }
-  return '<div class="pl-inline-detail" data-pl-detail="' + escHtml(key) + '">' +
-    '<div class="pl-detail-sticky">' +
-      '<div class="pl-detail-head">' + img + '<div style="flex:1;min-width:0"><div class="pl-detail-title">' + escHtml(pl.name || '歌单详情') + '</div><div class="pl-detail-sub">' + escHtml((pl.trackCount || tracks.length || 0) + ' 首 · ' + (pl.creator || (provider === 'qq' ? 'QQ 音乐' : '网易云音乐'))) + '</div></div><div class="pl-detail-count">' + (loading ? '载入中' : (renderLimit + '/' + tracks.length)) + '</div></div>' +
-      '<div class="pl-detail-actions"><button class="pl-detail-play" type="button" data-pl-detail-play="' + escHtml(key) + '"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>播放歌单</button><button class="fx-mini-btn ghost pl-detail-top-btn" type="button" data-pl-detail-top="1">回到顶部</button></div>' +
-    '</div>' +
-    '<div class="pl-detail-list">' + rows + '</div>' +
-  '</div>';
+  return window.MineradioPlaylistPanel.renderPlaylistPanelDetailHtml(pl, provider, playlistPanelDetailState, {
+    escHtml: escHtml,
+    songCoverSrc: songCoverSrc,
+    initialRender: PLAYLIST_DETAIL_INITIAL_RENDER,
+  });
 }
 function renderPlaylistPanelDetailState() {
   renderUserPlaylistsList();

@@ -13,7 +13,9 @@ function createDeps(deps) {
   return {
     escHtml: deps.escHtml || fallbackEscHtml,
     detailHtml: deps.detailHtml || function() { return ''; },
+    songCoverSrc: deps.songCoverSrc || function() { return ''; },
     activeKey: deps.activeKey || '',
+    initialRender: deps.initialRender || 64,
   };
 }
 
@@ -50,6 +52,60 @@ function renderPlaylistPanelCardHtml(pl, deps) {
     imgTag +
     '<div style="flex:1;min-width:0"><div class="pl-name">' + deps.escHtml(pl.name) + '<span class="tag-source ' + provider + '" style="margin-left:6px;vertical-align:1px">' + providerLabel + '</span></div><div class="pl-sub">' + pl.trackCount + ' 首 · ' + deps.escHtml(pl.creator || '') + '</div></div>' +
   '</div>' + deps.detailHtml(pl, provider);
+}
+
+function playlistPanelDetailCoverUrl(pl, provider) {
+  if (!pl || !pl.cover) return '';
+  return provider === 'qq' ? pl.cover : (pl.cover + '?param=96y96');
+}
+
+function renderPlaylistPanelDetailRowsHtml(tracks, renderLimit, deps) {
+  deps = createDeps(deps);
+  return tracks.slice(0, renderLimit).map(function(song, i) {
+    song = song || {};
+    var thumb = deps.songCoverSrc(song, 60);
+    var imgTag = thumb
+      ? '<img src="' + deps.escHtml(thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.style.opacity=0.2">'
+      : '<div style="width:34px;height:34px;border-radius:7px;background:rgba(255,255,255,.06);flex:0 0 auto"></div>';
+    return '<div class="pl-detail-row" data-pl-detail-row="' + i + '">' +
+      imgTag +
+      '<div style="flex:1;min-width:0"><div class="pl-detail-row-title">' + deps.escHtml(song.name || '') + '</div>' +
+      '<button type="button" class="pl-detail-row-artist" data-pl-detail-artist="' + i + '">' + deps.escHtml(song.artist || '未知歌手') + '</button></div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderPlaylistPanelDetailHtml(pl, provider, state, deps) {
+  deps = createDeps(deps);
+  pl = pl || {};
+  state = state || {};
+  provider = provider === 'qq' ? 'qq' : 'netease';
+  var key = playlistPanelKey(provider, pl && pl.id);
+  if (state.key !== key) return '';
+  var tracks = state.tracks || [];
+  var loading = state.loading;
+  var cover = playlistPanelDetailCoverUrl(pl, provider);
+  var img = cover
+    ? '<img class="pl-detail-cover" src="' + deps.escHtml(cover) + '" alt="" decoding="async" onerror="this.style.opacity=0.2">'
+    : '<div class="pl-detail-cover"></div>';
+  var renderLimit = loading ? 0 : Math.max(deps.initialRender, state.renderLimit || deps.initialRender);
+  renderLimit = Math.min(tracks.length, renderLimit);
+  var rows = loading
+    ? '<div class="pl-detail-row"><div style="width:34px;height:34px;border-radius:7px;background:rgba(255,255,255,.06)"></div><div style="flex:1;min-width:0"><div class="pl-detail-row-title">正在载入歌单</div><div class="pl-detail-row-artist">请稍候</div></div></div>'
+    : renderPlaylistPanelDetailRowsHtml(tracks, renderLimit, deps);
+  if (!loading && !rows) rows = '<div style="text-align:center;padding:14px 0;color:rgba(255,255,255,.30);font-size:11.5px">歌单暂无可播放歌曲</div>';
+  if (!loading && tracks.length > renderLimit) {
+    rows += '<button type="button" class="fx-mini-btn ghost pl-detail-load-more" data-pl-detail-load-more="1">加载更多 ' + renderLimit + '/' + tracks.length + '</button>';
+  } else if (!loading && tracks.length > deps.initialRender) {
+    rows += '<div class="pl-detail-progress">已显示全部 ' + tracks.length + ' 首</div>';
+  }
+  return '<div class="pl-inline-detail" data-pl-detail="' + deps.escHtml(key) + '">' +
+    '<div class="pl-detail-sticky">' +
+      '<div class="pl-detail-head">' + img + '<div style="flex:1;min-width:0"><div class="pl-detail-title">' + deps.escHtml(pl.name || '歌单详情') + '</div><div class="pl-detail-sub">' + deps.escHtml((pl.trackCount || tracks.length || 0) + ' 首 · ' + (pl.creator || (provider === 'qq' ? 'QQ 音乐' : '网易云音乐'))) + '</div></div><div class="pl-detail-count">' + (loading ? '载入中' : (renderLimit + '/' + tracks.length)) + '</div></div>' +
+      '<div class="pl-detail-actions"><button class="pl-detail-play" type="button" data-pl-detail-play="' + deps.escHtml(key) + '"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>播放歌单</button><button class="fx-mini-btn ghost pl-detail-top-btn" type="button" data-pl-detail-top="1">回到顶部</button></div>' +
+    '</div>' +
+    '<div class="pl-detail-list">' + rows + '</div>' +
+  '</div>';
 }
 
 function playlistPanelEmptyHtml() {
@@ -90,8 +146,11 @@ var MineradioPlaylistPanel = {
   playlistPanelKey: playlistPanelKey,
   playlistPanelProviderId: playlistPanelProviderId,
   playlistPanelCoverUrl: playlistPanelCoverUrl,
+  playlistPanelDetailCoverUrl: playlistPanelDetailCoverUrl,
   playlistPanelEmptyHtml: playlistPanelEmptyHtml,
   renderPlaylistPanelCardHtml: renderPlaylistPanelCardHtml,
+  renderPlaylistPanelDetailRowsHtml: renderPlaylistPanelDetailRowsHtml,
+  renderPlaylistPanelDetailHtml: renderPlaylistPanelDetailHtml,
   renderPlaylistPanelListHtml: renderPlaylistPanelListHtml,
 };
 

@@ -7,6 +7,7 @@ const {
   playlistPanelProviderId,
   playlistPanelCoverUrl,
   renderPlaylistPanelCardHtml,
+  renderPlaylistPanelDetailHtml,
   renderPlaylistPanelListHtml,
 } = require('../public/renderer/core/playlist-panel');
 
@@ -80,4 +81,123 @@ test('playlist panel list markup preserves empty fallback and default escaping',
   const card = renderPlaylistPanelCardHtml({ id: '1', name: 'A "quote" & <tag>', creator: 'B > C' });
   assert.match(card, /A &quot;quote&quot; &amp; &lt;tag&gt;/);
   assert.match(card, /B &gt; C/);
+});
+
+test('playlist panel detail markup preserves inactive and loading states', () => {
+  assert.equal(renderPlaylistPanelDetailHtml({
+    id: 'n1',
+    name: 'List',
+  }, 'netease', { key: 'qq:q1' }, {
+    initialRender: 2,
+    songCoverSrc() {
+      throw new Error('songCoverSrc should not run for inactive details');
+    },
+  }), '');
+
+  const html = renderPlaylistPanelDetailHtml({
+    id: 'n1',
+    name: 'Loading <List>',
+    creator: 'DJ & Co',
+    trackCount: 12,
+    cover: 'https://ne.example/cover.jpg',
+  }, 'netease', {
+    key: 'netease:n1',
+    loading: true,
+    tracks: [{ name: 'Hidden' }],
+    renderLimit: 2,
+  }, {
+    escHtml,
+    initialRender: 2,
+    songCoverSrc() {
+      return '';
+    },
+  });
+
+  assert.match(html, /^<div class="pl-inline-detail" data-pl-detail="netease:n1">/);
+  assert.match(html, /<img class="pl-detail-cover" src="https:\/\/ne\.example\/cover\.jpg\?param=96y96" alt="" decoding="async" onerror="this\.style\.opacity=0\.2">/);
+  assert.match(html, /<div class="pl-detail-title">Loading &lt;List&gt;<\/div>/);
+  assert.match(html, /<div class="pl-detail-sub">12 首 · DJ &amp; Co<\/div>/);
+  assert.match(html, /<div class="pl-detail-count">载入中<\/div>/);
+  assert.match(html, /<div class="pl-detail-row-title">正在载入歌单<\/div>/);
+  assert.match(html, /<div class="pl-detail-row-artist">请稍候<\/div>/);
+});
+
+test('playlist panel detail markup preserves rows, load-more, progress, empty state, and defaults', () => {
+  const tracks = [
+    { name: 'Song <One>', artist: 'Artist & One', cover: 'cover-1' },
+    { name: 'Song Two', artist: '', cover: '' },
+    { name: 'Song Three', artist: 'Artist Three', cover: 'cover-3' },
+  ];
+  const html = renderPlaylistPanelDetailHtml({
+    id: 'q1',
+    provider: 'qq',
+    name: 'QQ "List"',
+    cover: 'https://qq.example/cover.jpg',
+  }, 'qq', {
+    key: 'qq:q1',
+    loading: false,
+    tracks,
+    renderLimit: 2,
+  }, {
+    escHtml,
+    initialRender: 2,
+    songCoverSrc(song, size) {
+      assert.equal(size, 60);
+      return song.cover ? `https://img.example/${song.cover}.jpg` : '';
+    },
+  });
+
+  assert.match(html, /^<div class="pl-inline-detail" data-pl-detail="qq:q1">/);
+  assert.match(html, /<img class="pl-detail-cover" src="https:\/\/qq\.example\/cover\.jpg" alt="" decoding="async" onerror="this\.style\.opacity=0\.2">/);
+  assert.match(html, /<div class="pl-detail-title">QQ "List"<\/div>/);
+  assert.match(html, /<div class="pl-detail-sub">3 首 · QQ 音乐<\/div>/);
+  assert.match(html, /<div class="pl-detail-count">2\/3<\/div>/);
+  assert.match(html, /<div class="pl-detail-row" data-pl-detail-row="0">/);
+  assert.match(html, /<img src="https:\/\/img\.example\/cover-1\.jpg" alt="" loading="lazy" decoding="async" onerror="this\.style\.opacity=0\.2">/);
+  assert.match(html, /<div class="pl-detail-row-title">Song &lt;One&gt;<\/div>/);
+  assert.match(html, /<button type="button" class="pl-detail-row-artist" data-pl-detail-artist="0">Artist &amp; One<\/button>/);
+  assert.match(html, /<button type="button" class="pl-detail-row-artist" data-pl-detail-artist="1">未知歌手<\/button>/);
+  assert.doesNotMatch(html, /data-pl-detail-row="2"/);
+  assert.match(html, /<button type="button" class="fx-mini-btn ghost pl-detail-load-more" data-pl-detail-load-more="1">加载更多 2\/3<\/button>/);
+
+  const complete = renderPlaylistPanelDetailHtml({ id: 'q1' }, 'qq', {
+    key: 'qq:q1',
+    loading: false,
+    tracks,
+    renderLimit: 3,
+  }, {
+    escHtml,
+    initialRender: 2,
+    songCoverSrc() {
+      return '';
+    },
+  });
+  assert.match(complete, /<div class="pl-detail-progress">已显示全部 3 首<\/div>/);
+
+  const empty = renderPlaylistPanelDetailHtml({ id: 'q1' }, 'qq', {
+    key: 'qq:q1',
+    loading: false,
+    tracks: [],
+    renderLimit: 2,
+  }, {
+    escHtml,
+    initialRender: 2,
+    songCoverSrc() {
+      return '';
+    },
+  });
+  assert.match(empty, /歌单暂无可播放歌曲/);
+
+  const defaultEscaped = renderPlaylistPanelDetailHtml({
+    id: '1',
+    name: 'A "quote" & <tag>',
+    creator: 'B > C',
+  }, 'netease', {
+    key: 'netease:1',
+    loading: false,
+    tracks: [{ name: 'Track <A>', artist: 'Artist > B' }],
+    renderLimit: 64,
+  });
+  assert.match(defaultEscaped, /A &quot;quote&quot; &amp; &lt;tag&gt;/);
+  assert.match(defaultEscaped, /Artist &gt; B/);
 });

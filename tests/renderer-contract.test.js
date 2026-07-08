@@ -302,9 +302,11 @@ test('renderer app wires playlist panel markup through the core playlist panel m
   assert.ok(playlistPanelIndex < rendererIndex, 'core playlist panel must load before renderer/app.js');
   vm.runInNewContext(playlistPanel, browserContext, { filename: rendererPlaylistPanelPath });
   assert.equal(typeof browserContext.window.MineradioPlaylistPanel.renderPlaylistPanelListHtml, 'function');
+  assert.equal(typeof browserContext.window.MineradioPlaylistPanel.renderPlaylistPanelDetailHtml, 'function');
   assert.match(renderer, /MineradioPlaylistPanel\.playlistPanelKey/);
   assert.match(renderer, /MineradioPlaylistPanel\.playlistPanelProviderId/);
   assert.match(renderer, /MineradioPlaylistPanel\.renderPlaylistPanelListHtml/);
+  assert.match(renderer, /MineradioPlaylistPanel\.renderPlaylistPanelDetailHtml/);
 });
 
 test('renderer app wires mini queue rendering through the core mini queue module', () => {
