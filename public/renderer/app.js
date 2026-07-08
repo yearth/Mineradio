@@ -14761,27 +14761,23 @@ var playerQueueHelpers = window.MineradioPlayerQueue.createPlayerQueueHelpers({
   cloneSong: cloneSong,
   songProviderKey: songProviderKey,
 });
+var searchResultRenderDeps = {
+  escHtml: escHtml,
+  songProviderKey: songProviderKey,
+  songSourceLabel: songSourceLabel,
+  songCoverSrc: songCoverSrc,
+  heartIconSvg: heartIconSvg,
+  playlistPlusIconSvg: playlistPlusIconSvg,
+  isSongLiked: isSongLiked,
+};
 function songSourceTagHtml(song) {
-  var key = songProviderKey(song);
-  var label = key === 'qq' ? 'QQ' : 'NE';
-  return '<span class="tag-source ' + key + '">' + label + '</span>';
+  return window.MineradioSearchResults.songSourceTagHtml(song, searchResultRenderDeps);
 }
 function searchResultMetaText(song) {
-  var bits = [];
-  if (song.artist) bits.push(song.artist);
-  if (song.album) bits.push(song.album);
-  if (songProviderKey(song) === 'qq' && !song.playable) bits.push('QQ 播放需会话/授权');
-  return bits.join('  ·  ') || songSourceLabel(song);
+  return window.MineradioSearchResults.searchResultMetaText(song, searchResultRenderDeps);
 }
 function searchResultMetaHtml(song, index) {
-  song = song || {};
-  var artist = String(song.artist || '').trim();
-  var bits = [];
-  if (song.album) bits.push(song.album);
-  if (songProviderKey(song) === 'qq' && !song.playable) bits.push('QQ 播放需会话/授权');
-  var tail = bits.length ? (' · ' + escHtml(bits.join('  ·  '))) : '';
-  if (!artist) return escHtml(searchResultMetaText(song));
-  return '<button class="search-artist-link" type="button" onclick="event.stopPropagation();openSearchResultArtist(' + index + ')">' + escHtml(artist) + '</button>' + tail;
+  return window.MineradioSearchResults.searchResultMetaHtml(song, index, searchResultRenderDeps);
 }
 function openSearchResultArtist(index) {
   var song = playlist && playlist[index];
@@ -14866,27 +14862,7 @@ async function fetchMusicSearchResults(q, mode) {
 }
 function renderSongSearchResults(songs) {
   playlist = songs || [];
-  $results.innerHTML = playlist.map(function(s, i){
-    var vipTag = (s.fee === 1) ? '<span class="tag-vip">VIP</span>' : '';
-    var sourceTag = songSourceTagHtml(s);
-    var sourceClass = songProviderKey(s) + '-source';
-    var thumb = songCoverSrc(s, 80);
-    var imgTag = thumb
-      ? '<img src="' + thumb + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">'
-      : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,255,255,0.06);flex-shrink:0"></div>';
-    return '<div class="search-result ' + sourceClass + '">' +
-      '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0" onclick="playSearchResult(' + i + ')">' +
-        imgTag +
-        '<div class="search-result-info">' +
-          '<div class="search-result-title">' + escHtml(s.name) + sourceTag + vipTag + '</div>' +
-          '<div class="search-result-meta">' + searchResultMetaHtml(s, i) + '</div>' +
-        '</div>' +
-      '</div>' +
-      '<button class="song-action-btn' + (isSongLiked(s) ? ' liked' : '') + '" data-like-index="' + i + '" title="' + (isSongLiked(s) ? '取消红心' : '红心喜欢') + '" onclick="event.stopPropagation();toggleLikeSearchResult(' + i + ')">' + heartIconSvg() + '</button>' +
-      '<button class="song-action-btn" title="收藏到歌单" onclick="event.stopPropagation();collectSearchResult(' + i + ')">' + playlistPlusIconSvg() + '</button>' +
-      '<button class="add-btn" title="下一首播放" onclick="event.stopPropagation();queueSearchResult(' + i + ')">+</button>' +
-    '</div>';
-  }).join('');
+  $results.innerHTML = window.MineradioSearchResults.renderSongSearchResultsHtml(playlist, searchResultRenderDeps);
   $results.classList.add('show');
   syncLikeStatusForSongs(playlist);
   if (window.gsap) animateListItems($results, '.search-result', { x: 0, y: 6, stagger: 0.012, duration: 0.18, limit: 18 });

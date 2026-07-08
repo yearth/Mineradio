@@ -12,6 +12,7 @@ const rendererPreferencesPath = path.join(root, 'public', 'renderer', 'core', 'p
 const rendererUpdateStatePath = path.join(root, 'public', 'renderer', 'core', 'update-state.js');
 const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', 'lyrics-parser.js');
 const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
+const rendererSearchResultsPath = path.join(root, 'public', 'renderer', 'core', 'search-results.js');
 const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
 const rendererMiniQueuePath = path.join(root, 'public', 'renderer', 'core', 'mini-queue.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
@@ -210,6 +211,7 @@ test('renderer core scripts expose required browser globals before app boot', ()
     'MineradioUpdateState',
     'MineradioLyricsParser',
     'MineradioSearchLogic',
+    'MineradioSearchResults',
     'MineradioPlayerQueue',
     'MineradioMiniQueue',
   ];
@@ -237,6 +239,25 @@ test('renderer core scripts expose required browser globals before app boot', ()
   for (const name of appNamespaces) {
     assert.ok(browserContext.window[name], `${name} is referenced by app.js but is not loaded first`);
   }
+});
+
+test('renderer app wires search result markup through the core search results module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const searchResultsIndex = scripts.indexOf('renderer/core/search-results.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const searchResults = readProjectFile(rendererSearchResultsPath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(searchResultsIndex > -1, 'renderer/core/search-results.js must be loaded');
+  assert.ok(searchResultsIndex < rendererIndex, 'core search results must load before renderer/app.js');
+  vm.runInNewContext(searchResults, browserContext, { filename: rendererSearchResultsPath });
+  assert.equal(typeof browserContext.window.MineradioSearchResults.renderSongSearchResultsHtml, 'function');
+  assert.match(renderer, /MineradioSearchResults\.songSourceTagHtml/);
+  assert.match(renderer, /MineradioSearchResults\.searchResultMetaText/);
+  assert.match(renderer, /MineradioSearchResults\.searchResultMetaHtml/);
+  assert.match(renderer, /MineradioSearchResults\.renderSongSearchResultsHtml/);
 });
 
 test('renderer app wires mini queue rendering through the core mini queue module', () => {
@@ -286,9 +307,10 @@ test('inline HTML event handlers call functions defined by the renderer', () => 
   const handlers = [
     ...extractInlineHandlerCalls(html, 'public/index.html'),
     ...extractInlineHandlerCalls(renderer, 'public/renderer/app.js'),
+    ...extractInlineHandlerCalls(readProjectFile(rendererSearchResultsPath), 'public/renderer/core/search-results.js'),
   ];
   const indexHandlerCount = handlers.filter(handler => handler.sourceLabel === 'public/index.html').length;
-  const rendererHandlerCount = handlers.filter(handler => handler.sourceLabel === 'public/renderer/app.js').length;
+  const rendererHandlerCount = handlers.filter(handler => handler.sourceLabel !== 'public/index.html').length;
   const missing = [];
 
   assert.ok(indexHandlerCount >= 140, `expected index.html handlers to be scanned, got ${indexHandlerCount}`);
