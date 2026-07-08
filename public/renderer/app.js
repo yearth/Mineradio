@@ -16461,22 +16461,16 @@ function renderMiniQueuePanel(opts) {
   var $count = document.getElementById('mini-queue-count');
   if (!$list || !$count) return;
   var total = playQueue.length;
-  $count.textContent = total ? (total + ' 首' + (currentIdx >= 0 ? ' · 正在播放 ' + (currentIdx + 1) : '')) : '0 首';
+  $count.textContent = window.MineradioMiniQueue.miniQueueCountText(playQueue, currentIdx);
   if (!miniQueueOpen && !opts.animate && !opts.scrollCurrent) return;
   if (!total) {
-    $list.innerHTML = '<div class="mini-queue-empty">队列为空，先搜索或打开歌单</div>';
+    $list.innerHTML = window.MineradioMiniQueue.renderMiniQueueEmptyHtml();
     return;
   }
-  $list.innerHTML = playQueue.map(function(song, i){
-    var thumb = songCoverSrc(song, 60);
-    var imgTag = thumb ? '<img src="' + thumb + '" alt="" loading="lazy" decoding="async" onerror="this.style.opacity=0.2">' : '<div class="mini-queue-cover"></div>';
-    return '<div class="mini-queue-item' + (i === currentIdx ? ' now' : '') + '" onclick="playQueueAt(' + i + ')">' +
-      imgTag +
-      '<div class="mini-queue-info"><div class="mini-queue-name">' + escHtml(song.name) + '</div><div class="mini-queue-sub">' + escHtml(song.artist || '') + '</div></div>' +
-      '<button class="mini-queue-remove mini-queue-next" onclick="event.stopPropagation();queueIndexNext(' + i + ')" title="下一首播放">下</button>' +
-      '<button class="mini-queue-remove" onclick="event.stopPropagation();removeFromQueue(' + i + ')" title="移除">×</button>' +
-    '</div>';
-  }).join('');
+  $list.innerHTML = window.MineradioMiniQueue.renderMiniQueueItemsHtml(playQueue, currentIdx, {
+    songCoverSrc: songCoverSrc,
+    escHtml: escHtml,
+  });
   if (opts.animate || opts.scrollCurrent) {
     requestAnimationFrame(function(){
       if (opts.animate) animateListItems($list, '.mini-queue-item', { x: 0, y: 6, stagger: 0.01, duration: 0.20, limit: 16 });

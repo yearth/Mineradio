@@ -13,6 +13,7 @@ const rendererUpdateStatePath = path.join(root, 'public', 'renderer', 'core', 'u
 const rendererLyricsParserPath = path.join(root, 'public', 'renderer', 'core', 'lyrics-parser.js');
 const rendererSearchLogicPath = path.join(root, 'public', 'renderer', 'core', 'search-logic.js');
 const rendererPlayerQueuePath = path.join(root, 'public', 'renderer', 'core', 'player-queue.js');
+const rendererMiniQueuePath = path.join(root, 'public', 'renderer', 'core', 'mini-queue.js');
 const stylePath = path.join(root, 'public', 'styles', 'app.css');
 const packageJson = require('../package.json');
 
@@ -210,6 +211,7 @@ test('renderer core scripts expose required browser globals before app boot', ()
     'MineradioLyricsParser',
     'MineradioSearchLogic',
     'MineradioPlayerQueue',
+    'MineradioMiniQueue',
   ];
   const browserContext = {
     window: {},
@@ -235,6 +237,24 @@ test('renderer core scripts expose required browser globals before app boot', ()
   for (const name of appNamespaces) {
     assert.ok(browserContext.window[name], `${name} is referenced by app.js but is not loaded first`);
   }
+});
+
+test('renderer app wires mini queue rendering through the core mini queue module', () => {
+  const refs = orderedTagRefs(readProjectFile(indexHtmlPath));
+  const scripts = refs.filter(ref => ref.tag === 'script').map(scriptRefLabel);
+  const miniQueueIndex = scripts.indexOf('renderer/core/mini-queue.js');
+  const rendererIndex = scripts.indexOf('renderer/app.js');
+  const miniQueue = readProjectFile(rendererMiniQueuePath);
+  const renderer = readProjectFile(rendererPath);
+  const browserContext = { window: {} };
+
+  assert.ok(miniQueueIndex > -1, 'renderer/core/mini-queue.js must be loaded');
+  assert.ok(miniQueueIndex < rendererIndex, 'core mini queue must load before renderer/app.js');
+  vm.runInNewContext(miniQueue, browserContext, { filename: rendererMiniQueuePath });
+  assert.equal(typeof browserContext.window.MineradioMiniQueue.renderMiniQueueItemsHtml, 'function');
+  assert.match(renderer, /MineradioMiniQueue\.miniQueueCountText/);
+  assert.match(renderer, /MineradioMiniQueue\.renderMiniQueueEmptyHtml/);
+  assert.match(renderer, /MineradioMiniQueue\.renderMiniQueueItemsHtml/);
 });
 
 test('renderer app wires player queue through the core player queue module', () => {
