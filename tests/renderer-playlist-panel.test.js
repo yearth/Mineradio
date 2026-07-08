@@ -6,10 +6,12 @@ const {
   playlistPanelKey,
   playlistPanelProviderId,
   playlistPanelCoverUrl,
+  resolvePlaylistPanelClickAction,
   renderPlaylistPanelCardHtml,
   renderPlaylistPanelDetailHtml,
   renderPlaylistPanelListHtml,
 } = require('../public/renderer/core/playlist-panel');
+const { createRendererDomHarness } = require('./helpers/renderer-dom-harness');
 
 function escHtml(value) {
   return String(value == null ? '' : value)
@@ -200,4 +202,86 @@ test('playlist panel detail markup preserves rows, load-more, progress, empty st
   });
   assert.match(defaultEscaped, /A &quot;quote&quot; &amp; &lt;tag&gt;/);
   assert.match(defaultEscaped, /Artist &gt; B/);
+});
+
+test('playlist panel click resolver maps delegated detail actions and blocks nested propagation', () => {
+  const env = createRendererDomHarness({
+    html: [
+      '<div id="pl-list">',
+      '<button id="list-more" data-pl-load-more="1"><span id="list-more-label">more</span></button>',
+      '<button id="detail-more" data-pl-detail-load-more="1"></button>',
+      '<button id="detail-top" data-pl-detail-top="1"></button>',
+      '<button id="detail-play" data-pl-detail-play="netease:42"></button>',
+      '<button id="artist" data-pl-detail-artist="7"></button>',
+      '<div id="row" data-pl-detail-row="9"></div>',
+      '</div>',
+    ].join(''),
+  });
+  const plList = env.document.getElementById('pl-list');
+  const seen = [];
+  let outerClicks = 0;
+
+  plList.addEventListener('click', event => {
+    seen.push(resolvePlaylistPanelClickAction(event));
+  });
+  env.document.body.addEventListener('click', () => {
+    outerClicks += 1;
+  });
+
+  function dispatch(id) {
+    const event = new env.window.Event('click', { bubbles: true, cancelable: true });
+    env.document.getElementById(id).dispatchEvent(event);
+    return event;
+  }
+
+  assert.equal(dispatch('list-more-label').defaultPrevented, true);
+  assert.equal(dispatch('detail-more').defaultPrevented, true);
+  assert.equal(dispatch('detail-top').defaultPrevented, true);
+  assert.equal(dispatch('detail-play').defaultPrevented, true);
+  assert.equal(dispatch('artist').defaultPrevented, true);
+  assert.equal(dispatch('row').defaultPrevented, true);
+  assert.equal(outerClicks, 0);
+  assert.deepEqual(seen, [
+    { type: 'playlist-load-more' },
+    { type: 'detail-load-more' },
+    { type: 'detail-top' },
+    { type: 'detail-play' },
+    { type: 'detail-artist', index: 7 },
+    { type: 'detail-row', index: 9 },
+  ]);
+});
+
+test('playlist panel click resolver maps playlist cards while leaving empty clicks alone', () => {
+  const env = createRendererDomHarness({
+    html: [
+      '<div id="pl-list">',
+      '<div id="empty"></div>',
+      '<div id="default-card" class="pl-card"></div>',
+      '<div id="qq-card" class="pl-card" data-playlist-provider="qq" data-playlist-id="q1" data-playlist-title="QQ List">',
+      '<span id="qq-title">QQ List</span>',
+      '</div>',
+      '</div>',
+    ].join(''),
+  });
+  const plList = env.document.getElementById('pl-list');
+  const seen = [];
+
+  plList.addEventListener('click', event => {
+    seen.push(resolvePlaylistPanelClickAction(event));
+  });
+
+  function dispatch(id) {
+    const event = new env.window.Event('click', { bubbles: true, cancelable: true });
+    env.document.getElementById(id).dispatchEvent(event);
+    return event;
+  }
+
+  assert.equal(dispatch('empty').defaultPrevented, false);
+  assert.equal(dispatch('default-card').defaultPrevented, false);
+  assert.equal(dispatch('qq-title').defaultPrevented, false);
+  assert.deepEqual(seen, [
+    null,
+    { type: 'playlist-card', provider: 'netease', playlistId: '', title: '' },
+    { type: 'playlist-card', provider: 'qq', playlistId: 'q1', title: 'QQ List' },
+  ]);
 });

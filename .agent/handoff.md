@@ -7,7 +7,7 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 ## Current Status
 
 - Branch: `feat/macos-preview`.
-- Current local slice: extend the playlist panel renderer helper to own playlist detail markup.
+- Current local slice: extract playlist panel delegated click recognition into a tested renderer helper.
 - Latest committed renderer slices:
   - `7b34391 refactor: extract renderer stylesheet`
   - `a99b3f5 refactor: extract renderer script`
@@ -18,28 +18,30 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
   - `9756b94 refactor: extract renderer podcast result helper`
   - `24cdf58 refactor: extract renderer playlist panel helper`
   - `c50e783 refactor: extract renderer podcast collection helper`
+  - `6263717 refactor: extract renderer playlist detail helper`
 - Relevant architecture state:
   - `public/index.html` loads renderer core classic scripts before `renderer/app.js`.
   - Renderer remains classic-script based, not ESM, because existing inline handlers depend on global function names.
-  - `public/renderer/app.js` still owns DOM state/effects but delegates tested pure helpers for API, preferences, update state, lyrics, search logic, player queue, mini queue, search result markup, queue panel markup, podcast result markup, playlist panel markup, my-podcast collection/radio panel markup, and now playlist detail markup.
+  - `public/renderer/app.js` still owns DOM state/effects but delegates tested pure helpers for API, preferences, update state, lyrics, search logic, player queue, mini queue, search result markup, queue panel markup, podcast result markup, playlist panel markup/detail markup/click action recognition, and my-podcast collection/radio panel markup.
 
 ## Current Local Changes
 
-- `public/renderer/core/playlist-panel.js`: extends existing `window.MineradioPlaylistPanel` with playlist detail helpers for detail cover URL, track rows, loading row, empty fallback, load-more/progress footer, play/top buttons, row/artist data attributes, and escaping.
-- `public/renderer/app.js`: keeps playlist detail state, request flow, scrolling, click handling, queue loading, artist opening, render-limit growth, and animation behavior in the renderer app; delegates only detail markup to `window.MineradioPlaylistPanel`.
-- `tests/renderer-playlist-panel.test.js`: protects inactive detail behavior, loading state, Netease/QQ cover sizing, row rendering, song cover sizing, artist fallback, load-more, complete progress, empty detail, and default escaping.
-- `tests/renderer-contract.test.js`: verifies `MineradioPlaylistPanel` exports `renderPlaylistPanelDetailHtml` and that `renderer/app.js` wires to it.
+- `public/renderer/core/playlist-panel.js`: adds `resolvePlaylistPanelClickAction(event)` to map delegated clicks to explicit actions: playlist load-more, detail load-more/top/play, detail artist, detail row, and playlist card open. Detail actions preserve the previous `preventDefault`/`stopPropagation` behavior; card clicks remain non-blocking and keep legacy default provider/id/title fallbacks.
+- `public/renderer/app.js`: replaces the inline `#pl-list` selector ladder with action dispatch while keeping the same stateful effects in place.
+- `tests/renderer-playlist-panel.test.js`: adds DOM harness tests for nested delegated clicks, default-prevention behavior, action payloads, and empty/card click handling.
 
 ## Verification
 
 - RED before implementation:
-  - `npm run test:renderer -- --test-name-pattern "playlist panel detail|playlist panel markup"` failed because `MineradioPlaylistPanel.renderPlaylistPanelDetailHtml` did not exist, and app wiring still used inline detail markup.
+  - `npm test -- --test-name-pattern "playlist panel click resolver"` failed because `MineradioPlaylistPanel.resolvePlaylistPanelClickAction` did not exist.
 - GREEN after implementation:
-  - `npm run test:renderer -- --test-name-pattern "playlist panel detail|playlist panel markup"`: 75/75 pass.
-  - `npm run test:renderer`: 75/75 pass.
-  - `npm test`: 653/653 pass.
-  - `npm run coverage`: 653/653 pass; all included production files line coverage `100.00%`, including `public/renderer/core/playlist-panel.js`.
+  - `node --test tests/renderer-playlist-panel.test.js --test-name-pattern "playlist panel click resolver"`: 8/8 pass.
+  - `npm test`: 655/655 pass.
+  - `npm run coverage`: 655/655 pass; all included production files line coverage `100.00%`, including `public/renderer/core/playlist-panel.js`.
   - `git diff --check`: pass.
+- QA gate:
+  - Read-only subagent result: `PASS`.
+  - QA noted that direct `stopPropagation` observation would strengthen the tests; the DOM harness test now asserts outer listeners are not reached for blocking detail actions.
 
 ## Guardrails
 
@@ -51,10 +53,8 @@ Refactor Mineradio toward a typed, modular Electron music player while preservin
 
 ## Next Actions
 
-1. Run independent read-only QA gate for the playlist detail helper slice.
-2. If QA passes, commit with message `refactor: extract renderer playlist detail helper`.
-3. Build a macOS package for the user to verify, because this batch touched visible playlist detail markup.
-4. Next renderer candidates after user build verification:
-   - Extract the next stateful renderer markup only after adding focused tests first.
-   - Candidate areas: shelf/library markup or playlist panel DOM behavior tests around click/scroll/load-more.
-   - Use the DOM harness for stateful renderer DOM behavior before splitting handlers with side effects.
+1. Commit with message `refactor: extract renderer playlist click resolver`.
+2. Build a macOS package for the user to verify, because this batch touched user-facing playlist interactions.
+3. Next renderer candidates after user build verification:
+   - Continue renderer TDD before splitting handlers with side effects.
+   - Candidate areas: playlist panel scroll/load-more state helpers, shelf/library markup, or podcast-list delegated click recognition.

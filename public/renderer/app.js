@@ -16689,53 +16689,35 @@ function renderMyPodcastCollections(opts) {
   if (opts.animate) animateVisiblePanelList($pod, '.pl-card', document.getElementById('playlist-panel'));
 }
 document.getElementById('pl-list').addEventListener('click', function(e){
-  var loadMore = e.target && e.target.closest ? e.target.closest('[data-pl-load-more]') : null;
-  if (loadMore) {
-    e.preventDefault();
-    e.stopPropagation();
+  var action = window.MineradioPlaylistPanel.resolvePlaylistPanelClickAction(e);
+  if (!action) return;
+  if (action.type === 'playlist-load-more') {
     growPlaylistPanelRenderLimit();
     return;
   }
-  var detailLoadMore = e.target && e.target.closest ? e.target.closest('[data-pl-detail-load-more]') : null;
-  if (detailLoadMore) {
-    e.preventDefault();
-    e.stopPropagation();
+  if (action.type === 'detail-load-more') {
     growPlaylistPanelDetailRenderLimit();
     return;
   }
-  var detailTop = e.target && e.target.closest ? e.target.closest('[data-pl-detail-top]') : null;
-  if (detailTop) {
-    e.preventDefault();
-    e.stopPropagation();
+  if (action.type === 'detail-top') {
     scrollPlaylistPanelToTop();
     return;
   }
-  var playDetail = e.target && e.target.closest ? e.target.closest('[data-pl-detail-play]') : null;
-  if (playDetail) {
-    e.preventDefault();
-    e.stopPropagation();
+  if (action.type === 'detail-play') {
     playPlaylistPanelDetail();
     return;
   }
-  var artist = e.target && e.target.closest ? e.target.closest('[data-pl-detail-artist]') : null;
-  if (artist) {
-    e.preventDefault();
-    e.stopPropagation();
-    openPlaylistPanelDetailArtist(Number(artist.getAttribute('data-pl-detail-artist')));
+  if (action.type === 'detail-artist') {
+    openPlaylistPanelDetailArtist(action.index);
     return;
   }
-  var row = e.target && e.target.closest ? e.target.closest('[data-pl-detail-row]') : null;
-  if (row) {
-    e.preventDefault();
-    e.stopPropagation();
-    playPlaylistPanelDetailTrack(Number(row.getAttribute('data-pl-detail-row')));
+  if (action.type === 'detail-row') {
+    playPlaylistPanelDetailTrack(action.index);
     return;
   }
-  var card = e.target && e.target.closest ? e.target.closest('.pl-card') : null;
-  if (!card) return;
-  var provider = card.getAttribute('data-playlist-provider') || 'netease';
-  var pid = card.getAttribute('data-playlist-id') || '';
-  openPlaylistPanelDetail(provider, pid, card.getAttribute('data-playlist-title') || '');
+  if (action.type === 'playlist-card') {
+    openPlaylistPanelDetail(action.provider, action.playlistId, action.title);
+  }
 });
 var podcastListEl = document.getElementById('podcast-list');
 if (podcastListEl) {

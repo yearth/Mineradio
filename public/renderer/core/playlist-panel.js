@@ -141,6 +141,57 @@ function renderPlaylistPanelListHtml(playlists, renderLimit, deps) {
   return { html: html, renderedCount: renderedCount };
 }
 
+function closestFromPlaylistPanelClick(event, selector) {
+  var target = event && event.target;
+  return target && target.closest ? target.closest(selector) : null;
+}
+
+function blockPlaylistPanelClick(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (event && event.stopPropagation) event.stopPropagation();
+}
+
+function resolvePlaylistPanelClickAction(event) {
+  var loadMore = closestFromPlaylistPanelClick(event, '[data-pl-load-more]');
+  if (loadMore) {
+    blockPlaylistPanelClick(event);
+    return { type: 'playlist-load-more' };
+  }
+  var detailLoadMore = closestFromPlaylistPanelClick(event, '[data-pl-detail-load-more]');
+  if (detailLoadMore) {
+    blockPlaylistPanelClick(event);
+    return { type: 'detail-load-more' };
+  }
+  var detailTop = closestFromPlaylistPanelClick(event, '[data-pl-detail-top]');
+  if (detailTop) {
+    blockPlaylistPanelClick(event);
+    return { type: 'detail-top' };
+  }
+  var playDetail = closestFromPlaylistPanelClick(event, '[data-pl-detail-play]');
+  if (playDetail) {
+    blockPlaylistPanelClick(event);
+    return { type: 'detail-play' };
+  }
+  var artist = closestFromPlaylistPanelClick(event, '[data-pl-detail-artist]');
+  if (artist) {
+    blockPlaylistPanelClick(event);
+    return { type: 'detail-artist', index: Number(artist.getAttribute('data-pl-detail-artist')) };
+  }
+  var row = closestFromPlaylistPanelClick(event, '[data-pl-detail-row]');
+  if (row) {
+    blockPlaylistPanelClick(event);
+    return { type: 'detail-row', index: Number(row.getAttribute('data-pl-detail-row')) };
+  }
+  var card = closestFromPlaylistPanelClick(event, '.pl-card');
+  if (!card) return null;
+  return {
+    type: 'playlist-card',
+    provider: card.getAttribute('data-playlist-provider') || 'netease',
+    playlistId: card.getAttribute('data-playlist-id') || '',
+    title: card.getAttribute('data-playlist-title') || '',
+  };
+}
+
 var MineradioPlaylistPanel = {
   playlistPanelProvider: playlistPanelProvider,
   playlistPanelKey: playlistPanelKey,
@@ -148,6 +199,7 @@ var MineradioPlaylistPanel = {
   playlistPanelCoverUrl: playlistPanelCoverUrl,
   playlistPanelDetailCoverUrl: playlistPanelDetailCoverUrl,
   playlistPanelEmptyHtml: playlistPanelEmptyHtml,
+  resolvePlaylistPanelClickAction: resolvePlaylistPanelClickAction,
   renderPlaylistPanelCardHtml: renderPlaylistPanelCardHtml,
   renderPlaylistPanelDetailRowsHtml: renderPlaylistPanelDetailRowsHtml,
   renderPlaylistPanelDetailHtml: renderPlaylistPanelDetailHtml,
